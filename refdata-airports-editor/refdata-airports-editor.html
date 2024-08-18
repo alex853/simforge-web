@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Quick Start - Leaflet</title>
+
+    <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico"/>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        .btn-xsm {
+            padding: .15rem .35rem;
+            font-size: .725rem;
+            line-height: 1.5;
+            border-radius: .2rem
+        }
+    </style>
+
+    <script>
+        const airportsServiceUrl = 'http://82.146.44.100:7091';
+
+        const airports = [];
+
+        function findByIcao() {
+            const icaoRaw = prompt('Specify ICAO');
+            if (icaoRaw == undefined) {
+                return;
+            }
+
+            const icao = icaoRaw.toUpperCase();
+            const airport = airports[icao];
+            if (airport) {
+                panToAirport(airport);
+                return;
+            }
+
+            loadAirportInfo(icao, function (airport) {
+                addAirport(airport);
+                panToAirport(airport)
+            });
+        }
+
+        function addAirport(airport) {
+            if (airports[airport.icao]) {
+                return;
+            }
+
+            airports[airport.icao] = airport;
+
+            drawAirport(airport);
+        }
+
+        function drawAirport(airport) {
+            const latlon = [airport.coords.lat, airport.coords.lon];
+
+            airport.markers_circle_default = L.circle(latlon, {
+                color: 'red',
+                fillColor: '#ffbd7b',
+                fillOpacity: 0.1,
+                radius: airport.defaultBoundaryRadius * 1850
+            }).addTo(map);
+
+            airport.markers_center = L.circle(latlon, {
+                color: 'red',
+                fillColor: '#f03',
+                fillOpacity: 0.5,
+                radius: 20
+            }).addTo(map)
+                .bindPopup(airport.icao + ' ' + airport.name);
+
+            const hasCirclesBoundary = airport.boundaryType === 'Circles';
+
+            const airportListItemTemplate =
+                '<li id="li_$icao$" class="list-group-item">' +
+                '$icao$ ' +
+                '<button id="btn_$icao$_pan" type="button" class="btn btn-success btn-xsm" onclick="panToAirport(airports[\'$icao$\'])">P</button> ' +
+                '<button id="btn_$icao$_default" type="button" class="btn btn-primary btn-xsm" onclick="on_btn_switch_default(\'$icao$\')">D</button> ' +
+                '<button id="btn_$icao$_circles" type="button" class="btn btn-xsm" onclick="on_btn_circles(\'$icao$\')">C</button> ' +
+                '<button id="btn_$icao$_remove" type="button" class="btn btn-outline-danger btn-xsm" onclick="on_btn_remove(\'$icao$\')">X</button>' +
+                '</li>'
+
+            $("#airportList").append(airportListItemTemplate
+                .replaceAll('$icao$', airport.icao));
+
+            $("#btn_$icao$_circles".replace("$icao$", airport.icao)).addClass(hasCirclesBoundary ? "btn-warning" : "btn-outline-warning");
+
+            drawCircleBoundaryData(airport);
+        }
+
+        function drawCircleBoundaryData(airport) {
+            const hasCirclesBoundary = airport.boundaryType === 'Circles';
+            if (!hasCirclesBoundary) {
+                return;
+            }
+
+            removeCircleBoundaryMarkers(airport);
+
+            airport.circleMarkers = [];
+
+            const splitted = airport.boundaryData.split(';');
+            splitted.forEach(each => {
+                const data = each.split(',');
+
+                const lat = parseFloat(data[0]);
+                const lon = parseFloat(data[1]);
+                const latlon = [lat, lon];
+
+                const radius = parseFloat(data[2]);
+
+                airport.circleMarkers.push(L.circle(latlon, {
+                    color: 'green',
+                    fillColor: '#c0ff96',
+                    fillOpacity: 0.1,
+                    radius: radius * 1850
+                }).addTo(map));
+
+                airport.circleMarkers.push(L.circle(latlon, {
+                    color: 'green',
+                    fillColor: '#c0ff96',
+                    fillOpacity: 0.5,
+                    radius: 20
+                }).addTo(map));
+            });
+        }
+
+        function removeCircleBoundaryMarkers(airport) {
+            if (!airport.circleMarkers) {
+                return;
+            }
+
+            airport.circleMarkers.forEach(m => map.removeLayer(m));
+            airport.circleMarkers = [];
+        }
+
+        function on_btn_switch_default(icao) {
+            const airport = airports[icao];
+            const btn = $("#btn_$icao$_default".replace("$icao$", icao));
+
+            const isShown = map.hasLayer(airport.markers_circle_default);
+
+            if (isShown) {
+                map.removeLayer(airport.markers_circle_default);
+                btn.addClass('btn-outline-primary').removeClass('btn-primary');
+            } else {
+                map.addLayer(airport.markers_circle_default);
+                btn.addClass('btn-primary').removeClass('btn-outline-primary');
+            }
+        }
+
+        function on_btn_circles(icao) {
+            const airport = airports[icao];
+
+            const hasCirclesBoundary = airport.boundaryType === 'Circles';
+            const currentBoundaryData = hasCirclesBoundary
+                ? airport.boundaryData
+                : airport.boundaryData = airport.coords.lat +',' + airport.coords.lon + ',' + airport.defaultBoundaryRadius;
+
+            const newBoundaryData = prompt('Specify Circles boundary data', currentBoundaryData);
+            if (newBoundaryData === null) {
+                return;
+            }
+
+            if (!hasCirclesBoundary) {
+                airport.boundaryType = 'Circles';
+                $("#btn_$icao$_circles".replace("$icao$", airport.icao)).removeClass("btn-outline-warning").addClass("btn-warning");
+            }
+
+            airport.boundaryData = newBoundaryData;
+            drawCircleBoundaryData(airport);
+        }
+
+        function on_btn_remove(icao) {
+            const airport = airports[icao];
+            const li = $("#li_$icao$".replace("$icao$", icao));
+            li.remove();
+
+            delete airports[icao];
+
+            map.removeLayer(airport.markers_circle_default);
+            map.removeLayer(airport.markers_center);
+
+            removeCircleBoundaryMarkers(airport);
+        }
+
+        function panToAirport(airport) {
+            const latlon = [airport.coords.lat, airport.coords.lon];
+            map.setView(latlon, 13);
+        }
+
+        function loadAirportInfo(icao, callback) {
+            $.ajax({
+                url: airportsServiceUrl + '/v1/airport/info?icao=$icao$'.replace('$icao$', icao.toUpperCase()),
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (callback) {
+                        callback(response);
+                    }
+                },
+                error: function (e) {
+                    console.error("error loading airport info by '" + icao + "'");
+                }
+            });
+        }
+
+        function searchInVicinity() {
+            const coords = map.getCenter();
+            const bounds = map.getBounds();
+
+            const dLat = bounds.getNorth() - bounds.getSouth();
+            const dLon = bounds.getEast() - bounds.getWest();
+
+            const dLatNm = Math.min(dLat * 60, 100);
+            const dLonNm = Math.min(dLon * 60, 100);
+
+            const radius = Math.max(dLatNm, dLonNm) / 2;
+
+            $.ajax({
+                url: airportsServiceUrl + '/v1/airport/vicinity?lat=$lat$&lon=$lon$&radius=$radius$'
+                    .replace('$lat$', coords.lat)
+                    .replace('$lon$', coords.lng)
+                    .replace('$radius$', radius),
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    response.forEach(airport => addAirport(airport));
+                    airports.forEach(airport => airport.markers_center.bringToFront())
+                },
+                error: function (e) {
+                    console.error("error loading airports in vicinity");
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+
+<!--div style="position: absolute; z-index: 9999; left: 50px; top: 10px;">
+    <input type="text"
+           id="findByIcao"
+           placeholder="ICAO"
+           class="form-control form-control-sm"
+           style="width: 70px;"
+           onKeyDown="findByIcaoKeyDown(event)">
+</div-->
+
+<div class="dropdown" style="position: absolute; z-index: 9999; left: 10px; top: 100px;">
+    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown">
+        Actions
+    </button>
+    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        <a class="dropdown-item" href="#" onclick="findByIcao();">Find ICAO</a>
+        <!--a class="dropdown-item" href="#" onclick="searchInVicinity();">Search in vicinity</a-->
+        <!--a class="dropdown-item" href="#" onclick="editCircles();">Edit circles</a-->
+    </div>
+</div>
+
+<div class="dropdown" style="position: absolute; z-index: 9999; left: 50%; top: 10px; transform: translate(-50%, 0);">
+    <button class="btn btn-light" type="button" id="searchInVicinityButton" onclick="searchInVicinity();">
+        Search in vicinity
+    </button>
+</div>
+
+<ul id="airportList" class="list-group" style="position: absolute; z-index: 9990; left: 10px; top: 150px;">
+    <!--li class="list-group-item">
+        ZZZZ
+        <button type="button" class="btn btn-primary btn-sm">C</button>
+        <button type="button" class="btn btn-primary-ouline btn-sm" disabled>B</button>
+    </li-->
+</ul>
+
+<div id="map" style="width: 100%; height: 100%;"></div>
+
+<script>
+    const map = L.map('map').setView([0, 0], 4);
+    //const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {}).addTo(map);
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {}).addTo(map);
+
+    setTimeout(function () {
+        const icao = 'PHNL';
+        loadAirportInfo(icao, function (airport) {
+            addAirport(airport);
+            panToAirport(airport)
+        });
+    }, 100)
+</script>
+
+</body>
+</html>
