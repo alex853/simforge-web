@@ -7,7 +7,7 @@
 
     <title>VATSIM Fleet</title>
 
-    <!--link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico"/-->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
@@ -21,6 +21,63 @@
             margin: 0;
         }
     </style>
+
+    <script>
+        const airportsServiceUrl = 'http://82.146.44.100:7091';
+        const vatsimFleetServiceUrl = 'http://82.146.44.100:7123';
+
+        function showAirport() {
+            const icao = $('#airportIcaoInput').val();
+            loadAirportInfo(icao, function (airport) {
+                panToAirport(airport);
+                loadAircraftInAirport(airport.icao, function (aircraft) {
+                    aircraft.forEach(a => {
+                        L.marker([a.lat, a.lon])
+                            .bindPopup('<b>Type</b>: ' + a.aircraftType + '<br><b>Airline</b>: ' + (a.airlineCode||'') + '<br><b>Reg #</b>: ' + (a.regNo||''))
+                            .addTo(map);
+                    })
+                });
+            });
+        }
+
+        function panToAirport(airport) {
+            const latlon = [airport.coords.lat, airport.coords.lon];
+            map.setView(latlon, 14);
+        }
+
+        function loadAircraftInAirport(icao, callback) {
+            $.ajax({
+                url: vatsimFleetServiceUrl + '/service/v1/parked-aircraft-by-icao?icao=$icao$'.replace('$icao$', icao.toUpperCase()),
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (callback) {
+                        callback(response);
+                    }
+                },
+                error: function (e) {
+                    console.error("error loading parked aircraft data info by '" + icao + "'");
+                }
+            });
+        }
+
+        function loadAirportInfo(icao, callback) {
+            $.ajax({
+                url: airportsServiceUrl + '/v1/airport/info?icao=$icao$'.replace('$icao$', icao.toUpperCase()),
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    if (callback) {
+                        callback(response);
+                    }
+                },
+                error: function (e) {
+                    console.error("error loading airport info by '" + icao + "'");
+                }
+            });
+        }
+
+    </script>
 </head>
 <body>
 
@@ -29,14 +86,8 @@
     <div style="position: absolute; top: 10px; left: 60px; color: #a8a8ff; z-index: 1000; font-family: Helvetica; font-size: 15pt; text-shadow: 1px 1px 1px black;">simforge / VATSIM Fleet</div>
 
     <div style="position: absolute; z-index: 9999; left: 50%; top: 10px; transform: translate(-50%, 0);">
-<!--        <button class="btn btn-light" type="button" id="searchInVicinityButton" onclick="searchInVicinity();">-->
-<!--            Search in vicinity-->
-<!--        </button>-->
         <div class="input-group">
-            <input type="text" class="form-control" placeholder="ICAO" aria-label="ICAO" style="text-transform: uppercase;">
-            <div class="input-group-append">
-                <button class="btn btn-primary" type="button">Show</button>
-            </div>
+            <input id="airportIcaoInput" type="text" class="form-control" placeholder="ICAO" style="text-transform: uppercase;">
         </div>
     </div>
 
@@ -59,6 +110,17 @@
             subdomains: 'abcd',
             maxZoom: 20
         }).addTo(map);
+
+        $(document).ready(function() {
+            $('#airportIcaoInput').focus();
+            $('#airportIcaoInput').on('keyup', function () {
+                const icao = $('#airportIcaoInput').val();
+                if (icao.length !== 4) {
+                    return;
+                }
+                showAirport();
+            });
+        });
 
     </script>
 
