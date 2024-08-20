@@ -46,8 +46,8 @@ function loadAirportInfoIfNeeded(icao, callback) {
 
 function getCountryFlagUrl(country, grey) {
     const baseUrl = !grey
-        ? "http://82.146.44.100/fatcow/FatCow_Icons16x16/flag_$s$.png"
-        : "http://82.146.44.100/fatcow/FatCow_Icons16x16_Grey/flag_$s$.png";
+        ? "../fatcow/FatCow_Icons16x16/flag_$s$.png"
+        : "../fatcow/FatCow_Icons16x16_Grey/flag_$s$.png";
 
     let flagName = country.toLowerCase().replaceAll(' ', '_');
 
