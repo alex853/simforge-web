@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <meta http-equiv="refresh" content="60">
+    <!--link rel="icon" href="/docs/4.0/assets/img/favicons/favicon.ico"-->
+
+    <title>!!! FLIGHTS !!!</title>
+
+    <!--link rel="canonical" href="https://getbootstrap.com/docs/4.0/examples/grid/"-->
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <!--    <script src="js/bootstrap.min.js"></script>-->
+    <script src="common.js"></script>
+
+    <script>
+
+        var queryString = window.location.search;
+        var urlParams = new URLSearchParams(queryString);
+        var pilotNumber = urlParams.get('pn');
+
+        if (!pilotNumber) {
+            pilotNumber = '913904';
+        }
+
+        //var gatewayUrl = 'http://simforge.net:7122/service/v1/flights?pilotNumber=913904';
+        //var gatewayUrl = 'http://simforge.net:7122/service/v1/flights?pilotNumber=1544123';
+        var gatewayUrl = 'http://82.146.44.100:7122/service/v1/flights?pilotNumber=' + pilotNumber;
+        //var distanceUrl = 'https://simforge.net:7091';
+        var distanceUrl = 'https://82.146.44.100:7091';
+
+        var records = undefined;
+
+        $(document).ready(function () {
+            $.ajax({
+                url: gatewayUrl,
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    records = response;
+                    var currentDate = undefined;
+
+                    var flightsContainer = $("#flightsContainer");
+
+                    for (var i = records.length-1; i >= 0; i--) {
+                        var record = records[i];
+
+                        if (currentDate !== record.dateOfFlight) {
+                            currentDate = record.dateOfFlight;
+
+                            flightsContainer
+                                .append($("#daysSeparator").html());
+
+                            flightsContainer
+                                .append($("#dateHeader").html()
+                                    .replace("$date$", currentDate));
+                        }
+
+                        var rowHtml = $("#flightShortInfoTemplate").html();
+                        rowHtml = showFlightInfo(rowHtml, record, "short");
+                        flightsContainer.append(rowHtml);
+                    }
+
+                    //$("html").scrollTop($(document).height());
+                    //$('[data-toggle="tooltip"]').tooltip();
+                },
+                error: function (e) {
+                    // todo show error alert
+                    console.log(e.responseText);
+                }
+            });
+        });
+
+        function switchFlightViewMode(btn) {
+            var row = $(btn).parent().parent();
+            var recordId = row.data("recordId");
+
+            var record;
+            for (var i = 0; i < records.length; i++) {
+                var each = records[i];
+                if (each.RecordID === recordId) {
+                    record = each;
+                    break;
+                }
+            }
+
+            if (!record) {
+                alert("cant find record");
+                return;
+            }
+
+            var mode = record.mode;
+            if (mode === "short") {
+                mode = "full";
+            } else {
+                mode = "short";
+            }
+            record.mode = mode;
+            showFlightInfo(row, record, mode);
+        }
+
+        function showFlightInfo(dataHtml, record, mode) {
+            dataHtml = dataHtml
+                //.replace("$uid$", uid)
+                .replace("$dateOfFlight$", record.dateOfFlight)
+                .replace("$flight$", 'n/s')
+                .replace("$callsign$", record.callsign || '&nbsp;')
+                .replace("$type$", record.aircraftType || '&nbsp;')
+                .replace("$reg$", record.aircraftRegNo || '&nbsp;')
+                .replace("$dep$", record.takeoff?.icao || '&nbsp;')
+                .replace("$dest$", record.landing?.icao || '&nbsp;')
+                .replace("$timeOut$", record.firstSeen.time || '&nbsp;')
+                .replace("$timeOff$", record.takeoff?.time || '&nbsp;')
+                .replace("$timeOn$", record.landing?.time || '&nbsp;')
+                .replace("$timeIn$", record.lastSeen.time || '&nbsp;')
+                .replace("$totalTime$", hoursDurationAsHMM(record.flightTime) || '&nbsp;')
+                .replace("$airTime$", hoursDurationAsHMM(record.airTime) || '&nbsp;')
+                .replace("$dist$", Math.trunc(record.distanceFlown) || '&nbsp;')
+                .replace("$dctDist$", 'n/a')
+                .replace("$comment$", 'n/i')
+                .replace("$remarks$", 'n/i');
+            return dataHtml;
+        }
+
+    </script>
+</head>
+
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-dark">
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExample08" aria-controls="navbarsExample08" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse justify-content-md-center" id="navbarsExample08">
+        <ul class="navbar-nav">
+            <li class="nav-item active">
+                <a class="nav-link" href="#">SOME<span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#">MENU</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#">WILL</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#">BE</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#">HERE</a>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container" id="flightsContainer">
+    <p>&nbsp;</p>
+
+    <div style="display: none">
+        <div id="flightRowTemplate">
+            <div class="row p-1 mb-0 fslog-row">
+                <div class="col-12 fslog-row-data"></div>
+            </div>
+        </div>
+
+        <div id="flightShortInfoTemplate">
+            <div class="row border-top p-1">
+                <div class="col-2 my-auto">
+                    $callsign$
+                </div>
+                <div class="col-1">
+                    $type$<br>
+                    $reg$
+                </div>
+                <div class="col-2 my-auto">
+                    =status=
+                </div>
+                <div class="col-3">
+                    [FL] $dep$ ==name==<br>
+                    <small>Out $timeOut$ Off $timeOff$</small>
+                </div>
+                <div class="col-3">
+                    [FL] $dest$ ==name==<br>
+                    <small>On $timeOn$ In $timeIn$</small>
+                </div>
+                <div class="col-1">
+                    $totalTime$<br>
+                    <small>$dist$&nbsp;nm</small>
+                </div>
+            </div>
+        </div>
+
+        <div id="daysSeparator">
+            <p>&nbsp;</p>
+        </div>
+
+        <div id="dateHeader">
+            <h6>Date $date$</h6>
+        </div>
+    </div>
+
+</div> <!-- /container -->
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>FSLog</title>
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js" integrity="sha512-ZwR1/gSZM3ai6vCdI+LVF1zSq/5HznD3ZSTk7kajkaj4D292NLuduDCO1c/NT8Id+jE58KYLKT7hXnbtryGmMg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>    <!--    <script src="js/bootstrap.min.js"></script>-->
+    <script src="common.js"></script>
+    <script src="flightlog.js"></script>
+    <script src="common-editor.js"></script>
+    <script src="flight-editor.js"></script>
+    <script src="transfer-editor.js"></script>
+    <script src="discontinuity-editor.js"></script>
+    <script src="airport-info.js"></script>
+    <script src="stats.js"></script>
+    <style>
+        html {
+            scroll-padding-top: 70px;
+        }
+
+        .years-navbar-link {
+            color: white;
+        }
+
+        .btn-xsm {
+            .btn-sm;
+            font-size: 0.6rem;
+        }
+
+        .btn-xxsm {
+            .btn-sm;
+            font-size: 0.4rem;
+        }
+
+        .modal-xlg{max-width:1000px}
+
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+    </style>
+
+    <script>
+
+        // const gatewayUrl = 'https://zpgxzc34pa.execute-api.us-east-1.amazonaws.com/poc';
+        const gatewayUrl = 'https://1fkt6ue7af.execute-api.us-east-1.amazonaws.com/default/fslog-backend-lambda';
+        const distanceUrl = 'http://82.146.44.100:7091';
+
+        let authToken = localStorage.getItem('fslog.token');
+
+        let records = [];
+        let visibleEntries = [];
+
+        let editorRow;
+
+        $(document).ready(function () {
+            $.ajax({
+                url: gatewayUrl,
+                method: 'GET',
+                headers: {
+                    'Authorization': authToken
+                },
+                dataType: 'json',
+                success: function (response) {
+                    records = response.Items;
+
+                    const newVisibleEntries = Flightlog.buildVisibleEntries(records);
+                    const diff = Flightlog.buildDiff(newVisibleEntries, visibleEntries).added;
+
+                    for (let i in diff) {
+                        const curr = diff[i];
+                        const currIndex = newVisibleEntries.indexOf(curr);
+                        const prevElement = currIndex > 0
+                            ? Flightlog.findElementByEntry(newVisibleEntries[currIndex-1])
+                            : $('#flightlog-top');
+                        Flightlog.insertElementAfter(curr, prevElement);
+                    }
+
+                    visibleEntries = newVisibleEntries;
+
+                    $("html").scrollTop($(document).height());
+                    //$('[data-toggle="tooltip"]').tooltip();
+                },
+                error: function (e) {
+                    // todo show error alert
+                    console.log(e.responseText);
+                }
+            });
+        });
+
+    </script>
+</head>
+
+<body data-spy="scroll" data-target="#years-navbar" data-offset="100"
+      style="position: relative;">
+
+<nav id="years-navbar" class="navbar navbar-dark bg-dark fixed-top">
+    <a class="navbar-brand" href="#">FSLog</a>
+    <!--button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#years-navbar" aria-controls="years-navbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button-->
+
+    <!--div class="container-fluid"-->
+    <ul class="nav nav-pills">
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2016">2016</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2017">2017</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2018">2018</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2019">2019</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2020">2020</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2021">2021</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2022">2022</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2023">2023</a></li>
+        <li class="nav-item"><a class="nav-link years-navbar-link" href="#year2024">2024</a></li>
+    </ul>
+
+    <div class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="statsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            Dropdown
+        </a>
+        <div class="dropdown-menu" aria-labelledby="statsDropdown">
+            <a class="dropdown-item" href="javascript:statsOpenModal()">Charts</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="#">TO SHOW 'Flown XXX hours in YY flights' instead of Dropdown and to open chart on click on it</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="#">Top airports</a>
+            <a class="dropdown-item" href="#">Top aircraft types</a>
+            <a class="dropdown-item" href="#">Most flown aircraft tails</a>
+            <a class="dropdown-item" href="#">Airfield regions Uxxx, UUxx</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="#">Hours/flights by year AND THEN by aircraft type (stacked bar chart)</a>
+            <a class="dropdown-item" href="#">Hours/flights by aircraft type RACE graph</a>
+            <a class="dropdown-item" href="#">Day/night time/takeoff/landing</a>
+            <a class="dropdown-item" href="#">VFR/IFR flights/time</a>
+            <a class="dropdown-item" href="#">SE/ME flights/time</a>
+        </div>
+    </div>
+
+    <a class="nav-link" href="old/index-old.html">Old FSLog</a>
+    <!--/div-->
+</nav>
+
+<div>
+    <div class="container" id="flightsContainer">
+        <p>&nbsp;</p>
+        <p>&nbsp;</p>
+        <p id="flightlog-top">&nbsp;</p>
+
+        <div class="row p-2 mb-2 today-add-entry-row">
+            <div class="col-1"></div>
+            <div class="col-10 text-center">
+                <button type="button" class="btn btn-success btn add-flight-button" onclick="addFlightClicked(null)">Add Flight</button>
+                <button type="button" class="btn btn-info btn add-transfer-button" onclick="addTransferClicked(null)">Add Transfer</button>
+            </div>
+            <div class="col-1"></div>
+        </div>
+
+        <div>
+            <div style="height: 200px;"></div>
+        </div>
+    </div>
+
+    <div style="color: blue;">
+        TODO LIST
+        <ul>
+            <li><b>To rework discontinuity processing</b></li>
+            <li>Show/edit tags</li>
+            <li>Show one flight/transfer map</li>
+            <li>Show flightlog on map</li>
+            <li>Edit transfer feature</li>
+            <li>Discontinuity editor for creation</li>
+            <li>Edit discontinuity feature</li>
+            <li>Switching between users/profiles</li>
+            <li>Own backend instead of AWS?</li>
+            <li>Years dividers?</li>
+        </ul>
+    </div>
+</div>
+
+<div id="templates" style="display: none">
+    <div style="display: none">
+        <div id="flightRowTemplate">
+            <div class="row flightlog-entry mb-3"></div>
+        </div>
+
+        <div id="flightShortInfoTemplate">
+            <div class="col-1">
+                $callsign$<br>
+                <small>$flight$</small>
+            </div>
+            <div class="col-1">
+                $type$<br>
+                <small>$reg$</small>
+            </div>
+            <div class="col-3">
+                $depName$<br>
+                <small>$timeOut$</small>
+            </div>
+            <div class="col-3">
+                $destName$<br>
+                <small>$timeIn$</small>
+            </div>
+            <div class="col-1">
+                $totalTime$<br>
+                <small>$dist$&nbsp;nm</small>
+            </div>
+            <div class="col-3">
+                $comment$
+                <div class="btn-group" role="group" style="width: 2em; float: right;">
+                    <button id="btn-flight-short-$recordId$" type="button" class="btn dropdown-toggle btn-outline-dark btn-xsm" data-toggle="dropdown">#</button>
+                    <div class="dropdown-menu" aria-labelledby="btn-flight-short-$recordId$">
+                        <a class="dropdown-item" href="javascript:switchFlightViewModeClicked('$recordId$')">Info</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="javascript:editFlightClicked('$recordId$')">Edit</a>
+                        <a class="dropdown-item" href="javascript:splitFlightlogClicked('$recordId$')">Split</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="flightFullInfoTemplate">
+            <div class="col-1">
+                $callsign$<br>
+                <small>$flight$</small>
+            </div>
+            <div class="col-1">
+                $type$<br>
+                <small>$reg$</small>
+            </div>
+            <div class="col-3">
+                $depName$<br>
+                <small>Departed $timeOut$</small><br>
+                <small>Takeoff $timeOff$</small>
+            </div>
+            <div class="col-3">
+                $destName$<br>
+                <small>Landing $timeOn$</small><br>
+                <small>Arrived $timeIn$</small>
+            </div>
+            <div class="col-1">
+                $totalTime$
+                <small>$dist$&nbsp;nm</small>
+            </div>
+            <div class="col-3">
+                $comment$<br>
+                $remarks$
+                <div class="btn-group" role="group" style="width: 2em; float: right;">
+                    <button id="btn-flight-full-$recordId$" type="button" class="btn dropdown-toggle btn-outline-dark btn-xsm" data-toggle="dropdown">#</button>
+                    <div class="dropdown-menu" aria-labelledby="btn-flight-full-$recordId$">
+                        <a class="dropdown-item" href="javascript:switchFlightViewModeClicked('$recordId$')">Info</a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="javascript:editFlightClicked('$recordId$')">Edit</a>
+                        <a class="dropdown-item" href="javascript:splitFlightlogClicked('$recordId$')">Split</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="flightEditorTemplate">
+            <div class="fslog-flight-editor shadow-lg p-3 mb-5 bg-white rounded">
+                <div class="row">
+                    <div class="col-2 p-1">
+                        <input type="text"
+                               id="flightEditor-date"
+                               placeholder="Date"
+                               class="form-control form-control-sm">
+                    </div>
+                    <div class="col-4 p-1">
+                        <input type="text"
+                               id="flightEditor-dateLimits"
+                               class="form-control-sm form-control-plaintext"
+                               disabled
+                               value="Date limits info will be here">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-1 p-1">
+                        <input type="text"
+                               id="flightEditor-callsign"
+                               placeholder="Callsign"
+                               class="form-control form-control-sm"
+                               style="text-transform: uppercase;">
+                        <input type="text"
+                               id="flightEditor-flightNumber"
+                               placeholder="Flight #"
+                               class="form-control form-control-sm"
+                               style="text-transform: uppercase;">
+                    </div>
+                    <div class="col-1 p-1">
+                        <input type="text"
+                               id="flightEditor-aircraftType"
+                               placeholder="TYPE"
+                               class="form-control form-control-sm"
+                               style="text-transform: uppercase;">
+                        <input type="text"
+                               id="flightEditor-aircraftRegistration"
+                               placeholder="Reg #"
+                               class="form-control form-control-sm"
+                               style="text-transform: uppercase;">
+                    </div>
+                    <div class="col-6 p-1">
+                        <div class="form-inline" style="width: 100%;">
+                            <span style="width: 50%;">
+                                <input type="text"
+                                       id="flightEditor-from"
+                                       placeholder="From"
+                                       class="form-control form-control-sm"
+                                       style="text-transform: uppercase; width: 22%;">
+                                &nbsp;
+                                <span id="flightEditor-fromName"
+                                      class="form-control-sm"></span>
+                            </span>
+                            <span style="width: 50%">
+                               <input type="text"
+                                      id="flightEditor-to"
+                                      placeholder="To"
+                                      class="form-control form-control-sm"
+                                      style="text-transform: uppercase; width: 22%;">
+                                &nbsp;
+                                <span id="flightEditor-toName"
+                                      class="form-control-sm"></span>
+                            </span>
+                        </div>
+                        <div class="form-inline" style="width: 100%">
+                            <div style="width: 11%;"><small>Departed</small></div>
+                            <input type="text"
+                                   id="flightEditor-timeOut"
+                                   placeholder="Time Out"
+                                   class="form-control form-control-sm"
+                                   style="width: 14.5%;">
+                            <div style="width: 10%;">&nbsp;&nbsp;<small>Takeoff</small></div>
+                            <input type="text"
+                                   id="flightEditor-timeOff"
+                                   placeholder="Time Off"
+                                   class="form-control form-control-sm"
+                                   style="width: 14.5%;">
+                            <div style="width: 11%;">&nbsp;&nbsp;<small>Landing</small></div>
+                            <input type="text"
+                                   id="flightEditor-timeOn"
+                                   placeholder="Time On"
+                                   class="form-control form-control-sm"
+                                   style="width: 14.5%;">
+                            <div style="width: 10%;">&nbsp;&nbsp;<small>Arrived</small></div>
+                            <input type="text"
+                                   id="flightEditor-timeIn"
+                                   placeholder="Time In"
+                                   class="form-control form-control-sm"
+                                   style="width: 14.5%;">
+                        </div>
+                    </div>
+                    <div class="col-1 p-1">
+                        <input type="text"
+                               id="flightEditor-totalTime"
+                               placeholder="Time"
+                               class="form-control form-control-sm"
+                               style="text-transform: uppercase;"
+                               disabled>
+                        <input type="text"
+                               id="flightEditor-distance"
+                               placeholder="Dist NM"
+                               class="form-control form-control-sm">
+                    </div>
+                    <div class="col-3 p-1">
+                        <textarea class="form-control form-control-sm"
+                                  id="flightEditor-comment"
+                                  placeholder="Comment"
+                                  ></textarea>
+                        <input type="text"
+                               id="flightEditor-remarks"
+                               placeholder="Remarks"
+                               class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="row p-2 mb-2">
+                    <div class="col-1"></div>
+                    <div class="col-10 text-center">
+                        <button type="button" class="btn btn-success btn save-flight-button" onclick="saveFlightClicked(this)">Save Flight</button>
+                        <button type="button" class="btn btn-outline-warning btn discard-button" onclick="discardClicked(this)">Discard</button>
+                    </div>
+                    <div class="col-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="transferRowTemplate">
+            <div class="row flightlog-entry mb-3 bg-light text-secondary"></div>
+        </div>
+
+        <div id="transferInfoTemplate">
+            <div class="col-2" style="text-align: center;">Transfer</div>
+            <div class="col-3">
+                $depName$<br>
+                <small>$timeOut$</small>
+            </div>
+            <div class="col-3">
+                $destName$<br>
+                <small>$timeIn$</small>
+            </div>
+            <div class="col-1"></div>
+            <div class="col-3">
+                $comment$
+                <span style="width: 2em; float: right;"><button type="button" class="btn btn-outline-dark btn-xsm">#</button></span>
+            </div>
+        </div>
+
+        <div id="transferEditorTemplate">
+            <div class="fslog-transfer-editor shadow-lg p-3 mb-5 bg-white rounded">
+                <div class="row">
+                    <div class="col-2 p-1">
+                        <input type="text"
+                               id="transferEditor-date"
+                               placeholder="Date"
+                               class="form-control form-control-sm">
+                    </div>
+                    <div class="col-4 p-1">
+                        <input type="text"
+                               id="transferEditor-dateLimits"
+                               class="form-control-sm form-control-plaintext"
+                               disabled
+                               value="Date limits info will be here">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-1 p-1">
+                    </div>
+                    <div class="col-1 p-1">
+                    </div>
+                    <div class="col-6 p-1">
+                        <div class="form-inline" style="width: 100%;">
+                            <span style="width: 50%;">
+                                <input type="text"
+                                       id="transferEditor-from"
+                                       placeholder="From"
+                                       class="form-control form-control-sm"
+                                       style="text-transform: uppercase; width: 22%;">
+                                &nbsp;
+                                <span id="transferEditor-fromName"
+                                      class="form-control-sm"></span>
+                            </span>
+                            <span style="width: 50%;">
+                                <input type="text"
+                                       id="transferEditor-to"
+                                       placeholder="To"
+                                       class="form-control form-control-sm"
+                                       style="text-transform: uppercase; width: 22%;">
+                                &nbsp;
+                                <span id="transferEditor-toName"
+                                      class="form-control-sm"></span>
+                            </span>
+                        </div>
+                        <div class="form-inline" style="width: 100%;">
+                            <div style="width: 30%;">
+                                <small>Departed</small>
+                                &nbsp;
+                                <input type="text"
+                                       id="transferEditor-timeOut"
+                                       placeholder="Time Out"
+                                       class="form-control form-control-sm"
+                                       style="width: 48%;">
+                            </div>
+
+                            <div style="width: 40%; text-align: center;">
+                                <small>How</small>
+                                &nbsp;
+                                <div class="btn-group btn-group-toggle" id="transferEditor-method" data-toggle="buttons">
+                                    <label class="btn btn-outline-primary btn-xsm">
+                                        <input type="radio" name="transferEditor-method" value="roads" autocomplete="off">Roads
+                                    </label>
+                                    <label class="btn btn-outline-success btn-xsm active">
+                                        <input type="radio" name="transferEditor-method" value="flights" autocomplete="off" checked>Flights
+                                    </label>
+                                    <label class="btn btn-outline-warning btn-xsm">
+                                        <input type="radio" name="transferEditor-method" value="mach-3" autocomplete="off">Mach3
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div style="width: 30%; text-align: right;">
+                                <small>Arrived</small>
+                                &nbsp;
+                                <input type="text"
+                                       id="transferEditor-timeIn"
+                                       placeholder="Time In"
+                                       class="form-control form-control-sm"
+                                       style="width: 48%;"
+                                       disabled>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-1 p-1">
+                        <input type="text"
+                               id="transferEditor-totalTime"
+                               placeholder="Time"
+                               class="form-control form-control-sm"
+                               style="text-transform: uppercase;"
+                               disabled>
+                        <input type="text"
+                               id="transferEditor-distance"
+                               placeholder="Dist NM"
+                               class="form-control form-control-sm"
+                               disabled>
+                    </div>
+                    <div class="col-3 p-1">
+                        <textarea class="form-control form-control-sm"
+                                  id="transferEditor-comment"
+                                  placeholder="Comment"
+                        ></textarea>
+                        <input type="text"
+                               id="transferEditor-remarks"
+                               placeholder="Remarks"
+                               class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="row p-2 mb-2">
+                    <div class="col-1"></div>
+                    <div class="col-10 text-center">
+                        <button type="button" class="btn btn-success btn save-transfer-button" onclick="saveTransferClicked()">Save Transfer</button>
+                        <button type="button" class="btn btn-outline-warning btn discard-button" onclick="discardClicked()">Discard</button>
+                    </div>
+                    <div class="col-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="discontinuityRowTemplate">
+            <div class="flightlog-entry">
+                <div class="row p-1 mb-0">
+                    <div class="col-4"></div>
+                    <div class="col-4" style="text-align: center;">
+                        <button type="button" class="btn btn-outline-success btn add-flight-button btn-xsm" onclick="addFlightClicked('$recordId$')">Add Flight</button>
+                        <button type="button" class="btn btn-outline-info btn add-transfer-button btn-xsm" onclick="addTransferClicked('$recordId$')">Add Transfer</button>
+                    </div>
+                    <div class="col-4"></div>
+                </div>
+                <div class="row p-1 mb-1 bg-warning">
+                    <div class="col-2">Date $date$</div>
+                    <div class="col-2">Discontinuity</div>
+                    <div class="col-8">
+                        $comment$
+                        <div class="btn-group" role="group" style="width: 2em; float: right;">
+                            <button id="btn-discontinuity-$recordId$" type="button" class="btn dropdown-toggle btn-outline-dark btn-xsm" data-toggle="dropdown">#</button>
+                            <div class="dropdown-menu" aria-labelledby="btn-discontinuity-$recordId$">
+                                <a class="dropdown-item" href="javascript:joinDiscontinuityClicked('$recordId$')">Join</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dateHeader">
+            <h5 id="year$year$" class="date-header flightlog-entry" style="margin-top: 3em;">Date $date$</h5>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Modal -->
+<div class="modal fade" id="chartsModal" tabindex="-1" role="dialog" aria-labelledby="chartsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xlg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chartsModalTitle">Charts</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="container">
+                    <div class="row">
+                        <div class="col-2">
+                            Display
+                            <select id="chartsMetric" class="custom-select" onchange="statsRedraw();">
+                                <option value="flights-hours" selected>Flights/Hours</option>
+                                <option value="flights">Flights</option>
+                                <option value="hours">Hours</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            Break by
+                            <select id="chartsBreakBy" class="custom-select" onchange="statsRedraw();">
+                                <option value="by-type" selected>Type</option>
+                                <option value="by-tail">Tail #</option>
+                                <option value="by-year">Year</option>
+                                <option value="by-year-month">Year/Month</option>
+                                <option value="by-departure-icao">Departure</option>
+                                <option value="by-departure-icao-region">Departure Region</option>
+                                <option value="by-departure-icao-subregion">Departure Subregion</option>
+                            </select>
+                        </div>
+                        <div class="col-2">
+                            Then by
+                            <select id="chartsThenBreakBy" class="custom-select" onchange="statsRedraw();">
+                                <option value="1" selected>None</option>
+                                <option value="0">Type</option>
+                                <option value="2">Tail #</option>
+                                <option value="3">Year</option>
+                                <option value="4">Year/Month</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            Show
+                            <select id="chartsShow" class="custom-select" onchange="statsRedraw();">
+                                <option value="all-by-name" selected>All (by name)</option>
+                                <option value="all-by-value-desc">All (by value desc)</option>
+                                <option value="top-10">Top 10</option>
+                            </select>
+                        </div>
+                        <div class="col-2">
+                            Years
+                            <select id="chartsYears" class="custom-select" onchange="statsRedraw();">
+                                <option value="show-all" selected>All</option>
+                                <option value="2016">2016</option>
+                                <option value="2017">2017</option>
+                                <option value="2018">2018</option>
+                                <option value="2019">2019</option>
+                                <option value="2020">2020</option>
+                                <option value="2021">2021</option>
+                                <option value="2022">2022</option>
+                                <option value="2023">2023</option>
+                                <option value="2024">2024</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="width: 100%; height: 500px; display: flex; align-items: center; justify-content: center;"><canvas id="chartCanvas"></canvas></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

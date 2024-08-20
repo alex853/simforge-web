@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>simforge.net - Network View</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.5.16/p5.min.js" type="text/javascript"></script>
+    <script src="mappa.js" type="text/javascript"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" type="text/javascript"></script>
+</head>
+
+<body style="padding: 0; margin: 0;">
+<script>
+
+    let queryString = window.location.search;
+    let urlParams = new URLSearchParams(queryString);
+    let selectIcao = urlParams.get('icao');
+
+    let airports = [];
+    let flights = [];
+
+    let myMap;
+    let canvas;
+    const mappa = new Mappa('Leaflet');
+
+    // Lets put all our map options in a single object
+    const options = {
+        lat: 0,
+        lng: 0,
+        zoom: 4,
+        //style: "http://{s}.tile.osm.org/{z}/{x}/{y}.png"
+        style: "http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    }
+
+    function setup() {
+        canvas = createCanvas(windowWidth, windowHeight);
+
+        myMap = mappa.tileMap(options);
+        myMap.overlay(canvas, function () {
+            myMap.map.invalidateSize();
+        });
+
+        myMap.onChange(drawEverything);
+    }
+
+    // function draw() {
+    //     drawEverything();
+    // }
+
+    function drawEverything() {
+        console.info(new Date() + " drawEverything1");
+
+        clear();
+
+        stroke('orange');
+        for (let flight of flights) {
+            if (selectIcao) {
+                if (selectIcao !== flight.origin && selectIcao !== flight.destination) {
+                    continue;
+                }
+            }
+
+            let origin = findAirport(flight.origin);
+            let destination = findAirport(flight.destination);
+
+            const originCoords = myMap.latLngToPixel(origin.lat, origin.lon);
+            const destinationCoords = myMap.latLngToPixel(destination.lat, destination.lon);
+
+            line(originCoords.x, originCoords.y, destinationCoords.x, destinationCoords.y);
+        }
+
+        fill(200);
+        for (let airport of airports) {
+            const coords = myMap.latLngToPixel(airport.lat, airport.lon);
+            ellipse(coords.x, coords.y, 7, 7);
+        }
+    }
+
+    function findAirport(icao) {
+        for (let airport of airports) {
+            if (airport.icao === icao) {
+                return airport;
+            }
+        }
+        return null;
+    }
+
+    // https://github.com/cvalenzuela/Mappa/issues/31
+    function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        myMap.resize(canvas);
+    }
+
+    function reload() {
+        $.ajax({
+            url: "data-230818.json",
+            method: "GET",
+            dataType: "json",
+            success: function (response) {
+                airports = response.airports;
+                flights = response.flights;
+
+                drawEverything();
+            },
+            error: function (jq, response) {
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        reload();
+    })
+
+</script>
+</body>
+
+</html>

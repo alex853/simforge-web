@@ -1,0 +1,492 @@
+<html>
+
+<head>
+
+    <title>FSLog - Logbook</title>
+
+    <link rel="stylesheet" href="../css/bootstrap.min.css">
+    <link rel="stylesheet" href="../css/bootstrap-table.min.css">
+    <script src="../js/jquery-3.3.1.min.js"></script>
+    <script src="../js/bootstrap.bundle.min.js"></script>
+<!--    <script src="js/bootstrap.min.js"></script>-->
+    <script src="../js/bootstrap-table.min.js"></script>
+    <script src="../common.js"></script>
+    <script src="flight-editor.js"></script>
+    <script src="transfer-editor.js"></script>
+    <script src="discontinuity-editor.js"></script>
+
+    <script>
+        var gatewayUrl = 'https://zpgxzc34pa.execute-api.us-east-1.amazonaws.com/poc';
+        var distanceUrl = 'http://82.146.44.100:7091';
+        //var distanceUrl = 'http://simforge.net:7091';
+
+        var records = undefined;
+
+        $(document).ready(function () {
+            $.ajax({
+                url: gatewayUrl,
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    // var body = JSON.parse(response.body);
+                    var body = response;
+                    records = body.Items;
+                    $('#logbook').bootstrapTable({
+                        data: records
+                    });
+                    $('#logbook').bootstrapTable('resetView', {
+                        height: Math.max($('#logbook').height() + records.length * 2, window.innerHeight)
+                    });
+                },
+                error: function (e) {
+                    console.log(e.responseText);
+                }
+            });
+        });
+
+        function logbookRowStyle(row, index) {
+            var type = row.Type;
+            if (RecordType.isTransfer(type)) {
+                return {
+                    css: {
+                        'background-color': '#F0FFFF'
+                    }
+                }
+            } else if (RecordType.isDiscontinuity(type)) {
+                return {
+                    css: {
+                        'background-color': '#FFFFF0'
+                    }
+                }
+            }
+
+            return {};
+        }
+
+        function typeFormatter(value, row, index) {
+            var type = row['Type'];
+            var isTransfer = RecordType.isTransfer(type);
+            var isDiscontinuity = RecordType.isDiscontinuity(type);
+            var isFlight = RecordType.isFlight(type);
+
+            if (isFlight) {
+                return 'F';
+            }
+
+            if (isTransfer) {
+                return 'T';
+            }
+
+            if (isDiscontinuity) {
+                return 'D';
+            }
+
+            return '&nbsp;';
+        }
+
+        function aircraftTypeFormatter(value, row, index) {
+            return flightField(row, "AircraftType");
+        }
+
+        function aircraftRegistrationFormatter(value, row, index) {
+            return flightField(row, "AircraftRegistration");
+        }
+
+        function departureFormatter(value, row, index) {
+            return flightOrTransferField(row, "Departure");
+        }
+
+        function destinationFormatter(value, row, index) {
+            return flightOrTransferField(row, "Destination");
+        }
+
+        function timeOutFormatter(value, row, index) {
+            return flightOrTransferField(row, "TimeOut");
+        }
+
+        function timeInFormatter(value, row, index) {
+            return flightOrTransferField(row, "TimeIn");
+        }
+
+        function totalTimeFormatter(value, row, index) {
+            return flightField(row, "TotalTime");
+        }
+
+        function distanceFormatter(value, row, index) {
+            return flightField(row, "Distance");
+        }
+
+        function actionsCellFormatter(value, row, index) {
+            const record = new Record(row);
+
+            var result = '<div class="btn-group" role="group">'
+                + '<button id="actionsButtonGroup_' + index +'" type="button" class="btn btn-outline-info btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">#</button>'
+                + '<div class="dropdown-menu" aria-labelledby="actionsButtonGroup_' + index + '">';
+
+            var isLast = index === records.length - 1;
+
+            // current row actions
+            result += '<a class="dropdown-item" onclick="openDetails(' + index + ')">Details</a>';
+            if (record.isFlight()) {
+                result += '<a class="dropdown-item" onclick="FlightEditor.onDeleteClicked(' + index + ')">Delete</a>';
+            } else if (record.isTransfer()) {
+                result += '<a class="dropdown-item" onclick="TransferEditor.onDeleteClicked(' + index + ')">Delete</a>';
+            } else if (record.isDiscontinuity()) {
+                result += '<a class="dropdown-item" onclick="DiscontinuityEditor.onDeleteClicked(' + index + ')">Delete</a>';
+            }
+
+            result += '<div class="dropdown-divider"></div>';
+
+            var isNextDiscontinuity = !isLast && RecordType.isDiscontinuity(records[index + 1].Type);
+
+            if (isLast || isNextDiscontinuity) {
+                result += '<a class="dropdown-item" onclick="FlightEditor.onAddClicked(' + index + ')">Add Flight</a>';
+            }
+
+            if (isLast || isNextDiscontinuity) {
+                result += '<a class="dropdown-item" onclick="TransferEditor.onAddClicked(' + index + ')">Add Transfer</a>';
+            }
+
+            result += '<a class="dropdown-item" onclick="DiscontinuityEditor.onAddClicked(' + index + ')">Add Discontinuity</a>';
+
+            result += '</div>'
+                + '</div>';
+
+            return result;
+        }
+
+        function flightField(record, fieldName) {
+            if (record.Flight) {
+                return record.Flight[fieldName];
+            } else {
+                return null;
+            }
+        }
+
+        function flightOrTransferField(record, fieldName) {
+            if (record.Flight) {
+                return record.Flight[fieldName];
+            } else if (record.Transfer) {
+                return record.Transfer[fieldName];
+            } else {
+                return null;
+            }
+        }
+
+        function openDetails(index) {
+            var record = new Record(records[index]);
+            if (record.isFlight()) {
+                FlightEditor.onDetailsClicked(index);
+            } else {
+                alert('not implemented for this type or record');
+            }
+        }
+
+    </script>
+
+    <style>
+        .fixed-table-container { /* lets disable frame around table */
+            border-width: 0px 0px 0px 0px;
+        }
+
+        .nobr {
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container-fluid">
+    <h1>Logbook</h1>
+    <a href="../index.html">Click here to go to updated version of FSLog</a>
+
+    <table
+            id="logbook"
+            class="table table-no-bordered"
+            data-row-style="logbookRowStyle">
+        <thead>
+        <tr>
+            <th data-field="Date" data-class="nobr">DOF</th>
+            <th data-field="Type" data-formatter="typeFormatter">&nbsp;</th>
+            <th data-field="AircraftType" data-formatter="aircraftTypeFormatter">Type</th>
+            <th data-field="AircraftRegistration" data-formatter="aircraftRegistrationFormatter">Tail #</th>
+            <th data-field="Departure" data-formatter="departureFormatter">From</th>
+            <th data-field="Destination" data-formatter="destinationFormatter">To</th>
+            <th data-field="TimeOut" data-formatter="timeOutFormatter">Time<br>Out</th>
+            <th data-field="TimeIn" data-formatter="timeInFormatter">Time<br>In</th>
+            <th data-field="TotalTime" data-formatter="totalTimeFormatter">Total<br>Time</th>
+            <th data-field="Distance" data-formatter="distanceFormatter">Distance</th>
+            <th data-field="Comment">Comment</th>
+            <th data-field="Remarks">Remarks</th>
+            <th data-formatter="actionsCellFormatter"></th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+
+
+<div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">Modal title</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                ...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="flightEditorModal" tabindex="-1" role="dialog" aria-labelledby="flightEditorModalLabel"
+     aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flightEditorModalLabel">[Flight Editor]</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="flightEditorModal-form">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-dateOfFlight">Date</label>
+                            <input type="text" class="form-control" id="flightEditorModal-dateOfFlight"
+                                   placeholder="YYYY-MM-DD" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-callsign">Callsign</label>
+                            <input type="text" class="form-control" id="flightEditorModal-callsign" style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-flightNumber">Flight Number</label>
+                            <input type="text" class="form-control" id="flightEditorModal-flightNumber" style="text-transform: uppercase;">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-aircraftType">Aircraft Type</label>
+                            <input type="text" class="form-control" id="flightEditorModal-aircraftType" style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-aircraftRegistration">Tail #</label>
+                            <input type="text" class="form-control" id="flightEditorModal-aircraftRegistration" style="text-transform: uppercase;">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-departure">Departure</label>
+                            <input type="text" class="form-control" id="flightEditorModal-departure" style="text-transform: uppercase;" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-destination">Destination</label>
+                            <input type="text" class="form-control" id="flightEditorModal-destination" style="text-transform: uppercase;" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-3">
+                            <label for="flightEditorModal-timeOut">Blocks Off</label>
+                            <input type="text" class="form-control" id="flightEditorModal-timeOut" placeholder="HH:MM" required>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="flightEditorModal-timeOff">Takeoff</label>
+                            <input type="text" class="form-control" id="flightEditorModal-timeOff" placeholder="HH:MM">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="flightEditorModal-timeOn">Landing</label>
+                            <input type="text" class="form-control" id="flightEditorModal-timeOn" placeholder="HH:MM">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="flightEditorModal-timeIn">Blocks On</label>
+                            <input type="text" class="form-control" id="flightEditorModal-timeIn" placeholder="HH:MM" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-duration">Total Time</label>
+                            <input type="text" class="form-control-plaintext" id="flightEditorModal-duration"
+                                   placeholder="H:MM" required disabled>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-airTime">Air Time</label>
+                            <input type="text" class="form-control-plaintext" id="flightEditorModal-airTime"
+                                   placeholder="H:MM" disabled>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-crowFlightDistance">Direct Distance, NM</label>
+                            <input type="text" class="form-control-plaintext" id="flightEditorModal-crowFlightDistance"
+                                   placeholder="N/A" disabled>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="flightEditorModal-distance">Flown Distance, NM</label>
+                            <input type="text" class="form-control" id="flightEditorModal-distance" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="flightEditorModal-comment" class="col-form-label">Comment</label>
+                        <textarea class="form-control" id="flightEditorModal-comment"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="flightEditorModal-remarks" class="col-form-label">Remarks</label>
+                        <input type="text" class="form-control" id="flightEditorModal-remarks">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning d-none" id="flightEditorModal-editButton" onclick="FlightEditor.edit()">Edit</button>
+                <button type="button" class="btn btn-primary" id="flightEditorModal-applyButton" onclick="FlightEditor.apply()">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="transferEditorModal" tabindex="-1" role="dialog" aria-labelledby="transferEditorModalLabel"
+     aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="transferEditorModalLabel">[Transfer Editor]</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="transferEditorModal-form">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="transferEditorModal-date">Date</label>
+                            <input type="text" class="form-control" id="transferEditorModal-date"
+                                   placeholder="YYYY-MM-DD" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="transferEditorModal-departure">Departure</label>
+                            <input type="text" class="form-control" id="transferEditorModal-departure" style="text-transform: uppercase;" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="transferEditorModal-destination">Destination</label>
+                            <input type="text" class="form-control" id="transferEditorModal-destination" style="text-transform: uppercase;" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-3">
+                            <label for="transferEditorModal-timeOut">Time Out</label>
+                            <input type="text" class="form-control" id="transferEditorModal-timeOut" placeholder="HH:MM" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="transferEditorModal-method">Method</label>
+                            <div class="btn-group btn-group-toggle" id="transferEditorModal-method" data-toggle="buttons">
+                                <label class="btn btn-outline-primary">
+                                    <input type="radio" name="transferEditorModal-method" value="roads" autocomplete="off">Roads
+                                </label>
+                                <label class="btn btn-outline-success active">
+                                    <input type="radio" name="transferEditorModal-method" value="flights" autocomplete="off" checked>Flights
+                                </label>
+                                <label class="btn btn-outline-warning">
+                                    <input type="radio" name="transferEditorModal-method" value="mach-3" autocomplete="off">Mach3
+                                </label>
+                            </div>                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="transferEditorModal-timeIn">Time In</label>
+                            <input type="text" class="form-control" id="transferEditorModal-timeIn" placeholder="HH:MM" required disabled>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="transferEditorModal-crowFlightDistance">Direct Distance, NM</label>
+                            <input type="text" class="form-control" id="transferEditorModal-crowFlightDistance"
+                                   placeholder="N/A" disabled>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="transferEditorModal-duration">Transfer Time</label>
+                            <input type="text" class="form-control" id="transferEditorModal-duration"
+                                   placeholder="H:MM" required disabled>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="transferEditorModal-comment" class="col-form-label">Comment</label>
+                        <textarea class="form-control" id="transferEditorModal-comment"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="transferEditorModal-remarks" class="col-form-label">Remarks</label>
+                        <input type="text" class="form-control" id="transferEditorModal-remarks">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="TransferEditor.apply()">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="discontinuityEditorModal" tabindex="-1" role="dialog" aria-labelledby="discontinuityEditorModalLabel"
+     aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="discontinuityEditorModalLabel">[Discontinuity Editor]</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="discontinuityEditorModal-form">
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="discontinuityEditorModal-date">Date</label>
+                            <input type="text" class="form-control" id="discontinuityEditorModal-date"
+                                   placeholder="YYYY-MM-DD" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-3">
+                            <label for="discontinuityEditorModal-time">Time</label>
+                            <input type="text" class="form-control" id="discontinuityEditorModal-time" placeholder="HH:MM" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="discontinuityEditorModal-comment" class="col-form-label">Comment</label>
+                        <textarea class="form-control" id="discontinuityEditorModal-comment"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="discontinuityEditorModal-remarks" class="col-form-label">Remarks</label>
+                        <input type="text" class="form-control" id="discontinuityEditorModal-remarks">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="DiscontinuityEditor.apply()">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+</body>
+
+</html>
