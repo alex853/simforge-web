@@ -40,6 +40,11 @@
             loadAirportInfo(icao, function (airport) {
                 panToAirport(airport);
                 loadAircraftInAirport(airport.icao, function (aircraft) {
+                    let minLat = airport.coords.lat;
+                    let maxLat = airport.coords.lat;
+                    let minLon = airport.coords.lon;
+                    let maxLon = airport.coords.lon;
+
                     aircraft.forEach(a => {
                         L.marker([a.lat, a.lon], {icon: planeIcon})
                             .bindPopup(
@@ -49,7 +54,14 @@
                                 '<b>Parked</b>: ' + (a.parkedMinutesAgo >= 1440 ? Math.floor(a.parkedMinutesAgo / 1440) + ' days ago' : Math.floor(a.parkedMinutesAgo / 60) + ' hours ago'))
                             .addTo(map)
                             .setRotationAngle(a.heading - 45);
-                    })
+                        minLat = Math.min(minLat, a.lat);
+                        maxLat = Math.max(maxLat, a.lat);
+                        minLon = Math.min(minLon, a.lon);
+                        maxLon = Math.max(maxLon, a.lon);
+                    });
+
+                    const latlon = [(maxLat + minLat) / 2, (maxLon + minLon) / 2];
+                    map.setView(latlon, 14);
                 });
             });
         }
