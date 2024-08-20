@@ -53,6 +53,8 @@ function getCountryFlagUrl(country, grey) {
 
     if (country === "Ascension Island") {
         flagName = "saint_helena";
+    } else if (country === "Cote d'Ivoire") {
+        flagName = "cote_divoire";
     } else if (country === "Bahamas, The") {
         flagName = "bahamas";
     } else if (country === "Bosnia and Herzegovina") {
