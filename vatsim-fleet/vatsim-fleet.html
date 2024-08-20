@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
+    <script src="js/leaflet.rotatedMarker.js"></script>
+
     <style>
         html, body {
             height: 100%;
@@ -26,15 +28,27 @@
         const airportsServiceUrl = 'http://82.146.44.100:7091';
         const vatsimFleetServiceUrl = 'http://82.146.44.100:7123';
 
+        const planeIcon = L.icon({
+            iconUrl: 'img/plane.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            popupAnchor: [0, -20]
+        });
+
         function showAirport() {
             const icao = $('#airportIcaoInput').val();
             loadAirportInfo(icao, function (airport) {
                 panToAirport(airport);
                 loadAircraftInAirport(airport.icao, function (aircraft) {
                     aircraft.forEach(a => {
-                        L.marker([a.lat, a.lon])
-                            .bindPopup('<b>Type</b>: ' + a.aircraftType + '<br><b>Airline</b>: ' + (a.airlineCode||'') + '<br><b>Reg #</b>: ' + (a.regNo||''))
-                            .addTo(map);
+                        L.marker([a.lat, a.lon], {icon: planeIcon})
+                            .bindPopup(
+                                '<b>Type</b>: ' + a.aircraftType + '<br>' +
+                                '<b>Airline</b>: ' + (a.airlineCode||'') + '<br>' +
+                                '<b>Reg #</b>: ' + (a.regNo||'') + '<br>' +
+                                '<b>Parked</b>: ' + (a.parkedMinutesAgo >= 1440 ? Math.floor(a.parkedMinutesAgo / 1440) + ' days ago' : Math.floor(a.parkedMinutesAgo / 60) + ' hours ago'))
+                            .addTo(map)
+                            .setRotationAngle(a.heading - 45);
                     })
                 });
             });
@@ -105,7 +119,14 @@
         // L.tileLayer('https://tile.stamen.com/toner/{z}/{x}/{y}.png', {
         //     attribution: 'Map tiles by <a href="https://stamen.com">Stamen Design</a>, under <a href="https://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, under ODbL.'
         // }).addTo(map);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+
+        // L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        //     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        //     subdomains: 'abcd',
+        //     maxZoom: 20
+        // }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20
