@@ -124,6 +124,9 @@ function saveTransferClicked() {
     $.ajax({
         url: gatewayUrl,
         method: 'POST',
+        headers: {
+            'Authorization': authToken
+        },
         dataType: 'json',
         data: JSON.stringify(flight),
         success: function (response) {/**/

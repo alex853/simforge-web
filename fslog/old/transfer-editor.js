@@ -156,6 +156,9 @@ var TransferEditor = {
         $.ajax({
             url: gatewayUrl,
             method: 'POST',
+            headers: {
+                'Authorization': authToken
+            },
             dataType: 'json',
             data: JSON.stringify(transfer),
             success: function (response) {

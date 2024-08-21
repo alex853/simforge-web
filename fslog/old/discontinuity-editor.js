@@ -37,6 +37,9 @@ var DiscontinuityEditor = {
         $.ajax({
             url: gatewayUrl,
             method: 'DELETE',
+            headers: {
+                'Authorization': authToken
+            },
             dataType: 'json',
             data: JSON.stringify({
                 "UserID": record["UserID"],
@@ -82,6 +85,9 @@ var DiscontinuityEditor = {
         $.ajax({
             url: gatewayUrl,
             method: 'POST',
+            headers: {
+                'Authorization': authToken
+            },
             dataType: 'json',
             data: JSON.stringify(newDiscontinuity),
             success: function (response) {

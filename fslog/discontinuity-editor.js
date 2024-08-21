@@ -21,6 +21,9 @@ function joinDiscontinuityClicked(recordId) {
     $.ajax({
         url: gatewayUrl,
         method: 'DELETE',
+        headers: {
+            'Authorization': authToken
+        },
         dataType: 'json',
         data: JSON.stringify({
             "UserID": record["UserID"],
@@ -75,6 +78,9 @@ function splitFlightlogClicked(previousRecordId) {
     $.ajax({
         url: gatewayUrl,
         method: 'POST',
+        headers: {
+            'Authorization': authToken
+        },
         dataType: 'json',
         data: JSON.stringify(discontinuity),
         success: function (response) {/**/

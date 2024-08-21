@@ -100,6 +100,9 @@ var FlightEditor = {
             $.ajax({
                 url: gatewayUrl,
                 method: 'POST',
+                headers: {
+                    'Authorization': authToken
+                },
                 dataType: 'json',
                 data: JSON.stringify(newDiscontinuity),
                 success: function (response) {
@@ -115,6 +118,9 @@ var FlightEditor = {
             $.ajax({
                 url: gatewayUrl,
                 method: 'DELETE',
+                headers: {
+                    'Authorization': authToken
+                },
                 dataType: 'json',
                 data: JSON.stringify({
                     "UserID": record.record.UserID,
@@ -258,6 +264,9 @@ var FlightEditor = {
         $.ajax({
             url: gatewayUrl,
             method: 'POST',
+            headers: {
+                'Authorization': authToken
+            },
             dataType: 'json',
             data: JSON.stringify(flight),
             success: function (response) {
