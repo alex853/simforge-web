@@ -1,0 +1,22 @@
+{
+  "airports": [
+    {
+      "icao": "EGLL",
+      "lat": 51.4595,
+      "lon": -0.4613333333333333
+    },
+    {
+      "icao": "EGPH",
+      "lat": 55.932,
+      "lon": -3.3711666666666664
+    }
+  ],
+  "flights": [
+    {
+      "airline": "british",
+      "flightNumber": "BA123",
+      "origin": "EGLL",
+      "destination": "EGPH"
+    }
+  ]
+}
