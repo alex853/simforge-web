@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>FSRemoteControl</title>
+
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico"/>
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+
+    <script>
+
+        var loadingIsInProgress = false;
+        var lastLoadingDt;
+
+        function startRegularLoading() {
+            setInterval(loadSimDataIfRequired, 100);
+        }
+
+        function loadSimDataIfRequired() {
+            if (loadingIsInProgress
+                || Date.now() - lastLoadingDt < 1000) {
+                return;
+            }
+
+            loadSimData();
+        }
+
+        function loadSimData() {
+            loadingIsInProgress = true;
+            $.ajax({
+                url: 'https://f1.simforge.co.uk:7125/service/v1/ui/get?session=1',
+                method: 'GET',
+                dataType: 'json',
+                success: function (response) {
+                    refreshSimData(response);
+                    loadingIsInProgress = false;
+                    lastLoadingDt = Date.now();
+                },
+                error: function (e) {
+                    console.error("error loading data");
+                    loadingIsInProgress = false;
+                    lastLoadingDt = Date.now();
+                }
+            });
+        }
+
+        function refreshSimData(simData) {
+            $('#ias-indication').text(simData.ias);
+            $('#tas-indication').text(simData.tas);
+            $('#mach-indication').text(simData.mach);
+            $('#gs-indication').text(simData.gs);
+            $('#alt-indication').text(simData.alt);
+            $('#vs-indication').text(simData.vs);
+            $('#hdg-indication').text(simData.hdg);
+        }
+
+    </script>
+
+</head>
+<body>
+
+<div class="container col-md-2">
+    <div class="row">
+        <div class="col-sm">IAS</div>
+        <div id="ias-indication" class="col-sm"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm">TAS</div>
+        <div id="tas-indication" class="col-sm"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm">Mach</div>
+        <div id="mach-indication" class="col-sm"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm">GS</div>
+        <div id="gs-indication" class="col-sm"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm">Alt</div>
+        <div id="alt-indication" class="col-sm"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm">VS</div>
+        <div id="vs-indication" class="col-sm"></div>
+    </div>
+    <div class="row">
+        <div class="col-sm">Hdg</div>
+        <div id="hdg-indication" class="col-sm"></div>
+    </div>
+</div>
+
+<script>
+
+    $(document).ready(function() {
+        startRegularLoading();
+    });
+
+</script>
+
+
+</body>
+</html>
