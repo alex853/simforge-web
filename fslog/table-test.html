@@ -1,0 +1,163 @@
+<html>
+<head>
+    <script src="js/jquery-3.3.1.min.js"></script>
+
+    <style>
+        td {
+            padding: 5px;
+            text-align: center;
+            font-family: Tahoma, Verdana, Arial;
+            background-color: #e8e8e8;
+        }
+
+        td.smaller {
+            font-size: 75%;
+        }
+
+        tr.odd td {
+            background-color: #f0f0f0;
+        }
+
+        tr.even td {
+            background-color: #f8f8f8;
+        }
+    </style>
+
+    <script>
+        const gatewayUrl = 'https://1fkt6ue7af.execute-api.us-east-1.amazonaws.com/default/fslog';
+        const distanceUrl = 'https://f1.simforge.co.uk:7091';
+
+        let authToken = localStorage.getItem('fslog.token');
+
+        let records = [];
+        let visibleEntries = [];
+
+        let editorRow;
+
+        $(document).ready(function () {
+            $.ajax({
+                url: gatewayUrl,
+                method: 'GET',
+                headers: {
+                    'Authorization': authToken
+                },
+                dataType: 'json',
+                success: function (response) {
+                    const records = response.Items;
+
+                    let rowNumber = 1;
+                    for (let i in records) {
+                        const record = records[i];
+
+                        if (record.Type !== 'flight') {
+                            continue;
+                        }
+
+                        const departureIcao = record.Flight.Departure;
+                        const destinationIcao = record.Flight.Destination;
+
+                        let html = $('#flightlogRowTemplate').html();
+                        html = html
+                            // .replaceAll("$recordId$", record.RecordID)
+                            .replace("$class$", rowNumber === 1 ? "odd" : "even")
+                            .replace("$date$", record.Date)
+                            // .replace("$flight$", record.Flight.FlightNumber || '&nbsp;')
+                            // .replace("$callsign$", record.Flight.Callsign || '&nbsp;')
+                            .replace("$type$", record.Flight.AircraftType || '&nbsp;')
+                            .replace("$reg$", record.Flight.AircraftRegistration || '&nbsp;')
+                            .replace("$dep$", departureIcao || '&nbsp;')
+                            // .replace("$depName$", "<span class='" + departureIcao + "'>" + departureIcao + "</span>")
+                            .replace("$dest$", destinationIcao || '&nbsp;')
+                            // .replace("$destName$", "<span class='" + destinationIcao + "'>" + destinationIcao + "</span>")
+                            .replace("$timeOut$", record.Flight.TimeOut || '&nbsp;')
+                            // .replace("$timeOff$", record.Flight.TimeOff || 'n/a')
+                            // .replace("$timeOn$", record.Flight.TimeOn || 'n/a')
+                            .replace("$timeIn$", record.Flight.TimeIn || '&nbsp;')
+                            .replace("$totalTime$", record.Flight.TotalTime || '&nbsp;')
+                            // .replace("$airTime$", record.Flight.AirTime || '&nbsp;')
+                            .replace("$dist$", record.Flight.Distance || '&nbsp;')
+                            // .replace("$dctDist$", 'n/a')
+                            .replace("$comment$", record.Comment || '&nbsp;')
+                            .replace("$remarks$", record.Remarks || '&nbsp;');
+
+                        $('#flightlog').append(html);
+
+                        rowNumber = (rowNumber === 1 ? 0 : 1);
+                    }
+
+                },
+                error: function (e) {
+                    // todo show error alert
+                    console.log(e.responseText);
+                }
+            });
+        });
+
+    </script>
+</head>
+
+</head>
+<body>
+<table id="flightlog" style="background-color: #e0e0e0; border-spacing: 3px;">
+    <tr>
+        <td rowspan="2">DATE</td>
+        <td colspan="2">AIRCRAFT</td>
+        <td colspan="2">DEPARTURE</td>
+        <td colspan="2">ARRIVAL</td>
+        <td rowspan="2">TOTAL TIME<br>OF FLIGHT</td>
+        <td rowspan="2">FLOWN<br>DIST, nm</td>
+        <td colspan="2">OPERATIONAL CONDITION TIME</td>
+        <td colspan="2">TAKEOFFS</td>
+        <td colspan="2">LANDINGS</td>
+        <td rowspan="2">NOTES & ENDORSEMENTS</td>
+        <td rowspan="2">TAGS</td>
+    </tr>
+    <tr>
+        <td>TYPE</td>
+        <td>REG #</td>
+        <td>PLACE</td>
+        <td>TIME</td>
+        <td>PLACE</td>
+        <td>TIME</td>
+        <td>DAY</td>
+        <td>NIGHT</td>
+        <td class="smaller">D<br>A<br>Y</td>
+        <td class="smaller">N<br>I<br>G<br>H<br>T</td>
+        <td class="smaller">D<br>A<br>Y</td>
+        <td class="smaller">N<br>I<br>G<br>H<br>T</td>
+    </tr>
+
+</table>
+
+
+
+
+
+<div id="templates" style="display: none">
+    <div>
+        <table id="flightlogRowTemplate">
+            <tr class="$class$">
+                <td style="white-space: nowrap;">$date$</td>
+                <td>$type$</td>
+                <td>$reg$</td>
+                <td>$dep$</td>
+                <td>$timeOut$</td>
+                <td>$dest$</td>
+                <td>$timeIn$</td>
+                <td>$totalTime$</td>
+                <td>$dist$</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>$comment$</td>
+                <td>$remarks$</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
