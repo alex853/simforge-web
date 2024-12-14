@@ -16,9 +16,11 @@
     <script src="discontinuity-editor.js"></script>
 
     <script>
-        var gatewayUrl = 'https://zpgxzc34pa.execute-api.us-east-1.amazonaws.com/poc';
-        var distanceUrl = 'http://82.146.44.100:7091';
+        const gatewayUrl = 'https://1fkt6ue7af.execute-api.us-east-1.amazonaws.com/default/fslog';
+        const distanceUrl = 'https://f1.simforge.co.uk:7091';
         //var distanceUrl = 'http://simforge.net:7091';
+
+        let authToken = localStorage.getItem('fslog.token');
 
         var records = undefined;
 
@@ -26,6 +28,9 @@
             $.ajax({
                 url: gatewayUrl,
                 method: 'GET',
+                headers: {
+                    'Authorization': authToken
+                },
                 dataType: 'json',
                 success: function (response) {
                     // var body = JSON.parse(response.body);
