@@ -1,0 +1,1050 @@
+<html>
+<head>
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico"/>
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="common.js"></script>
+
+    <style>
+        table#flightlog {
+            background-color: #a0a0a0;
+            border-spacing: 1px;
+            border-collapse: separate;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        table#flightlog tr.link {
+            cursor: pointer;
+        }
+
+        table#flightlog tr td {
+            padding: 5px;
+            text-align: center;
+            font-family: Tahoma, Verdana, Arial;
+            font-size: 12pt;
+            background-color: #fefefe;
+        }
+
+        table#flightlog tr td.bold {
+            font-weight: bold;
+        }
+
+        table#flightlog tr.white td {
+            background-color: #fdfdfd;
+        }
+
+        table#flightlog tr.gray td {
+            background-color: #e0e0e0;
+        }
+
+        table#flightlog tr td.left-align {
+            text-align: left;
+        }
+
+        table#flightlog tr td.smaller {
+            font-size: 75%;
+        }
+
+        .nowrap {
+            white-space: nowrap;
+        }
+
+        .width40pt {
+            width: 40pt;
+            max-width: 40pt;
+        }
+
+        .width50pt {
+            width: 50pt;
+            max-width: 50pt;
+        }
+
+        .width60pt {
+            width: 60pt;
+            max-width: 60pt;
+        }
+
+        .width70pt {
+            width: 70pt;
+            max-width: 70pt;
+        }
+    </style>
+
+    <script>
+        const rowsPerPage = 15;
+
+        const gatewayUrl = 'https://1fkt6ue7af.execute-api.us-east-1.amazonaws.com/default/fslog';
+        const distanceUrl = 'https://f1.simforge.co.uk:7091';
+
+        let authToken = localStorage.getItem('fslog.token');
+
+        let records = [];
+        let currentPage = 1;
+        let currentFlights = [];
+        let pageTotals = {};
+        let previousTotals = {};
+        let totalsToDate = {};
+
+        $(document).ready(function () {
+
+            // add empty rows
+            let previousRowId = 'flightlogHeader_lower';
+            for (let row = 1; row <= rowsPerPage; row++) {
+                let currentRowId =  'flightlogRow_' + row;
+                let html = "<tr id='" + currentRowId + "'><td>&nbsp;</td></tr>";
+                $('#' + previousRowId).after(html);
+                previousRowId = currentRowId;
+            }
+            refreshPage();
+
+            $.ajax({
+                url: gatewayUrl,
+                method: 'GET',
+                headers: {
+                    'Authorization': authToken
+                },
+                dataType: 'json',
+                success: function (response) {
+                    records = response.Items;
+                    refreshPage();
+                },
+                error: function (e) {
+                    // todo show error alert
+                    console.log(e.responseText);
+                }
+            });
+        });
+
+        function refreshPage() {
+            currentFlights = [];
+            pageTotals = {};
+            previousTotals = {};
+            totalsToDate = {};
+
+            const firstRowIndex = (currentPage - 1) * rowsPerPage;
+            const lastRowIndex = firstRowIndex + (rowsPerPage - 1);
+
+            let flightIndex = -1;
+            for (let i = 0; i < records.length; i++) {
+                const record = records[i];
+                if (record.Type !== 'flight') {
+                    continue;
+                }
+
+                flightIndex++;
+                if (flightIndex < firstRowIndex) {
+                    addToTotals(previousTotals, record);
+                    addToTotals(totalsToDate, record);
+                } else if (flightIndex <= lastRowIndex) {
+                    currentFlights.push(record);
+                    addToTotals(pageTotals, record);
+                    addToTotals(totalsToDate, record);
+                } else {
+                    break;
+                }
+            }
+
+
+            let colorCounter = 1;
+            for (let row = 1; row <= rowsPerPage; row++) {
+                const record = currentFlights[row-1];
+
+                const currentRowId = 'flightlogRow_' + row;
+                let html = $('#flightlogRowTemplate tbody').html();
+                html = html
+                    .replaceAll("$row$", row)
+                    .replace("$colorClass$", colorCounter === 3 ? 'gray' : 'white')
+                    .replace("$linkClass$", record ? "link" : "")
+                    .replace("$date$", record ? reformatDate(record.Date) : '&nbsp;')
+                    // .replace("$flight$", record.Flight.FlightNumber || '&nbsp;')
+                    // .replace("$callsign$", record.Flight.Callsign || '&nbsp;')
+                    .replace("$type$", record ? record.Flight.AircraftType || '&nbsp;' : '&nbsp;')
+                    .replace("$reg$", record ? record.Flight.AircraftRegistration || '&nbsp;' : '&nbsp;')
+                    .replace("$dep$", record ? record.Flight.Departure || '&nbsp;' : '&nbsp;')
+                    // .replace("$depName$", "<span class='" + departureIcao + "'>" + departureIcao + "</span>")
+                    .replace("$dest$", record ? record.Flight.Destination || '&nbsp;' : '&nbsp;')
+                    // .replace("$destName$", "<span class='" + destinationIcao + "'>" + destinationIcao + "</span>")
+                    .replace("$timeOut$", record ? record.Flight.TimeOut || '&nbsp;' : '&nbsp;')
+                    // .replace("$timeOff$", record.Flight.TimeOff || 'n/a')
+                    // .replace("$timeOn$", record.Flight.TimeOn || 'n/a')
+                    .replace("$timeIn$", record ? record.Flight.TimeIn || '&nbsp;' : '&nbsp;')
+                    .replace("$totalTime$", record ? record.Flight.TotalTime || '&nbsp;' : '&nbsp;')
+                    // .replace("$airTime$", record.Flight.AirTime || '&nbsp;')
+                    // .replace("$dist$", record ? record.Flight.Distance || '&nbsp;' : '&nbsp;')
+                    .replace("$comment$", record ? record.Comment || '&nbsp;' : '&nbsp;')
+                    .replace("$remarks$", record ? record.Remarks || '&nbsp;' : '&nbsp;')
+                    .replace("$tags$", record ? record.Tags || '&nbsp;' : '&nbsp;');
+                $('#' + currentRowId).closest('tr').replaceWith(html);
+
+                colorCounter = (colorCounter === 3 ? 1 : colorCounter + 1);
+            }
+
+            refreshTotals('pageTotals', pageTotals);
+            refreshTotals('previousTotals', previousTotals);
+            refreshTotals('totalsToDate', totalsToDate);
+        }
+
+        function refreshTotals(rowName, totals) {
+            const prefix = '#flightlogFooter_' + rowName + '_';
+
+            $(prefix + 'totalTime').html(totals.totalTimeMinutes ? formatMinutesAsHMM(totals.totalTimeMinutes) : "");
+        }
+
+        function nextPage() {
+            currentPage++;
+            refreshPage();
+        }
+
+        function prevPage() {
+            if (currentPage === 1) {
+                return;
+            }
+            currentPage--;
+            refreshPage();
+        }
+
+        function addToTotals(totals, record) {
+            totals.totalTimeMinutes = (totals.totalTimeMinutes || 0) + parseHHMM(record.Flight.TotalTime).total;
+        }
+
+        function reformatDate(date) {
+            const [year, month, day] = date.split("-");
+            return `${day}/${month}/${year}`;
+        }
+
+        function rowClicked(row) {
+            $('#flightEditorModal6').modal('show');
+        }
+
+    </script>
+</head>
+
+</head>
+<body>
+<table id="flightlog">
+    <tr id="flightlogHeader_higher">
+        <td rowspan="2" class="bold">DATE</td>
+        <td colspan="2" class="bold">AIRCRAFT</td>
+        <td colspan="2" class="bold">DEPARTURE</td>
+        <td colspan="2" class="bold">ARRIVAL</td>
+        <td rowspan="2" class="bold">TOTAL TIME<br>OF FLIGHT</td>
+        <td colspan="2" class="bold">OP. COND. TIME</td>
+        <td colspan="2" class="bold">LANDINGS</td>
+        <td rowspan="2" class="bold">REMARKS</td>
+        <td rowspan="2" class="bold">COMMENTS</td>
+        <td rowspan="2" class="bold">TAGS</td>
+    </tr>
+    <tr id="flightlogHeader_lower">
+        <td class="bold">TYPE</td>
+        <td class="bold">REG #</td>
+        <td class="bold">PLACE</td>
+        <td class="bold">TIME</td>
+        <td class="bold">PLACE</td>
+        <td class="bold">TIME</td>
+        <td class="bold">NIGHT</td>
+        <td class="bold">IFR</td>
+        <td class="smaller">D<br>A<br>Y</td>
+        <td class="smaller">N<br>I<br>G<br>H<br>T</td>
+    </tr>
+    <!-- rows will be added dynamically -->
+    <tr id="flightlogFooter_pageTotals">
+        <td colspan="3" rowspan="3"></td>
+        <td colspan="4" class="left-align">PAGE TOTALS</td>
+        <td id="flightlogFooter_pageTotals_totalTime"></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td colspan="3" rowspan="3"></td>
+    </tr>
+    <tr id="flightlogFooter_previousTotals">
+        <td colspan="4" class="left-align">PREVIOUS TOTALS</td>
+        <td id="flightlogFooter_previousTotals_totalTime"></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+    </tr>
+    <tr id="flightlogFooter_totalsToDate">
+        <td colspan="4" class="left-align">TOTALS TO DATE</td>
+        <td id="flightlogFooter_totalsToDate_totalTime"></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+    </tr>
+</table>
+
+<table style="margin-left: auto; margin-right: auto;">
+    <tr>
+        <td><button type="button" class="btn btn-outline-dark" onclick="prevPage();"><< Prev</button></td>
+        <td>Page 1 of ???</td>
+        <td><button type="button" class="btn btn-outline-dark" onclick="nextPage();">Next >></button></td>
+    </tr>
+</table>
+
+
+
+
+<div id="templates" style="display: none">
+    <div>
+        <table id="flightlogRowTemplate">
+            <tr id="flightlogRow_$row$" class="$colorClass$ $linkClass$" onclick="rowClicked($row$)">
+                <td class="width70pt nowrap">$date$</td>
+                <td class="width40pt">$type$</td>
+                <td class="width50pt nowrap">$reg$</td>
+                <td class="width50pt">$dep$</td>
+                <td class="width40pt">$timeOut$</td>
+                <td class="width50pt">$dest$</td>
+                <td class="width40pt">$timeIn$</td>
+                <td class="width60pt">$totalTime$</td>
+                <td class="width60pt"></td>
+                <td class="width60pt"></td>
+                <td></td>
+                <td></td>
+                <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 100px; max-width: 100px;">$remarks$</td>
+                <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 200px; max-width: 200px;">$comment$</td>
+                <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 100px; max-width: 100px;">$tags$</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+
+<div class="modal" id="flightEditorModal3" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 80%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flightEditorModalTitle">Edit Flight</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body d-flex">
+                <form class="flex-grow-1">
+                    <div class="row">
+                        <div class="col-1" style="border-right: 1px solid #ccc;"></div>
+                        <div class="col-2" style="border-right: 1px solid #ccc; text-align: center;">AIRCRAFT</div>
+                        <div class="col-2" style="border-right: 1px solid #ccc; text-align: center;">DEPARTURE</div>
+                        <div class="col-2" style="border-right: 1px solid #ccc; text-align: center;">ARRIVAL</div>
+                        <div class="col-1" style="border-right: 1px solid #ccc;"></div>
+                        <div class="col-2" style="border-right: 1px solid #ccc; text-align: center;">OP. COND. TIME</div>
+                        <div class="col-2" style="text-align: center;">LANDINGS</div>
+                    </div>
+                    <div class="row">
+                        <!-- DATE -->
+                        <div class="col-1" style="border-right: 1px solid #ccc;">
+                            <div>
+                                <label for="field1" class="form-label">DATE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <!-- TYPE -->
+                        <div class="col-1">
+                            <div>
+                                <label for="field1" class="form-label">TYPE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <!-- TAIL # -->
+                        <div class="col-1" style="border-right: 1px solid #ccc;">
+                            <div>
+                                <label for="field6" class="form-label">TAIL #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <!-- PLACE -->
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">PLACE</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <!-- BLOCKS OFF, TAKEOFF -->
+                        <div class="col-1" style="border-right: 1px solid #ccc;">
+                            <div>
+                                <label for="field1" class="form-label">BLOCKS OFF</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">TAKEOFF</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <!-- PLACE -->
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">PLACE</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <!-- BLOCKS OFF, TAKEOFF -->
+                        <div class="col-1" style="border-right: 1px solid #ccc;">
+                            <div>
+                                <label for="field6" class="form-label">LANDING</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">BLOCKS ON</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <!-- TOTAL TIME, AIR TIME -->
+                        <div class="col-1" style="border-right: 1px solid #ccc;">
+                            <div>
+                                <label for="field1" class="form-label">TOTAL TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field1" class="form-label">AIR TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1" style="border-right: 1px solid #ccc;">
+                           <div>
+                                <label for="field6" class="form-label">IFR</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">DAY</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <!--div class="col-1">
+                            <div>
+                                <label for="field1" class="form-label">DISTANCE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">CALLSIGN</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">FLIGHT #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div-->
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Send message</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="flightEditorModal5" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flightEditorModalTitle">Edit Flight</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body d-flex">
+                <form class="flex-grow-1">
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            FLIGHT
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">DATE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">CALLSIGN</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">FLIGHT #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            AIRCRAFT
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">TYPE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">TAIL #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            DEPARTURE
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">PLACE</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">BLOCKS OFF</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">TAKEOFF</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            ARRIVAL
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">PLACE</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">LANDING</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">BLOCKS ON</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            TOTALS
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">FLIGHT TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">AIR TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">DISTANCE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            CONDITIONS
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">IFR</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3 font-weight-bold">
+                            LANDINGS
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">DAY</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Send message</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="flightEditorModal2" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flightEditorModalTitle">Edit Flight</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body d-flex">
+                <form class="flex-grow-1">
+                    <div class="row">
+                        <div class="col-2 font-weight-bold" style="text-align: center; background-color: lightgray;">FLIGHT</div>
+                        <div class="col-1 font-weight-bold" style="text-align: center; background-color: lightgray;"></div>
+                        <div class="col-4 font-weight-bold" style="text-align: center; background-color: lightgray;">AIRCRAFT</div>
+                        <div class="col-1 font-weight-bold" style="text-align: center; background-color: lightgray;"></div>
+                        <div class="col-4 font-weight-bold" style="text-align: center; background-color: lightgray;">MISC</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">DATE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-1"></div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">TYPE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">TAIL #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1"></div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">CALLSIGN</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">FLIGHT #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 font-weight-bold" style="text-align: center; background-color: lightgray;">DEPARTURE</div>
+                        <div class="col-6 font-weight-bold" style="text-align: center; background-color: lightgray;">ARRIVAL</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">DEPARTURE</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">BLOCKS OFF</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">TAKEOFF</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">LANDING</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">BLOCKS ON</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">PLACE</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 font-weight-bold" style="text-align: center; background-color: lightgray;">TOTALS</div>
+                        <div class="col-4 font-weight-bold" style="text-align: center; background-color: lightgray;">OP. COND. TIME</div>
+                        <div class="col-2 font-weight-bold" style="text-align: center; background-color: lightgray;">LANDINGS</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">FLIGHT TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">AIR TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">DISTANCE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">IFR</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">DAY</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 font-weight-bold" style="text-align: center; background-color: lightgray;">OTHER</div>
+                        <div class="col-6 font-weight-bold" style="text-align: center; background-color: lightgray;">MAP</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div>
+                                <label for="field6" class="form-label">REMARKS</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div class="form-group">
+                                <label for="flightEditorModal-comment" class="col-form-label">Comment</label>
+                                <textarea class="form-control" id="flightEditorModal-comment" rows="3"></textarea>
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">TAGS</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="me-4" style="width: 100%; height: 100%; background-color: #e0e0e0;">
+                                <p class="text-center align-middle pt-5">Map will be here</p>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Send message</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="flightEditorModal4" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 80%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flightEditorModalTitle">Edit Flight</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body d-flex">
+                <form class="flex-grow-1">
+                    <div class="row">
+                        <div class="col-1">
+                            <div>FLIGHT</div>
+                            <div>
+                                <label for="field1" class="form-label">DATE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">CALLSIGN</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">FLIGHT #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>AIRCRAFT</div>
+                            <div>
+                                <label for="field1" class="form-label">TYPE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">TAIL #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>DEPARTURE</div>
+                            <div>
+                                <label for="field6" class="form-label">FROM</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field1" class="form-label">BLOCKS OFF</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">TAKEOFF</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>ARRIVAL</div>
+                            <div>
+                                <label for="field6" class="form-label">TO</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">LANDING</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">BLOCKS ON</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>TOTAL</div>
+                            <div>
+                                <label for="field1" class="form-label">DISTANCE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field1" class="form-label">TOTAL TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                            <div>
+                                <label for="field1" class="form-label">AIR TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>CONDITIONS</div>
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">IFR</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-1">
+                            <div>LANDINGS</div>
+                            <div>
+                                <label for="field6" class="form-label">DAY</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                            <div>
+                                <label for="field6" class="form-label">NIGHT</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Send message</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal" id="flightEditorModal1" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 80%;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">New message</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body d-flex">
+                <!-- Карта -->
+                <div class="me-4" style="width: 300px; height: 300px; background-color: #e0e0e0;">
+                    <p class="text-center align-middle pt-5">Здесь будет карта</p>
+                </div>
+
+                <form class="flex-grow-1">
+                    <div class="row">
+                        <div class="col-3">
+                            <div>FLIGHT</div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">DATE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">CALLSIGN</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">FLIGHT #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3">
+                            <div>AIRCRAFT</div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">TYPE</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">TAIL #</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3">
+                            <div>ROUTE</div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field1" class="form-label">FROM</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div>
+                                <label for="field6" class="form-label">TO</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-2">
+                            <div>TIMES</div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">BLOCKS OFF</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">TAKEOFF</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">LANDING</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">BLOCKS ON</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-2">
+                            <div>CONDITIONS</div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field1" class="form-label">TOTAL TIME</label>
+                                <input type="text" class="form-control" id="field1">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">NIGHT TIME</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                        <div class="col-2">
+                            <div>
+                                <label for="field6" class="form-label">IFR</label>
+                                <input type="text" class="form-control" id="field6">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Send message</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
