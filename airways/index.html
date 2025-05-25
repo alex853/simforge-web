@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Airways</title>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script src="js/requests.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        .airport-tooltip {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+        }
+        .airport-tooltip.leaflet-tooltip::before {
+            display: none;
+        }
+    </style>
+
+    <script>
+
+        const data = {
+            cities: [],
+            airports: []
+        }
+
+    </script>
+</head>
+<body>
+
+    <div id="map" style="width: 100%; height: 100%;"></div>
+
+    <div style="position: absolute; top: 10px; left: 60px; color: #a8a8ff; z-index: 1000; font-family: Helvetica; font-size: 15pt; text-shadow: 1px 1px 1px black;">simforge / airways</div>
+
+    <script>
+        const mapZoomMin = 4;
+        const mapZoomMax = 10;
+        const map = L.map('map').setView([0, 0], mapZoomMin);
+
+        let cityMarkers = [];
+        let airportMarkers = [];
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+            maxZoom: mapZoomMax,
+            minZoom: mapZoomMin
+        }).addTo(map);
+
+        function updateMarkerSizes() {
+            const zoom = map.getZoom();
+            const size = (zoom - mapZoomMin) * 6 + 12;
+
+            document.querySelectorAll('.marker-img').forEach(img => {
+                img.style.width = `${size}px`;
+                img.style.height = `${size}px`;
+            });
+        }
+
+        map.on('zoomend', drawGeo);
+
+        map.on('moveend', function() {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+
+            const mapState = {
+                lat: center.lat,
+                lng: center.lng,
+                zoom: zoom
+            };
+
+            localStorage.setItem('mapState', JSON.stringify(mapState));
+        });
+
+        const savedState = localStorage.getItem('mapState');
+
+        if (savedState) {
+            const { lat, lng, zoom } = JSON.parse(savedState);
+            map.setView([lat, lng], zoom);
+        }
+
+        function clearGeo() {
+            cityMarkers.forEach(m => map.removeLayer(m));
+            airportMarkers.forEach(m => map.removeLayer(m));
+            cityMarkers = [];
+            airportMarkers = [];
+        }
+
+        const cityIcon = L.divIcon({
+            className: 'zoom-icon',
+            html: `<img class="marker-img" src="icons/city/001-cityscape.png">`,
+            iconSize: null
+        });
+        const airportIcon = L.divIcon({
+            className: 'zoom-icon',
+            html: `<img class="marker-img" src="icons/airport/001-airplane.png">`,
+            iconSize: null
+        });
+
+        function getIcon(type, size) {
+            let url;
+            switch (type) {
+                case 'city': url = 'icons/city/001-cityscape.png'; break;
+                case 'airport': url = 'icons/airport/001-airplane.png'; break;
+            }
+            return L.icon({
+                iconUrl: url,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+                popupAnchor: [0, -size / 2]
+            });
+        }
+
+        function drawGeo() {
+            clearGeo();
+
+            const zoom = map.getZoom();
+            const cityIconSize = (zoom - mapZoomMin) * 6 + 12;
+            const airportIconSize = (zoom - mapZoomMin) * 4 + 6;
+
+            data.cities.forEach(c => {
+                const marker = L.marker([c.latitude, c.longitude], { icon: getIcon('city', cityIconSize) })
+                    .bindPopup('<b>' + c.name + '</b><br>' + Math.round(c.population / 1000) + 'k');
+                marker.addTo(map);
+                cityMarkers.push(marker);
+            });
+            data.airports.forEach(a => {
+                const marker = L.marker([a.latitude, a.longitude], { icon: getIcon('airport', airportIconSize) })
+                    .bindTooltip(a.icao, {
+                        permanent: true,
+                        direction: 'right',
+                        offset: [airportIconSize/10, 0],
+                        className: 'airport-tooltip'})
+                    .bindPopup('<b>' + a.icao + '</b>');
+                marker.addTo(map);
+                airportMarkers.push(marker);
+            });
+        }
+
+        $(document).ready(function() {
+            loadCities(function(cities) {
+                data.cities = cities;
+                loadAirports(function(airports) {
+                    data.airports = airports;
+                    drawGeo();
+                });
+            });
+        });
+
+    </script>
+
+    <!-- icons copyright -->
+    <div>
+        Icons made by <a href="https://www.flaticon.com/authors/eucalyp" title="Eucalyp">Eucalyp</a>
+        from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
+    </div>
+    <div>
+        Icons made by <a href="https://www.flaticon.com/authors/aranagraphics" title="Aranagraphics">Aranagraphics</a>
+        from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
+    </div>
+    <div>
+        Icons made by <a href="https://www.flaticon.com/authors/maxicons" title="max.icons">max.icons</a>
+        from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
+    </div>
+    <div>
+        Icons made by <a href="https://www.freepik.com" title="Freepik">Freepik</a>
+        from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
+    </div>
+    <div>
+        Icons made by <a href="https://www.flaticon.com/authors/adi-icons" title="ADI_ICONS">ADI_ICONS</a>
+        from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>
+    </div>
+</body>
+</html>

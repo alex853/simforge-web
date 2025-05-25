@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Event log</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="js/requests.js"></script>
+</head>
+<body>
+<div class="container my-5">
+    <h2 class="mb-4">Event log</h2>
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover">
+            <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Object 1</th>
+                <th>Object 2</th>
+                <th>Object 3</th>
+                <th>Object 4</th>
+            </tr>
+            </thead>
+            <tbody id="event-log-table-body">
+            <!-- Rows will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+
+    function showEventLogTable(data) {
+        const $tbody = $('#event-log-table-body');
+        data.forEach(item => {
+            const row = `
+          <tr>
+            <td>${item.id}</td>
+            <td>${item.time}</td>
+            <td>${item.type}</td>
+            <td>${item.object1}</td>
+            <td>${item.object2}</td>
+            <td>${item.object3}</td>
+            <td>${item.object4}</td>
+          </tr>`;
+            $tbody.append(row);
+        })
+    }
+
+    $(document).ready(function () {
+        loadAllEventLogs(showEventLogTable);
+    });
+
+</script>
+</body>
+</html>
