@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Airways</title>
+    <title>airways / Map</title>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
@@ -16,6 +16,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <script src="js/requests.js"></script>
+    <script src="js/leaflet.rotatedMarker.js"></script>
 
     <style>
         html, body {
@@ -23,12 +24,12 @@
             margin: 0;
         }
 
-        .airport-tooltip {
+        .always-shown-tooltip {
             background-color: transparent;
             border: none;
             box-shadow: none;
         }
-        .airport-tooltip.leaflet-tooltip::before {
+        .always-shown-tooltip.leaflet-tooltip::before {
             display: none;
         }
     </style>
@@ -37,7 +38,8 @@
 
         const data = {
             cities: [],
-            airports: []
+            airports: [],
+            aircraft: []
         }
 
     </script>
@@ -55,6 +57,7 @@
 
         let cityMarkers = [];
         let airportMarkers = [];
+        let aircraftMarkers = [];
 
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
@@ -97,26 +100,38 @@
         function clearGeo() {
             cityMarkers.forEach(m => map.removeLayer(m));
             airportMarkers.forEach(m => map.removeLayer(m));
+            aircraftMarkers.forEach(m => map.removeLayer(m));
             cityMarkers = [];
             airportMarkers = [];
+            aircraftMarkers = [];
         }
 
-        const cityIcon = L.divIcon({
-            className: 'zoom-icon',
-            html: `<img class="marker-img" src="icons/city/001-cityscape.png">`,
-            iconSize: null
-        });
-        const airportIcon = L.divIcon({
-            className: 'zoom-icon',
-            html: `<img class="marker-img" src="icons/airport/001-airplane.png">`,
-            iconSize: null
-        });
+        const airplaneIcons = [
+            ['icons/airplane/001-plane.png', 0],
+            ['icons/airplane/002-airplane.png', -45],
+            ['icons/airplane/003-airplane-1.png', 0],
+            ['icons/airplane/004-plane-1.png', -45],
+            ['icons/airplane/005-plane-2.png', -45],
+            ['icons/airplane/006-plane-3.png', 0],
+            ['icons/airplane/007-airplane-2.png', -45],
+            ['icons/airplane/008-travelling.png', -45],
+            ['icons/airplane/009-airline.png', -45],
+            ['icons/airplane/010-aeroplane.png', 0],
+            ['icons/airplane/011-plane-4.png', -45],
+            ['icons/airplane/012-air-freight.png', -45],
+            ['icons/airplane/013-travel.png', -45],
+            ['icons/airplane/014-airplane-mode.png', 0],
+            ['icons/airplane/015-airplane-3.png', 0],
+            ['icons/airplane/016-airplane-4.png', 0]
+        ];
 
-        function getIcon(type, size) {
+        function getIcon(type, size, id) {
             let url;
             switch (type) {
                 case 'city': url = 'icons/city/001-cityscape.png'; break;
                 case 'airport': url = 'icons/airport/001-airplane.png'; break;
+                // case 'plane': url = 'icons/plane-gold.png'; break;
+                case 'plane': url = airplaneIcons[id % airplaneIcons.length][0]; break;
             }
             return L.icon({
                 iconUrl: url,
@@ -132,10 +147,15 @@
             const zoom = map.getZoom();
             const cityIconSize = (zoom - mapZoomMin) * 6 + 12;
             const airportIconSize = (zoom - mapZoomMin) * 4 + 6;
+            const planeIconSize = (zoom - mapZoomMin) * 2 + 12;
 
             data.cities.forEach(c => {
                 const marker = L.marker([c.latitude, c.longitude], { icon: getIcon('city', cityIconSize) })
-                    .bindPopup('<b>' + c.name + '</b><br>' + Math.round(c.population / 1000) + 'k');
+                    .bindPopup(
+                        '<b>' + c.name + '</b><br>' +
+                        '' + Math.round(c.population / 1000) + 'k<br>' +
+                        '<i>todo</i> airport connections' +
+                        '<i>todo</i> link to city details page');
                 marker.addTo(map);
                 cityMarkers.push(marker);
             });
@@ -145,10 +165,37 @@
                         permanent: true,
                         direction: 'right',
                         offset: [airportIconSize/10, 0],
-                        className: 'airport-tooltip'})
-                    .bindPopup('<b>' + a.icao + '</b>');
+                        className: 'always-shown-tooltip'})
+                    .bindPopup(
+                        '<b>' + a.icao + '</b><br>' +
+                        '<i>todo</i> aircraft on ground<br>' +
+                        '<i>todo</i> city connections<br>' +
+                        '<i>todo</i> link to airport details page');
                 marker.addTo(map);
                 airportMarkers.push(marker);
+            });
+            data.aircraft.forEach(a => {
+                const marker = L.marker([a.lat, a.lon], { icon: getIcon('plane', planeIconSize, a.id) })
+                    .bindTooltip(a.regNo, {
+                        permanent: true,
+                        direction: 'right',
+                        offset: [planeIconSize/5, 0],
+                        className: 'always-shown-tooltip'})
+                    .bindPopup(
+                        '<b>' + a.regNo + '</b><br>' +
+                        a.type + '<br>' +
+                        a.route + '<br>' +
+                        '<i>todo</i> link to aircraft details page');
+                marker.setRotationAngle(a.hdg + airplaneIcons[a.id % airplaneIcons.length][1]);
+                marker.addTo(map);
+                aircraftMarkers.push(marker);
+            });
+        }
+
+        function doAircraftDataReload() {
+            loadFlyingAircraft(function(aircraftData) {
+                data.aircraft = aircraftData;
+                drawGeo();
             });
         }
 
@@ -160,6 +207,10 @@
                     drawGeo();
                 });
             });
+
+            doAircraftDataReload();
+
+            setInterval(() => doAircraftDataReload(), 10000);
         });
 
     </script>

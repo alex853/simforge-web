@@ -49,6 +49,22 @@ function loadAllAircraft(callback) {
     });
 }
 
+function loadFlyingAircraft(callback) {
+    $.ajax({
+        url: airwaysServiceUrl + '/aircraft/flying',
+        method: 'GET',
+        dataType: 'json',
+        success: function (response) {
+            if (callback) {
+                callback(response);
+            }
+        },
+        error: function (e) {
+            console.error("error loading aircraft data");
+        }
+    });
+}
+
 function loadAllEventsToProcess(callback) {
     $.ajax({
         url: airwaysServiceUrl + '/events-to-process/all',
@@ -93,6 +109,22 @@ function loadAllEventLogs(callback) {
         },
         error: function (e) {
             console.error("error loading event log");
+        }
+    });
+}
+
+function airwaysGet(url, callback) {
+    $.ajax({
+        url: airwaysServiceUrl + url,
+        method: 'GET',
+        dataType: 'json',
+        success: function (response) {
+            if (callback) {
+                callback(response);
+            }
+        },
+        error: function (e) {
+            console.error("error loading " + url + " data");
         }
     });
 }

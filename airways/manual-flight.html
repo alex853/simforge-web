@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>airways / Manual Flight Control</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="js/requests.js"></script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+
+        .centered {
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .form-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+    </style>
+</head>
+<body>
+<div class="container centered">
+    <div class="form-container">
+        <h3>Manual Flight Control</h3>
+
+        <div class="m-2">
+            <table>
+                <tr>
+                    <td style="text-align: center; font-size: 2rem;"><div id="dep"></div></td>
+                    <td style="text-align: center; font-size: 2rem;"> → </td>
+                    <td style="text-align: center; font-size: 2rem;"><div id="dest"></div></td>
+                </tr>
+                <tr>
+                    <td style="text-align: center;" colspan="3"><div id="dof"></div></td>
+                </tr>
+                <tr>
+                    <td style="text-align: center;"><div id="pdep"></div></td>
+                    <td style="text-align: center;"></td>
+                    <td style="text-align: center;"><div id="parr"></div></td>
+                </tr>
+                <tr>
+                    <td style="text-align: center; font-size: 1.5rem;" colspan="3"><div id="acReg"></div></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="m-4" style="width: 50%;">
+            <table style="width: 100%;">
+                <tbody id="timelineRows">
+                <!-- timeline rows go here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="m-2">
+            <div>Status</div>
+            <div style="font-size: 1.5rem;" id="flightStatus">Dispatch</div>
+            <button id="actionButton" class="btn btn-primary m-2">Start</button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    let flight = {};
+
+    const times = [
+        { label: "Departed", field: "adep" },
+        { label: "Takeoff", field: "atof" },
+        { label: "Landing", field: "aldg" },
+        { label: "Arrived", field: "aarr" },
+    ]
+
+    const statuses = {
+        "Dispatched": {
+            label: "Dispatched",
+            action: "Start Flight",
+            url: "start"
+        },
+        "Preflight": {
+            label: "Preflight",
+            action: "Blocks Off",
+            url: "blocks-off"
+        },
+        "Departure": {
+            label: "Departing (Taxiing Out)",
+            action: "Takeoff",
+            url: "takeoff"
+        },
+        "Flying": {
+            label: "Flying",
+            action: "Land",
+            url: "landing"
+        },
+        "Arrival": {
+            label: "Arriving (Taxiing In)",
+            action: "Blocks On",
+            url: "blocks-on"
+        },
+        "Postflight": {
+            label: "Postflight",
+            action: "Finish Flight",
+            url: "finish"
+        },
+        "Finished": {
+            label: "Finished",
+            action: null
+        }
+    };
+
+    function updateUI() {
+        const status = statuses[flight.st];
+
+        $('#dep').text(flight.dep);
+        $('#dest').text(flight.dest);
+        $('#dof').text(flight.dof);
+        $('#pdep').text(flight.pdep);
+        $('#parr').text(flight.parr);
+        $('#acReg').text(flight.acReg);
+
+        $('#flightStatus').text(status.label);
+
+        if (status.action) {
+            $('#actionButton').prop('disabled', false);
+            $('#actionButton').text(status.action).show();
+        } else {
+            $('#actionButton').hide();
+        }
+
+        renderTimeline();
+    }
+
+    function renderTimeline() {
+        const $tbody = $('#timelineRows');
+        $tbody.empty();
+
+        times.forEach(s => {
+            if (flight[s.field]) {
+                $tbody.append(`
+                    <tr>
+                        <td style="text-align: left;">${s.label}</td>
+                        <td style="text-align: right;">${flight[s.field]}</td>
+                    </tr>
+                `);
+            }
+        });
+    }
+
+    $('#actionButton').on('click', function () {
+        $('#actionButton').prop('disabled', true);
+
+        const status = statuses[flight["st"]];
+
+        $.ajax({
+            url: airwaysServiceUrl + "/manual-flight/" + status.url,
+            method: 'POST',
+            data: {
+                flightId: flight.id,
+            },
+            success: function (response) {
+                flight = response;
+                updateUI();
+            },
+            error: function (e) {
+                alert('error'); // todo ak0
+                $('#dispatchStatus')
+                    .text('Error on flight dispatch.')
+                    .removeClass('text-success')
+                    .addClass('text-danger');
+            }
+        });
+
+    });
+
+    $(document).ready(function () {
+
+        const url = new URL(window.location.href);
+        const flightId = url.searchParams.get("flightId");
+
+        if (flightId) {
+            airwaysGet("/manual-flight/status?flightId=" + flightId, function (response) {
+                flight = response;
+                updateUI();
+            });
+        } else {
+            alert('no flight id found!!!!')
+        }
+
+    });
+</script>
+
+</body>
+</html>
