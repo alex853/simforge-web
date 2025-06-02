@@ -28,23 +28,23 @@
             </colgroup>
             <thead class="table-dark">
             <tr>
-                <th rowspan="2">ID</th>
-                <th rowspan="2">DOF</th>
-                <th rowspan="2">Aircraft ID</th>
-                <th rowspan="2">Status</th>
-                <th colspan="2">Route</th>
-                <th colspan="2">Planned Time</th>
-                <th colspan="4">Actual Time</th>
+                <th rowspan="2" class="text-center align-middle">ID</th>
+                <th rowspan="2" class="text-center align-middle">DOF</th>
+                <th rowspan="2" class="text-center align-middle">Aircraft</th>
+                <th rowspan="2" class="text-center align-middle">Status</th>
+                <th colspan="2" class="text-center align-middle">Route</th>
+                <th colspan="2" class="text-center align-middle">Planned Time</th>
+                <th colspan="4" class="text-center align-middle">Actual Time</th>
             </tr>
             <tr>
-                <th>From</th>
-                <th>To</th>
-                <th>Dep</th>
-                <th>Arr</th>
-                <th>Dep</th>
-                <th>T/O</th>
-                <th>Land</th>
-                <th>Arr</th>
+                <th class="text-center align-middle">From</th>
+                <th class="text-center align-middle">To</th>
+                <th class="text-center align-middle">Dep</th>
+                <th class="text-center align-middle">Arr</th>
+                <th class="text-center align-middle">Dep</th>
+                <th class="text-center align-middle">T/O</th>
+                <th class="text-center align-middle">Land</th>
+                <th class="text-center align-middle">Arr</th>
             </tr>
             </thead>
             <tbody id="flight-table-body">
@@ -64,7 +64,7 @@
           <tr>
             <td class="text-center align-middle">${item.id}</td>
             <td class="text-center align-middle">${item.dof}</td>
-            <td class="text-center align-middle">${item.acReg}</td>
+            <td class="text-center align-middle">${item.acReg}<br><span style="font-size: 0.75rem;"># ${item.acId} - ${item.acType}</span></td>
             <td class="text-center align-middle">${item.st}</td>
             <td class="text-center align-middle">${item.dep}</td>
             <td class="text-center align-middle">${item.dest}</td>
