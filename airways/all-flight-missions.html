@@ -17,6 +17,7 @@
                 <th>ID</th>
                 <th>Aircraft ID</th>
                 <th>Status</th>
+                <th>Mode</th>
                 <th>Heartbeat</th>
                 <th>From</th>
                 <th>To</th>
@@ -28,7 +29,7 @@
                 <th>Actual Arr Time</th>
             </tr>
             </thead>
-            <tbody id="flight-mission-table-body">
+            <tbody id="data-table-body">
             <!-- Rows will be inserted here -->
             </tbody>
         </table>
@@ -38,13 +39,14 @@
 <script>
 
     function showFlightMissionsTable(data) {
-        const $tbody = $('#flight-mission-table-body');
+        const $tbody = $('#data-table-body');
         data.forEach(item => {
             const row = `
           <tr>
             <td>${item.id}</td>
             <td>${item.aircraftId}</td>
             <td>${item.status}</td>
+            <td>${item.modes}</td>
             <td>${item.heartbeatTime}</td>
             <td>${item.departureAirport}</td>
             <td>${item.destinationAirport}</td>
