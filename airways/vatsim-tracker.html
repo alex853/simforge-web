@@ -22,8 +22,7 @@
             <tr>
                 <th>Pilot #</th>
                 <th>Flight Stage</th>
-                <th>Planning Status</th>
-                <th>Overall Status</th>
+                <th>F/P Status</th>
                 <th>Location</th>
                 <th>A/C Type</th>
                 <th>Reg No</th>
@@ -62,8 +61,7 @@
           <tr>
             <td>${item.pilotNumber}</td>
             <td>${item.flightStage}</td>
-            <td>${item.planningStatus}</td>
-            <td>${item.overallStatus}</td>
+            <td>${item.flightplanStatus ?? ''}</td>
             <td>${item.locationIcao ?? ''}</td>
             <td>${item.aircraftType ?? ''}</td>
             <td>${item.regNo ?? ''}</td>
