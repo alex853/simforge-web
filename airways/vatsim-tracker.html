@@ -59,7 +59,7 @@
 
         const filteredData = data.filter(item => {
             if (currentFilter === 'everything') return true;
-            return item.overallStatus === 'AllGood';
+            return item.fpStatus === 'AllGood';
         });
 
         filteredData.forEach(item => {
