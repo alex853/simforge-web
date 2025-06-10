@@ -34,7 +34,7 @@
                 <th>Reg No</th>
                 <th>Dep</th>
                 <th>Dest</th>
-                <th>L/T/D</th>
+                <th>Track Tail</th>
                 <th>Removal</th>
                 <th>F/M Id</th>
                 <th>F/M Status</th>
@@ -73,7 +73,7 @@
             <td>${item.regNo ?? ''}</td>
             <td><span class="fs-8">fp</span> ${item.fpDep ?? ''}<br><span class="fs-8">cp</span> ${item.cpDep ?? ''}</td>
             <td><span class="fs-8">fp</span> ${item.fpDest ?? ''}<br><span class="fs-8">cp</span> ${item.cpDest ?? ''}</td>
-            <td>${item.lastTrackedDistance}</td>
+            <td>${item.trackTail}</td>
             <td>${item.removal}</td>
             <td>${item.fmId}</td>
             <td>${item.fmStatus ?? ''}</td>
