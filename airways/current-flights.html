@@ -56,6 +56,8 @@
 
 <script>
 
+    let dataIsLoadingNow = false;
+
     function updateFlightTable(data) {
         const $tbody = $('#flight-table-body');
         $tbody.empty();
@@ -67,7 +69,12 @@
             <td class="text-center align-middle">${item.acReg}<br><span style="font-size: 0.75rem;">#${item.acId} - ${item.acType}</span></td>
             <td class="text-center align-middle">${item.st}</td>
             <td class="text-center align-middle">${item.dep}</td>
-            <td class="text-center align-middle">${item.dest}</td>
+            <td class="text-center align-middle">${
+                (item.aldgA === null || item.aldgA === item.dest)
+                    ? item.dest
+                    : '<span style="color: red;">' + item.aldgA + '</span><br>' +
+                      '<span style="text-decoration: line-through;"' + item.dest + '</span>'
+            }</td>
             <td class="text-center align-middle">${item.pdep}</td>
             <td class="text-center align-middle">${item.parr}</td>
             <td class="text-center align-middle">${item.adep ?? ''}</td>
@@ -79,14 +86,21 @@
         })
     }
 
-    function loadCurrentFlights(callback) {
-        airwaysGet('/flight-mission/current-flights', callback);
+    function reloadData() {
+        if (dataIsLoadingNow) {
+            return;
+        }
+        dataIsLoadingNow = true;
+        airwaysGet('/flight-mission/current-flights', function (response) {
+            dataIsLoadingNow = false;
+            updateFlightTable(response);
+        });
     }
 
     $(document).ready(function () {
-        loadCurrentFlights(updateFlightTable);
+        reloadData();
 
-        setInterval(() => loadCurrentFlights(updateFlightTable), 60000);
+        setInterval(() => reloadData(), 10000);
     });
 
 </script>

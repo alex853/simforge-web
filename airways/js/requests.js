@@ -113,7 +113,7 @@ function loadAllEventLogs(callback) {
     });
 }
 
-function airwaysGet(url, callback) {
+function airwaysGet(url, callback, errorCallback) {
     $.ajax({
         url: airwaysServiceUrl + url,
         method: 'GET',
@@ -125,6 +125,9 @@ function airwaysGet(url, callback) {
         },
         error: function (e) {
             console.error("error loading " + url + " data");
+            if (errorCallback) {
+                errorCallback();
+            }
         }
     });
 }

@@ -51,6 +51,7 @@
 <script>
 
     let data = [];
+    let dataIsLoadingNow = false;
     let currentFilter = 'everything';
 
     function showAircraftTable() {
@@ -72,7 +73,7 @@
             <td><span class="fs-8">fp</span>&nbsp;${item.fpType ?? ''}<br><span class="fs-8">cp</span> ${item.cpType ?? ''}</td>
             <td>${item.regNo ?? ''}</td>
             <td><span class="fs-8">fp</span>&nbsp;${item.fpDep ?? ''}<br><span class="fs-8">cp</span>&nbsp;${item.cpDep ?? ''}</td>
-            <td><span class="fs-8">fp</span>&nbsp;${item.fpDest ?? ''}<br><span class="fs-8">cp</span>&nbsp;${item.cpDest ?? ''}</td>
+            <td>${(item.fmAcLanding !== null && item.fmAcLanding !== item.fpDest) ? '<span style="color: red;"><span class="fs-8">ac</span> ' + item.fmAcLanding + '</span><br>' : ''}<span class="fs-8">fp</span>&nbsp;${item.fpDest ?? ''}<br><span class="fs-8">cp</span>&nbsp;${item.cpDest ?? ''}</td>
             <td class="fs-8">${item.trackTail}</td>
             <td>${item.removal}</td>
             <td>${item.fmId}</td>
@@ -84,9 +85,16 @@
     }
 
     function reloadData() {
+        if (dataIsLoadingNow) {
+            return;
+        }
+        dataIsLoadingNow = true;
         airwaysGet("/vatsim-tracker/all", function (response) {
+            dataIsLoadingNow = false;
             data = response;
             showAircraftTable();
+        }, function () {
+            dataIsLoadingNow = false;
         });
     }
 
