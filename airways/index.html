@@ -228,12 +228,16 @@
         }
 
         const content = `
-        <div class="fs-4 fw-bold m-2">${aircraft.acReg}</div>
+        <div class="fs-4 fw-bold p-2">${aircraft.acReg}</div>
         <table class="table table-sm">
             <tr>
-                <td colspan="2" class="text-start text-muted">TYPE</td>
-                <td colspan="2" class="text-end fw-bold">${aircraft.acType}</td>
+                <td colspan="1" class="text-start text-muted">TYPE</td>
+                <td colspan="3" class="text-end fw-bold">${aircraft.acType}</td>
             </tr>
+            <!--tr> todo ak3 add airline operator here
+                <td colspan="1" class="text-start text-muted">AIRLINE</td>
+                <td colspan="3" class="text-end fw-bold">ShadowJet</td>
+            </tr-->
             <tr>
                 <td colspan="2" class="text-center fs-5 fw-bold">${aircraft.fpDep}</td>
                 <td colspan="2" class="text-center fs-5 fw-bold">${aircraft.fpDest}</td>
