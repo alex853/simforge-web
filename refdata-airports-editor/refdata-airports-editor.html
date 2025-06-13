@@ -33,7 +33,7 @@
     </style>
 
     <script>
-        const airportsServiceUrl = 'http://82.146.44.100:7091';
+        const airportsServiceUrl = 'https://d1.simforge.co.uk:7771';
 
         const airports = [];
 
@@ -73,7 +73,7 @@
                 color: 'red',
                 fillColor: '#ffbd7b',
                 fillOpacity: 0.1,
-                radius: airport.defaultBoundaryRadius * 1850
+                radius: airport.boundary.defaultRadius * 1850
             }).addTo(map);
 
             airport.markers_center = L.circle(latlon, {
@@ -84,7 +84,7 @@
             }).addTo(map)
                 .bindPopup(airport.icao + ' ' + airport.name);
 
-            const hasCirclesBoundary = airport.boundaryType === 'Circles';
+            const hasCirclesBoundary = airport.boundary.type === 'Circles';
 
             const airportListItemTemplate =
                 '<li id="li_$icao$" class="list-group-item">' +
@@ -92,6 +92,7 @@
                 '<button id="btn_$icao$_pan" type="button" class="btn btn-success btn-xsm" onclick="panToAirport(airports[\'$icao$\'])">P</button> ' +
                 '<button id="btn_$icao$_default" type="button" class="btn btn-primary btn-xsm" onclick="on_btn_switch_default(\'$icao$\')">D</button> ' +
                 '<button id="btn_$icao$_circles" type="button" class="btn btn-xsm" onclick="on_btn_circles(\'$icao$\')">C</button> ' +
+                '<button id="btn_$icao$_save" type="button" class="btn btn-info btn-xsm" onclick="on_btn_save(\'$icao$\')">S</button> ' +
                 '<button id="btn_$icao$_remove" type="button" class="btn btn-outline-danger btn-xsm" onclick="on_btn_remove(\'$icao$\')">X</button>' +
                 '</li>'
 
@@ -104,7 +105,7 @@
         }
 
         function drawCircleBoundaryData(airport) {
-            const hasCirclesBoundary = airport.boundaryType === 'Circles';
+            const hasCirclesBoundary = airport.boundary.type === 'Circles';
             if (!hasCirclesBoundary) {
                 return;
             }
@@ -113,7 +114,7 @@
 
             airport.circleMarkers = [];
 
-            const splitted = airport.boundaryData.split(';');
+            const splitted = airport.boundary.data.split(';');
             splitted.forEach(each => {
                 const data = each.split(',');
 
@@ -166,10 +167,10 @@
         function on_btn_circles(icao) {
             const airport = airports[icao];
 
-            const hasCirclesBoundary = airport.boundaryType === 'Circles';
+            const hasCirclesBoundary = airport.boundary.type === 'Circles';
             const currentBoundaryData = hasCirclesBoundary
-                ? airport.boundaryData
-                : airport.boundaryData = airport.coords.lat +',' + airport.coords.lon + ',' + airport.defaultBoundaryRadius;
+                ? airport.boundary.data
+                : airport.boundary.data = airport.coords.lat +',' + airport.coords.lon + ',' + airport.boundary.defaultRadius;
 
             const newBoundaryData = prompt('Specify Circles boundary data', currentBoundaryData);
             if (newBoundaryData === null) {
@@ -177,12 +178,32 @@
             }
 
             if (!hasCirclesBoundary) {
-                airport.boundaryType = 'Circles';
+                airport.boundary.type = 'Circles';
                 $("#btn_$icao$_circles".replace("$icao$", airport.icao)).removeClass("btn-outline-warning").addClass("btn-warning");
             }
 
-            airport.boundaryData = newBoundaryData;
+            airport.boundary.data = newBoundaryData;
             drawCircleBoundaryData(airport);
+        }
+
+        function on_btn_save(icao) {
+            const airport = airports[icao];
+
+            $.ajax({
+                url: airportsServiceUrl + '/v1/airport/boundary',
+                method: 'POST',
+                data: {
+                    icao: icao,
+                    type: airport.boundary.type,
+                    data: airport.boundary.data
+                },
+                success: function (response) {
+                    alert("saved!")
+                },
+                error: function (e) {
+                    alert("error saving airport info by '" + icao + "'");
+                }
+            });
         }
 
         function on_btn_remove(icao) {
