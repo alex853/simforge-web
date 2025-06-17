@@ -49,7 +49,7 @@
 </head>
 <body>
 
-<div style="position: absolute; top: 0px; left: 0px; bottom: 0px; width: 400px; background: rgba(255,255,255,0.9); z-index: 1000; overflow-y: auto; padding: 2px;" id="sidebar">
+<div style="position: absolute; top: 0px; left: 0px; bottom: 0px; width: 450px; background: rgba(255,255,255,0.9); z-index: 1000; overflow-y: auto; padding: 2px;" id="sidebar">
     <h5>Positions</h5>
     <form id="positionForm" class="mb-2">
         <div class="row g-1 align-items-center">
@@ -63,6 +63,10 @@
                     <option value="last6hours">Last 6h</option>
                     <option value="last12hours">Last 12h</option>
                     <option value="last24hours">Last 24h</option>
+                    <option value="last36hours">Last 36h</option>
+                    <option value="last48hours">Last 48h</option>
+                    <option value="last60hours">Last 60h</option>
+                    <option value="last72hours">Last 72h</option>
                 </select>
             </div>
             <div class="col-4">
@@ -85,7 +89,7 @@
     </table>
 </div>
 
-<div id="map" style="position: absolute; left: 400px; top: 0; right: 0; bottom: 0;"></div>
+<div id="map" style="position: absolute; left: 450px; top: 0; right: 0; bottom: 0;"></div>
 
 <script>
     let dataIsLoadingNow = false;
