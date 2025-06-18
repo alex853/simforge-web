@@ -170,17 +170,67 @@
                     offset: [airportIconSize / 10, 0],
                     className: 'always-shown-tooltip'
                 })
-                .bindPopup(
-                    '<b>' + a.icao + '</b><br>' +
-                    '<i>todo</i> name<br>' +
-                    '<i>todo</i> city connections<br>' +
-                    '<i>todo</i> weekly top 3 connections<br>' +
-                    '<i>todo</i> flights - outbound and inbound<br>' +
-                    '<i>todo</i> aircraft on ground - active & parked<br>' +
-                    '<i>todo</i> link to airport details page');
+                .bindPopup('')
+                .on('popupopen', function (e) {
+                    updateAirportPopup(e.target);
+                });
+            marker.airport = a;
             marker.addTo(map);
             airportMarkers.push(marker);
         });
+    }
+
+    function updateAirportPopup(marker) {
+        const airport = marker.airport;
+
+        const content = `
+        <div class="fs-4 fw-bold">${airport.icao}</div>
+        <div class="fs-6 fw-bold">London Gatwick</div>
+        <table class="table table-sm">
+            <tr>
+                <td colspan="4">
+                    <div class="text-start text-muted">CITIES CONNECTED</div>
+                    <div class="text-end fw-bold">London</div>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="1" rowspan="3" class="text-start text-muted">TOP 3<br>CONNECTIONS<br>(weekly flights)</td>
+                <td colspan="2" class="text-start">EGPH</td>
+                <td colspan="1" class="text-end">10</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="text-start">EIDW</td>
+                <td colspan="1" class="text-end">7</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="text-start">LFPG</td>
+                <td colspan="1" class="text-end">5</td>
+            </tr>
+            <tr>
+                <td colspan="1" rowspan="2" class="text-start text-muted">FLIGHTS</td>
+                <td colspan="2" class="text-start">Outbound</td>
+                <td colspan="1" class="text-end">5</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="text-start">Inbound</td>
+                <td colspan="1" class="text-end">3</td>
+            </tr>
+            <tr>
+                <td colspan="1" rowspan="2" class="text-start text-muted">AIRCRAFT</td>
+                <td colspan="2" class="text-start">Active</td>
+                <td colspan="1" class="text-end">3</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="text-start">Parked</td>
+                <td colspan="1" class="text-end">24</td>
+            </tr>
+        </table>
+        <div class="text-end">
+            <a href="javascript:alert('hello!');" class="btn btn-sm btn-outline-secondary">Details</a>
+        </div>
+        `;
+
+        marker.setPopupContent(content);
     }
 
     function drawAircraft() {
@@ -231,7 +281,7 @@
         }
 
         const content = `
-        <div class="fs-4 fw-bold p-2">${aircraft.acReg}</div>
+        <div class="fs-4 fw-bold">${aircraft.acReg}</div>
         <table class="table table-sm">
             <tr>
                 <td colspan="1" class="text-start text-muted">TYPE</td>
