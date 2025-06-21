@@ -154,11 +154,11 @@
 
         data.cities.forEach(c => {
             const marker = L.marker([c.latitude, c.longitude], {icon: getIcon('city', cityIconSize)})
-                .bindPopup(
-                    '<b>' + c.name + '</b><br>' +
-                    '' + Math.round(c.population / 1000) + 'k<br>' +
-                    '<i>todo</i> airport connections<br>' +
-                    '<i>todo</i> link to city details page');
+                .bindPopup('')
+                .on('popupopen', function (e) {
+                    updateCityPopup(e.target);
+                });
+            marker.city = c;
             marker.addTo(map);
             cityMarkers.push(marker);
         });
@@ -179,6 +179,31 @@
             marker.addTo(map);
             airportMarkers.push(marker);
         });
+    }
+
+    function updateCityPopup(marker) {
+        const city = marker.city;
+
+        const content = `
+        <div class="fs-4 fw-bold">${city.name}</div>
+        <table class="table table-sm">
+            <tr>
+                <td colspan="1" class="text-start text-muted">POPULATION</td>
+                <td colspan="3" class="text-end fw-bold">${Math.round(city.population / 1000)}k</td>
+            </tr>
+            <tr>
+                <td colspan="4">
+                    <div class="text-start text-muted">AIRPORTS CONNECTED</div>
+                    <div class="text-end fw-bold">${city.airports?.join(', ') ?? ''}</div>
+                </td>
+            </tr>
+        </table>
+        <div class="text-end">
+            <a href="javascript:alert('hello!');" class="btn btn-sm btn-outline-secondary">Details</a>
+        </div>
+        `;
+
+        marker.setPopupContent(content);
     }
 
     function showAirportPopup(marker) {
