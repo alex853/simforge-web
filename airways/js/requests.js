@@ -1,5 +1,5 @@
 
-const airwaysServiceUrl = 'https://d1.simforge.co.uk:7776';
+const airwaysServiceUrl = 'https://d1.simforge.net:7776';
 
 function loadCities(callback) {
     $.ajax({
