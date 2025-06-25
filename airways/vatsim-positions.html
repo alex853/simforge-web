@@ -180,6 +180,14 @@
                 <td>${p.fdep ?? ''}</td>
                 <td>${p.fdest ?? ''}</td>
                 `;
+
+                if (p.st !== 'Offline') {
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => {
+                        map.setView(L.latLng(p.lat, p.lon), map.getZoom());
+                    });
+                }
+
                 tbody.appendChild(row);
             });
         });
