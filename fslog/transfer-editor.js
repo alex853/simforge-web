@@ -80,7 +80,7 @@ function addTransferClicked(discontinuityRecordId) {
     }
 
     if (previousRecord && (previousRecord.isFlight() || previousRecord.isTransfer())) {
-        editorRow.fields.departure.val(previousRecord.destination);
+        editorRow.fields.departure.val(previousRecord.destination).trigger('input');
         disableField(editorRow.fields.departure);
     }
 
