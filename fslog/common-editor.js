@@ -46,35 +46,9 @@ function discardClicked() {
     }
 }
 
+// todo ak3 this refreshAirportNamesInEditor can be reworked into setTimeout solution as it was done for distance field
 function airportEditorKeyUp(e, callback) {
-    const from = nonEmptyUpperCase(editorRow.fields.departure.val());
-    const to = nonEmptyUpperCase(editorRow.fields.destination.val());
-
     refreshAirportNamesInEditor();
-
-    if (from === undefined || to === undefined) {
-        return;
-    }
-
-    $.ajax({
-        url: distanceUrl + '/v1/distance?from=$from$&to=$to$'.replace('$from$', from.toUpperCase()).replace('$to$', to.toUpperCase()),
-        method: 'GET',
-        success: function (response) {
-            const distanceStr = response;
-            if (!editorRow.fields.distance.val()) {
-                editorRow.fields.distance.val(distanceStr);
-            }
-            if (callback) {
-                callback();
-            }
-        },
-        error: function (e) {
-            editorRow.fields.distance.val(null);
-            if (callback) {
-                callback();
-            }
-        }
-    });
 }
 
 function refreshAirportNamesInEditor() {
@@ -128,4 +102,12 @@ function hideButton(name) {
 
 function showButton(name) {
     $("#flightsContainer").find(name).removeClass('d-none');
+}
+
+function makeBoldIfValuePresent() {
+    if ($(this).val().trim() !== '') {
+        $(this).css('font-weight', 'bold');
+    } else {
+        $(this).css('font-weight', 'normal');
+    }
 }

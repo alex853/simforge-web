@@ -37,14 +37,14 @@ function addTransferClicked(discontinuityRecordId) {
     editorRow.previousRecord = previousRecord;
     editorRow.nextRecord = nextRecord;
 
-    editorRow.fields.date = editorRow.find('#transferEditor-date'); // todo ak date format input processing
+    editorRow.fields.date = editorRow.find('#transferEditor-date').on('input', makeBoldIfValuePresent); // todo ak date format input processing
     editorRow.fields.dateLimits = editorRow.find('#transferEditor-dateLimits');
 
-    editorRow.fields.departure = editorRow.find('#transferEditor-from');
+    editorRow.fields.departure = editorRow.find('#transferEditor-from').on('input', makeBoldIfValuePresent);
     editorRow.fields.departureName = editorRow.find('#transferEditor-fromName');
     editorRow.fields.departure.keyup(transferAirportEditorKeyUp);
 
-    editorRow.fields.destination = editorRow.find('#transferEditor-to');
+    editorRow.fields.destination = editorRow.find('#transferEditor-to').on('input', makeBoldIfValuePresent);
     editorRow.fields.destinationName = editorRow.find('#transferEditor-toName');
     editorRow.fields.destination.keyup(transferAirportEditorKeyUp);
 

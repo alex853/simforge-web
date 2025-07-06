@@ -38,19 +38,20 @@ function addFlightClicked(discontinuityRecordId) {
     editorRow.previousRecord = previousRecord;
     editorRow.nextRecord = nextRecord;
 
-    editorRow.fields.date = editorRow.find('#flightEditor-date'); // todo ak date format input processing
+    editorRow.fields.date = editorRow.find('#flightEditor-date').on('input', makeBoldIfValuePresent); // todo ak date format input processing
     editorRow.fields.dateLimits = editorRow.find('#flightEditor-dateLimits');
 
-    editorRow.fields.callsign = editorRow.find('#flightEditor-callsign');
-    editorRow.fields.flightNumber = editorRow.find('#flightEditor-flightNumber');
-    editorRow.fields.aircraftType = editorRow.find('#flightEditor-aircraftType');
-    editorRow.fields.aircraftRegistration = editorRow.find('#flightEditor-aircraftRegistration');
+    editorRow.fields.callsign = editorRow.find('#flightEditor-callsign').on('input', makeBoldIfValuePresent);
+    editorRow.fields.flightNumber = editorRow.find('#flightEditor-flightNumber').on('input', makeBoldIfValuePresent);
+    editorRow.fields.aircraftType = editorRow.find('#flightEditor-aircraftType').on('input', makeBoldIfValuePresent);
 
-    editorRow.fields.departure = editorRow.find('#flightEditor-from');
+    editorRow.fields.aircraftRegistration = editorRow.find('#flightEditor-aircraftRegistration').on('input', makeBoldIfValuePresent);
+
+    editorRow.fields.departure = editorRow.find('#flightEditor-from').on('input', makeBoldIfValuePresent);
     editorRow.fields.departureName = editorRow.find('#flightEditor-fromName');
     editorRow.fields.departure.keyup(airportEditorKeyUp);
 
-    editorRow.fields.destination = editorRow.find('#flightEditor-to');
+    editorRow.fields.destination = editorRow.find('#flightEditor-to').on('input', makeBoldIfValuePresent);
     editorRow.fields.destinationName = editorRow.find('#flightEditor-toName');
     editorRow.fields.destination.keyup(airportEditorKeyUp);
 
@@ -89,13 +90,14 @@ function addFlightClicked(discontinuityRecordId) {
 
     const previousRecordIsFlight = previousRecord && previousRecord.isFlight();
 
-    editorRow.fields.callsign.val(previousRecordIsFlight ? previousRecord.callsign : undefined);
-    editorRow.fields.flightNumber.val(previousRecordIsFlight ? previousRecord.flightNumber : undefined);
-    editorRow.fields.aircraftType.val(previousRecordIsFlight ? previousRecord.aircraftType : undefined);
-    editorRow.fields.aircraftRegistration.val(previousRecordIsFlight ? previousRecord.aircraftRegistration : undefined);
+    editorRow.fields.callsign.val(previousRecordIsFlight ? previousRecord.callsign : undefined).trigger('input');
+    editorRow.fields.flightNumber.val(previousRecordIsFlight ? previousRecord.flightNumber : undefined).trigger('input');
+    editorRow.fields.aircraftType.val(previousRecordIsFlight ? previousRecord.aircraftType : undefined).trigger('input');
+    editorRow.fields.aircraftRegistration.val(previousRecordIsFlight ? previousRecord.aircraftRegistration : undefined).trigger('input');
+    editorRow.fields.remarks.val(previousRecordIsFlight ? previousRecord.remarks : undefined).trigger('input');
 
     if (previousRecordIsFlight || previousRecord.isTransfer()) {
-        editorRow.fields.departure.val(previousRecord.destination);
+        editorRow.fields.departure.val(previousRecord.destination).trigger('input');
         disableField(editorRow.fields.departure);
     }
 

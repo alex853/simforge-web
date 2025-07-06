@@ -137,3 +137,57 @@ function airportInfo_flagGreyIcaoName(icao) {
     let shownName = getAirportCityName(info);
     return '<img src="' + url + '" style="vertical-align: text-top;"> <b>' + icao + '</b> ' + shownName;
 }
+
+
+
+const loadedAirportDistances = {};
+
+function airportDistanceTimer() {
+    if (!editorRow
+        || !editorRow.fields
+        || !editorRow.fields.departure
+        || !editorRow.fields.destination
+        || !editorRow.fields.distance) {
+        return;
+    }
+
+    const from = nonEmptyUpperCase(editorRow.fields.departure.val());
+    const to = nonEmptyUpperCase(editorRow.fields.destination.val());
+
+    if (from === undefined || to === undefined) {
+        return;
+    }
+
+    const key = from + '-' + to;
+    const dist = loadedAirportDistances[key];
+
+    if (dist === undefined) {
+        loadAirportDistance(from, to);
+    } else if (Number.isFinite(dist)) {
+        const currentDist = editorRow.fields.distance.val();
+        if (currentDist === undefined
+            || currentDist === ""
+            || parseInt(currentDist) < dist
+            || parseInt(currentDist) === editorRow.fields.distance.previouslyLoadedDistance) {
+            editorRow.fields.distance.val(dist);
+            editorRow.fields.distance.previouslyLoadedDistance = dist;
+        }
+    }
+}
+
+setInterval(airportDistanceTimer, 100);
+
+function loadAirportDistance(from, to) {
+    const key = from + '-' + to;
+
+    $.ajax({
+        url: distanceUrl + '/v1/distance?from=$from$&to=$to$'.replace('$from$', from.toUpperCase()).replace('$to$', to.toUpperCase()),
+        method: 'GET',
+        success: function (response) {
+            loadedAirportDistances[key] = parseInt(response);
+        },
+        error: function () {
+            loadedAirportDistances[key] = 'error';
+        }
+    });
+}
