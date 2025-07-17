@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>airways / Transport Flights</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="js/requests.js"></script>
+
+
+    <style>
+        .btn-xsm {
+            padding: .15rem .35rem;
+            font-size: .725rem;
+            line-height: 1.5;
+            border-radius: .2rem
+        }
+    </style>
+
+</head>
+<body>
+<div class="container my-5">
+    <h2 class="mb-4">Flight Board</h2>
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover">
+            <colgroup>
+                <col>
+                <col>
+                <col>
+                <col>
+                <col style="width: 10%;">
+                <col style="width: 10%;">
+                <col style="width: 10%;">
+                <col style="width: 10%;">
+                <col style="width: 10%;">
+            </colgroup>
+            <thead class="table-dark">
+            <tr>
+                <th rowspan="2" class="text-center align-middle">ID</th>
+                <th rowspan="2" class="text-center align-middle">DOF</th>
+                <th rowspan="2" class="text-center align-middle">Heartbeat</th>
+                <th rowspan="2" class="text-center align-middle">Status</th>
+                <th colspan="2" class="text-center align-middle">Route</th>
+                <th colspan="2" class="text-center align-middle">Planned Time</th>
+                <th rowspan="2" class="text-center align-middle">Actions</th>
+            </tr>
+            <tr>
+                <th class="text-center align-middle">From</th>
+                <th class="text-center align-middle">To</th>
+                <th class="text-center align-middle">Dep</th>
+                <th class="text-center align-middle">Arr</th>
+            </tr>
+            </thead>
+            <tbody id="flight-table-body">
+            <!-- Rows will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+
+    let dataIsLoadingNow = false;
+
+    function updateFlightTable(data) {
+        const $tbody = $('#flight-table-body');
+        $tbody.empty();
+        data.forEach(item => {
+            const row = `
+          <tr>
+            <td class="text-center align-middle">${item.id}</td>
+            <td class="text-center align-middle">${item.dof}</td>
+            <td class="text-center align-middle">${item.hbt ?? ''}</td>
+            <td class="text-center align-middle">${item.st}</td>
+            <td class="text-center align-middle">${item.dep}</td>
+            <td class="text-center align-middle">${item.dest}</td>
+            <td class="text-center align-middle">${item.pdep}</td>
+            <td class="text-center align-middle">${item.parr}</td>
+            <td class="text-center align-middle"><button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button></td>
+          </tr>`;
+            $tbody.append(row);
+        })
+    }
+
+    function reloadData() {
+        if (dataIsLoadingNow) {
+            return;
+        }
+        dataIsLoadingNow = true;
+        airwaysGet('/transport-flight/all', function (response) {
+            dataIsLoadingNow = false;
+            updateFlightTable(response);
+        });
+    }
+
+    $(document).ready(function () {
+        reloadData();
+
+        setInterval(() => reloadData(), 10000);
+    });
+
+    function adminCancel(id) {
+        const result = confirm("Do you want to cancel this flight?");
+        if (!result) {
+            return;
+        }
+
+        airwaysGet('/admin/transport-flight/cancel?tfId=' + id, function () {
+            reloadData();
+        });
+    }
+
+</script>
+</body>
+</html>
