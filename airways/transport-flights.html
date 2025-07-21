@@ -20,7 +20,13 @@
 </head>
 <body>
 <div class="container my-5">
-    <h2 class="mb-4">Flight Board</h2>
+    <h2 class="mb-4">Transport Flight Board</h2>
+    <div class="mb-3">
+        <div class="btn-group" role="group" aria-label="Filter status">
+            <button type="button" class="btn btn-outline-primary filter-btn active" data-filter="all">All</button>
+            <button type="button" class="btn btn-outline-primary filter-btn" data-filter="actual">Actual</button>
+        </div>
+    </div>
     <div class="table-responsive">
         <table class="table table-bordered table-striped table-hover">
             <colgroup>
@@ -60,7 +66,16 @@
 
 <script>
 
+    let currentFilter = 'all'; // Default
     let dataIsLoadingNow = false;
+
+    // Update active filter button
+    $('.filter-btn').on('click', function () {
+        $('.filter-btn').removeClass('active');
+        $(this).addClass('active');
+        currentFilter = $(this).data('filter');
+        reloadData(); // Reload data using new filter
+    });
 
     function updateFlightTable(data) {
         const $tbody = $('#flight-table-body');
@@ -87,7 +102,7 @@
             return;
         }
         dataIsLoadingNow = true;
-        airwaysGet('/transport-flight/all', function (response) {
+        airwaysGet('/transport-flight/' + currentFilter, function (response) {
             dataIsLoadingNow = false;
             updateFlightTable(response);
         });
