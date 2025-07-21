@@ -299,6 +299,7 @@
                 aircraftMarkers[key] = marker;
             } else {
                 existingMarker.setLatLng([a.lat, a.lon]);
+                existingMarker.setRotationAngle(a.hdg + airplaneIcons[a.id % airplaneIcons.length][1]);
             }
         });
 
