@@ -73,6 +73,7 @@
             <select id="flightModeSelect" class="form-select" disabled>
                 <option value="automatic" selected>Automatic</option>
                 <option value="manual">Manual</option>
+                <option value="flight-dashboard">Flight Dashboard</option>
             </select>
 
             <label>5. Dispatch the flight</label>
@@ -183,9 +184,12 @@
             },
             success: function (response) {
                 const flightId = response.flightId;
-                const html = selectedFlightMode === 'manual'
-                    ? `Flight # ${flightId} dispatched. Use <a href="manual-flight.html?flightId=${flightId}">the flight control page</a> for the next steps.`
-                    : `Flight # ${flightId} dispatched. Processing started automatically.`;
+                let html = `Flight # ${flightId} dispatched. Processing started automatically.`;
+                if (selectedFlightMode === 'manual') {
+                    html = `Flight # ${flightId} dispatched. Use <a href="manual-flight.html?flightId=${flightId}">the flight control page</a> for the next steps.`;
+                } else if (selectedFlightMode === 'flight-dashboard') {
+                    html = `Flight # ${flightId} dispatched. Use <a href="flight-dashboard.html?flightId=${flightId}">the Flight Dashboard</a> for the next steps.`;
+                }
                 $('#dispatchStatus')
                     .html(html)
                     .removeClass('text-danger')

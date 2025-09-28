@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Airways / Flight Dashboard</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="js/requests.js"></script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+
+        .outer {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .dashboard {
+            width: 50rem;
+            height: 34rem;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .dashboard-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+
+        .dashboard-body {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .sidebar {
+            width: 15rem;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section {
+            flex: 1;
+            display: flex;
+            border-bottom: 1px solid #eee;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-label {
+            width: 2.5rem;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            border-right: 1px solid #eee;
+        }
+
+        .section-content {
+            flex: 1;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="outer">
+    <div class="dashboard">
+        <div class="dashboard-header">
+            Flight Dashboard
+        </div>
+
+        <div class="dashboard-body">
+            <div class="sidebar">
+                <h5>Flights</h5>
+                <ul class="list-group" id="flightList">
+                    <li class="list-group-item active">
+                        <div>SU1234</div>
+                        <small>MOW → LED</small><br>
+                        <small>Status: Preflight</small>
+                    </li>
+                    <li class="list-group-item">
+                        <div>SU5678</div>
+                        <small>MOW → AER</small><br>
+                        <small>Status: Scheduled</small>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="main">
+                <div class="section">
+                    <div class="section-label">Aircraft</div>
+                    <div class="section-content">
+                        <div>Reg: <span id="acReg"></span></div>
+                        <div>Type: <span id="acType"></span></div>
+                        <div>Location Status: <span id="acLocationStatus"></span></div>
+                        <div>Operational Status: <span id="acOperationalStatus"></span></div>
+                        <!--button class="btn btn-sm btn-warning m-1">Refuel</button>
+                        <button class="btn btn-sm btn-danger m-1">Repair</button-->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-label">Flight</div>
+                    <div class="section-content">
+                        <div>Route: <span id="fltDepIcao" class="fw-bold"></span> (<span id="fltPlanDepTime"></span>) → <span id="fltDestIcao" class="fw-bold"></span> (<span id="fltPlanArrTime"></span>)</div>
+                        <div>
+                            Status: <span id="fltStatus" class="fw-bold"></span>
+                            <span class="text-secondary fst-italic"> → <span id="fltNextStatus"></span> at <span id="fltNextStatusAt"></span></span>
+                        </div>
+                        <!--button id="flightAction" class="btn btn-primary m-2 disabled">Blocks Off</button-->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-label">Payload</div>
+                    <div class="section-content">
+                        <div>
+                            Status: <span id="tfStatus" class="fw-bold"></span>
+                            <span class="text-secondary fst-italic"> → <span id="tfNextStatus"></span> at <span id="tfNextStatusAt"></span></span>
+                        </div>
+                        <!--div>Check-in: <span id="paxChecked">120</span> / <span id="paxTotal">150</span></div>
+                        <div>Onboard: <span id="paxOnboard">0</span> / <span id="paxTotal">150</span></div-->
+
+                        <!--div class="progress my-2">
+                            <div id="boardingProgress" class="progress-bar bg-success" role="progressbar"
+                                 style="width: 0%"></div>
+                        </div-->
+
+                        <!--div class="mt-2">
+                            <button id="startBoarding" class="btn btn-success btn-sm">Start Boarding</button>
+                            <button id="completeBoarding" class="btn btn-primary btn-sm" disabled>Complete Boarding
+                            </button>
+                            <button id="startDeboarding" class="btn btn-warning btn-sm" style="display:none;">Start
+                                Deboarding
+                            </button>
+                            <button id="finishDeboarding" class="btn btn-secondary btn-sm" style="display:none;">Finish
+                                Deboarding
+                            </button>
+                        </div-->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    let flightId;
+    let flightInfo;
+
+    function updateUI() {
+        $('#acReg').text(flightInfo.aircraft.regNo);
+        $('#acType').text(flightInfo.aircraft.type);
+        $('#acLocationStatus').text(flightInfo.aircraft.locationStatus);
+        $('#acOperationalStatus').text(flightInfo.aircraft.operationalStatus);
+
+        $('#fltDepIcao').text(flightInfo.flight.depIcao);
+        $('#fltDestIcao').text(flightInfo.flight.destIcao);
+        $('#fltPlanDepTime').text(flightInfo.flight.planDepTime);
+        $('#fltPlanArrTime').text(flightInfo.flight.planArrTime);
+        $('#fltStatus').text(flightInfo.flight.status);
+        $('#fltNextStatus').text(flightInfo.flight.nextPlannedStatus.status);
+        $('#fltNextStatusAt').text(flightInfo.flight.nextPlannedStatus.time);
+
+        $('#tfStatus').text(flightInfo.transportFlight.status);
+        $('#tfNextStatus').text(flightInfo.transportFlight.nextPlannedStatus.status);
+        $('#tfNextStatusAt').text(flightInfo.transportFlight.nextPlannedStatus.time);
+    }
+
+    function loadFlightInfo() {
+        airwaysGet("/flight-dashboard/status?flightId=" + flightId, function (response) {
+            flightInfo = response;
+            updateUI();
+        });
+    }
+
+    $(document).ready(function () {
+        const url = new URL(window.location.href);
+        flightId = url.searchParams.get("flightId");
+
+        if (flightId) {
+            loadFlightInfo();
+            setInterval(loadFlightInfo, 10000);
+        } else {
+            alert('no flight id found!!!!')
+        }
+    });
+
+</script>
+
+</body>
+</html>
