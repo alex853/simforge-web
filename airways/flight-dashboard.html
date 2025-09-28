@@ -101,15 +101,15 @@
                 <h5>Flights</h5>
                 <ul class="list-group" id="flightList">
                     <li class="list-group-item active">
-                        <div>SU1234</div>
-                        <small>MOW → LED</small><br>
-                        <small>Status: Preflight</small>
+                        <!--div>SU1234</div-->
+                        <div><span id="fltList1DepIcao"></span> → <span id="fltList1DestIcao"></span></div>
+                        <div><span id="fltList1Status">Preflight</span></div>
                     </li>
-                    <li class="list-group-item">
+                    <!--li class="list-group-item">
                         <div>SU5678</div>
                         <small>MOW → AER</small><br>
                         <small>Status: Scheduled</small>
-                    </li>
+                    </li-->
                 </ul>
             </div>
 
@@ -189,6 +189,10 @@
         $('#fltStatus').text(flightInfo.flight.status);
         $('#fltNextStatus').text(flightInfo.flight.nextPlannedStatus.status);
         $('#fltNextStatusAt').text(flightInfo.flight.nextPlannedStatus.time);
+
+        $('#fltList1DepIcao').text(flightInfo.flight.depIcao);
+        $('#fltList1DestIcao').text(flightInfo.flight.destIcao);
+        $('#fltList1Status').text(flightInfo.flight.status);
 
         $('#tfStatus').text(flightInfo.transportFlight.status);
         $('#tfNextStatus').text(flightInfo.transportFlight.nextPlannedStatus.status);
