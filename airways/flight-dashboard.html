@@ -236,6 +236,27 @@
         });
     });
 
+    $('#tfBtnStartBoarding').on('click', function () {
+        // todo ak1 confirmation dialog?
+        // todo ak1 disable / hide?
+        // todo ak1 block automatic refreshes?
+
+        $.ajax({
+            url: airwaysServiceUrl + "/flight-dashboard/start-boarding",
+            method: 'POST',
+            data: {
+                flightId: flightId,
+            },
+            success: function (response) {
+                flightInfo = response;
+                updateUI();
+            },
+            error: function (e) {
+                alert('error'); // todo ak0 ??? alert, reload, refresh
+            }
+        });
+    });
+
     function loadFlightInfo() {
         airwaysGet("/flight-dashboard/status?flightId=" + flightId, function (response) {
             flightInfo = response;
