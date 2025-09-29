@@ -134,7 +134,8 @@
                             Status: <span id="fltStatus" class="fw-bold"></span>
                             <span class="text-secondary fst-italic"> → <span id="fltNextStatus"></span> at <span id="fltNextStatusAt"></span></span>
                         </div>
-                        <!--button id="flightAction" class="btn btn-primary m-2 disabled">Blocks Off</button-->
+                        <button id="fltBtnStart" class="btn btn-primary m-2" style="display: none;">Start</button>
+                        <button id="fltBtnBlocksOff" class="btn btn-primary m-2" style="display: none;">Blocks Off</button>
                     </div>
                 </div>
 
@@ -144,6 +145,7 @@
                         <div>
                             Status: <span id="tfStatus" class="fw-bold"></span>
                             <span class="text-secondary fst-italic"> → <span id="tfNextStatus"></span> at <span id="tfNextStatusAt"></span></span>
+                            <button id="tfBtnStartBoarding" class="btn btn-primary m-2" style="display: none;">Start Boarding</button>
                         </div>
                         <!--div>Check-in: <span id="paxChecked">120</span> / <span id="paxTotal">150</span></div>
                         <div>Onboard: <span id="paxOnboard">0</span> / <span id="paxTotal">150</span></div-->
@@ -187,17 +189,52 @@
         $('#fltPlanDepTime').text(flightInfo.flight.planDepTime);
         $('#fltPlanArrTime').text(flightInfo.flight.planArrTime);
         $('#fltStatus').text(flightInfo.flight.status);
-        $('#fltNextStatus').text(flightInfo.flight.nextPlannedStatus.status);
-        $('#fltNextStatusAt').text(flightInfo.flight.nextPlannedStatus.time);
+        $('#fltNextStatus').text(flightInfo.flight.nextPlannedStatus?.status); // todo ak0 at is optional
+        $('#fltNextStatusAt').text(flightInfo.flight.nextPlannedStatus?.time);
+
+        if (flightInfo.flight.permittedActions && flightInfo.flight.permittedActions.indexOf('start') !== -1) // todo ak1 permitted actions will be reworked
+            $('#fltBtnStart').show();
+        else
+            $('#fltBtnStart').hide();
+        if (flightInfo.flight.permittedActions && flightInfo.flight.permittedActions.indexOf('blocks-off') !== -1) // todo ak1 permitted actions will be reworked
+            $('#fltBtnBlocksOff').show();
+        else
+            $('#fltBtnBlocksOff').hide();
 
         $('#fltList1DepIcao').text(flightInfo.flight.depIcao);
         $('#fltList1DestIcao').text(flightInfo.flight.destIcao);
         $('#fltList1Status').text(flightInfo.flight.status);
 
         $('#tfStatus').text(flightInfo.transportFlight.status);
-        $('#tfNextStatus').text(flightInfo.transportFlight.nextPlannedStatus.status);
-        $('#tfNextStatusAt').text(flightInfo.transportFlight.nextPlannedStatus.time);
+        $('#tfNextStatus').text(flightInfo.transportFlight.nextPlannedStatus?.status); // todo ak0 at is optional
+        $('#tfNextStatusAt').text(flightInfo.transportFlight.nextPlannedStatus?.time);
+
+        if (flightInfo.transportFlight.permittedActions && flightInfo.transportFlight.permittedActions .indexOf('start-boarding') !== -1) // todo ak1 permitted actions will be reworked
+            $('#tfBtnStartBoarding').show();
+        else
+            $('#tfBtnStartBoarding').hide();
     }
+
+    $('#fltBtnStart').on('click', function () {
+        // todo ak1 confirmation dialog?
+        // todo ak1 disable / hide?
+        // todo ak1 block automatic refreshes?
+
+        $.ajax({
+            url: airwaysServiceUrl + "/flight-dashboard/start-flight",
+            method: 'POST',
+            data: {
+                flightId: flightId,
+            },
+            success: function (response) {
+                flightInfo = response;
+                updateUI();
+            },
+            error: function (e) {
+                alert('error'); // todo ak0 ??? alert, reload, refresh
+            }
+        });
+    });
 
     function loadFlightInfo() {
         airwaysGet("/flight-dashboard/status?flightId=" + flightId, function (response) {
