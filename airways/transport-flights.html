@@ -7,7 +7,6 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="js/requests.js"></script>
 
-
     <style>
         .btn-xsm {
             padding: .15rem .35rem;
@@ -91,7 +90,10 @@
             <td class="text-center align-middle">${item.dest}</td>
             <td class="text-center align-middle">${item.pdep}</td>
             <td class="text-center align-middle">${item.parr}</td>
-            <td class="text-center align-middle"><button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button></td>
+            <td class="text-center align-middle">
+                <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button>
+                <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>
+            </td>
           </tr>`;
             $tbody.append(row);
         })
@@ -115,12 +117,15 @@
     });
 
     function adminCancel(id) {
-        const result = confirm("Do you want to cancel this flight?");
-        if (!result) {
-            return;
-        }
+        if (!confirm("Do you want to cancel this flight?")) return;
+        airwaysGetPlain('/admin/transport-flight/cancel?tfId=' + id, function () {
+            reloadData();
+        });
+    }
 
-        airwaysGet('/admin/transport-flight/cancel?tfId=' + id, function () {
+    function adminRemove(id) {
+        if (!confirm("Do you want to remove this flight?")) return;
+        airwaysGetPlain('/admin/transport-flight/remove?tfId=' + id, function () {
             reloadData();
         });
     }

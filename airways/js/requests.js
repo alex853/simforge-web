@@ -131,3 +131,21 @@ function airwaysGet(url, callback, errorCallback) {
         }
     });
 }
+
+function airwaysGetPlain(url, callback, errorCallback) {
+    $.ajax({
+        url: airwaysServiceUrl + url,
+        method: 'GET',
+        success: function (response) {
+            if (callback) {
+                callback(response);
+            }
+        },
+        error: function (e) {
+            console.error("error loading " + url + " data");
+            if (errorCallback) {
+                errorCallback();
+            }
+        }
+    });
+}

@@ -6,6 +6,16 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="js/requests.js"></script>
+
+    <style>
+        .btn-xsm {
+            padding: .15rem .35rem;
+            font-size: .725rem;
+            line-height: 1.5;
+            border-radius: .2rem
+        }
+    </style>
+
 </head>
 <body>
 <div class="container my-5">
@@ -25,6 +35,7 @@
                 <col style="width: 8%;">
                 <col style="width: 8%;">
                 <col style="width: 8%;">
+                <col style="width: 4%;">
             </colgroup>
             <thead class="table-dark">
             <tr>
@@ -35,6 +46,7 @@
                 <th colspan="2" class="text-center align-middle">Route</th>
                 <th colspan="2" class="text-center align-middle">Planned Time</th>
                 <th colspan="4" class="text-center align-middle">Actual Time</th>
+                <th rowspan="2" class="text-center align-middle">Actions</th>
             </tr>
             <tr>
                 <th class="text-center align-middle">From</th>
@@ -81,6 +93,9 @@
             <td class="text-center align-middle">${item.atof ?? ''}</td>
             <td class="text-center align-middle">${item.aldg ?? ''}</td>
             <td class="text-center align-middle">${item.aarr ?? ''}</td>
+            <td class="text-center align-middle">
+                <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>
+            </td>
           </tr>`;
             $tbody.append(row);
         })
@@ -102,6 +117,13 @@
 
         setInterval(() => reloadData(), 10000);
     });
+
+    function adminRemove(id) {
+        if (!confirm("Do you want to remove this flight?")) return;
+        airwaysGetPlain('/admin/flight/remove?flightId=' + id, function () {
+            reloadData();
+        });
+    }
 
 </script>
 </body>
