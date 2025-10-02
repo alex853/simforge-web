@@ -109,6 +109,8 @@
         airwaysGet('/flight-mission/current-flights', function (response) {
             dataIsLoadingNow = false;
             updateFlightTable(response);
+        }, function() {
+            dataIsLoadingNow = false;
         });
     }
 
