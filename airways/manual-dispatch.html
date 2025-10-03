@@ -76,7 +76,13 @@
                 <option value="flight-dashboard">Flight Dashboard</option>
             </select>
 
-            <label>5. Dispatch the flight</label>
+            <label>5. Select transport flight mode</label>
+            <select id="tfModeSelect" class="form-select" disabled>
+                <option value="schedule" selected>Schedule T/F</option>
+                <option value="disable">Disable T/F</option>
+            </select>
+
+            <label>6. Dispatch the flight</label>
             <button id="dispatchButton" class="btn btn-primary" disabled>Dispatch</button>
         </div>
         <div id="dispatchStatus" class="fw-bold text-success mt-4">&nbsp;</div>
@@ -90,6 +96,7 @@
     let selectedDestinationIcao = null;
     let selectedDepartureTime = null;
     let selectedFlightMode = 'automatic';
+    let selectedTfMode = 'schedule';
 
     function loadAvailableAircraft() {
         $.ajax({
@@ -162,15 +169,25 @@
         selectedDepartureTime = $(this).val();
 
         $('#flightModeSelect').prop('disabled', false);
-        $('#dispatchButton').prop('disabled', false);
     }
 
     function onFlightModeSelected() {
+        $('#flightModeSelect').prop('disabled', true);
+
         selectedFlightMode = $(this).val();
+
+        $('#tfModeSelect').prop('disabled', false);
+        $('#dispatchButton').prop('disabled', false);
+    }
+
+    function onTfModeSelected() {
+        $('#tfModeSelect').prop('disabled', true);
+
+        selectedTfMode = $(this).val();
     }
 
     function onDispatchClicked() {
-        $('#flightModeSelect').prop('disabled', true);
+        $('#tfModeSelect').prop('disabled', true);
         $('#dispatchButton').prop('disabled', true);
 
         $.ajax({
@@ -180,7 +197,8 @@
                 aircraftId: selectedAircraft.id,
                 destinationIcao: selectedDestinationIcao,
                 departureTimeMode: selectedDepartureTime,
-                flightMode: selectedFlightMode
+                flightMode: selectedFlightMode,
+                tfMode: selectedTfMode
             },
             success: function (response) {
                 const flightId = response.flightId;
@@ -212,6 +230,7 @@
         $('#destinationSelect').on('change', onDestinationSelected);
         $('#timeSelect').on('change', onTimeSelected);
         $('#flightModeSelect').on('change', onFlightModeSelected);
+        $('#tfModeSelect').on('change', onTfModeSelected);
         $('#dispatchButton').on('click', onDispatchClicked);
 
     });
