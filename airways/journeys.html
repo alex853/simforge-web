@@ -36,6 +36,8 @@
                 <col style="width: 8%;">
                 <col style="width: 5%;">
                 <col>
+                <col style="width: 6%;">
+                <col style="width: 6%;">
                 <col style="width: 7%;">
             </colgroup>
             <thead class="table-dark">
@@ -45,15 +47,16 @@
                 <th rowspan="2" class="text-center align-middle">Status</th>
                 <th colspan="2" class="text-center align-middle">Route</th>
                 <th rowspan="2" class="text-center align-middle">PAX</th>
-                <th rowspan="2" class="text-center align-middle">T/F 1 ID</th>
+                <th colspan="3" class="text-center align-middle">T/F 1 ID</th>
                 <th rowspan="2" class="text-center align-middle">Actions</th>
             </tr>
             <tr>
                 <th class="text-center align-middle">From</th>
                 <th class="text-center align-middle">To</th>
-                <!--th class="text-center align-middle">Dep</th>
+                <th class="text-center align-middle">ID</th>
+                <th class="text-center align-middle">Dep</th>
                 <th class="text-center align-middle">Arr</th>
-                <th class="text-center align-middle">Total</th>
+                <!--th class="text-center align-middle">Total</th>
                 <th class="text-center align-middle">Rem-d</th>
                 <th class="text-center align-middle">Ckd In</th>
                 <th class="text-center align-middle">On Brd</th-->
@@ -92,6 +95,8 @@
             <td class="text-center align-middle">${item.tcn}</td>
             <td class="text-center align-middle">${item.gs}</td>
             <td class="text-center align-middle">${item.tf1Id ?? ''}</td>
+            <td class="text-center align-middle">${item.tf1From ?? ''}</td>
+            <td class="text-center align-middle">${item.tf1To ?? ''}</td>
             <td class="text-center align-middle">
                 <!--button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button>
                 <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button-->
