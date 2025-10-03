@@ -33,13 +33,14 @@
                 <col>
                 <col>
                 <col>
-                <col style="width: 7%;">
-                <col style="width: 7%;">
-                <col style="width: 7%;">
-                <col style="width: 7%;">
                 <col style="width: 6%;">
                 <col style="width: 6%;">
                 <col style="width: 6%;">
+                <col style="width: 6%;">
+                <col style="width: 7%;">
+                <col style="width: 7%;">
+                <col style="width: 4%;">
+                <col style="width: 4%;">
                 <col style="width: 7%;">
             </colgroup>
             <thead class="table-dark">
@@ -51,7 +52,7 @@
                 <th colspan="2" class="text-center align-middle">Route</th>
                 <th colspan="2" class="text-center align-middle">Planned Time</th>
                 <th colspan="2" class="text-center align-middle">Tickets</th>
-                <th rowspan="2" class="text-center align-middle">PAX On Board</th>
+                <th colspan="2" class="text-center align-middle">PAX</th>
                 <th rowspan="2" class="text-center align-middle">Actions</th>
             </tr>
             <tr>
@@ -61,6 +62,8 @@
                 <th class="text-center align-middle">Arr</th>
                 <th class="text-center align-middle">Total</th>
                 <th class="text-center align-middle">Rem-d</th>
+                <th class="text-center align-middle">Ckd In</th>
+                <th class="text-center align-middle">On Brd</th>
             </tr>
             </thead>
             <tbody id="flight-table-body">
@@ -99,7 +102,8 @@
             <td class="text-center align-middle">${item.parr}</td>
             <td class="text-center align-middle">${item.ttkts}</td>
             <td class="text-center align-middle">${item.rtkts}</td>
-            <td class="text-center align-middle">${item.ponBrd}</td>
+            <td class="text-center align-middle">${item.ckdIn ?? ''}</td>
+            <td class="text-center align-middle">${item.ponBrd ?? ''}</td>
             <td class="text-center align-middle">
                 <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button>
                 <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>
