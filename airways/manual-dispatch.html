@@ -67,6 +67,9 @@
                 <option value="in-1-hour">Depart in 1 hour from now</option>
                 <option value="in-3-hours">Depart in 3 hours from now</option>
                 <option value="in-6-hours">Depart in 6 hours from now</option>
+                <option value="in-12-hours">Depart in 12 hours from now</option>
+                <option value="in-18-hours">Depart in 18 hours from now</option>
+                <option value="in-24-hours">Depart in 24 hours from now</option>
             </select>
 
             <label>4. Select flight mode</label>
@@ -169,24 +172,20 @@
         selectedDepartureTime = $(this).val();
 
         $('#flightModeSelect').prop('disabled', false);
-    }
-
-    function onFlightModeSelected() {
-        $('#flightModeSelect').prop('disabled', true);
-
-        selectedFlightMode = $(this).val();
-
         $('#tfModeSelect').prop('disabled', false);
         $('#dispatchButton').prop('disabled', false);
     }
 
-    function onTfModeSelected() {
-        $('#tfModeSelect').prop('disabled', true);
+    function onFlightModeSelected() {
+        selectedFlightMode = $(this).val();
+    }
 
+    function onTfModeSelected() {
         selectedTfMode = $(this).val();
     }
 
     function onDispatchClicked() {
+        $('#flightModeSelect').prop('disabled', true);
         $('#tfModeSelect').prop('disabled', true);
         $('#dispatchButton').prop('disabled', true);
 
