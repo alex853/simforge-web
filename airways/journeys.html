@@ -98,14 +98,16 @@
             <td class="text-center align-middle">${item.fcn}</td>
             <td class="text-center align-middle">${item.tcn}</td>
             <td class="text-center align-middle">${item.gs}</td>
-            <td class="text-center align-middle font-xsm">${ item.tf1Id 
-                                                            ? `#${item.tf1Id} - ${item.tf1St}<br>${item.tf1From} - ${item.tf1To}`
-                                                            : '' }</td>
-            <td class="text-center align-middle"></td>
+            <td class="text-center align-middle font-xsm">${item.tf1Id
+                ? `#${item.tf1Id} - ${item.tf1St}<br>${item.tf1From} - ${item.tf1To}`
+                : ''}</td>
+            <td class="text-center align-middle font-xsm">${item.tf2Id
+                ? `#${item.tf2Id} - ${item.tf2St}<br>${item.tf2From} - ${item.tf2To}`
+                : ''}</td>
             <!--td class="text-center align-middle"></td-->
             <td class="text-center align-middle">
-                <!--button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button>
-                <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button-->
+                <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminHeartbeat(${item.id})">H</button>
+                <!--button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button-->
             </td>
           </tr>`;
             $tbody.append(row);
@@ -131,14 +133,14 @@
         setInterval(() => reloadData(), 10000);
     });
 
-/*    function adminCancel(id) {
-        if (!confirm("Do you want to cancel this flight?")) return;
-        airwaysGetPlain('/admin/transport-flight/cancel?tfId=' + id, function () {
+    function adminHeartbeat(id) {
+        if (!confirm("Do you want to reset heartbeat to now?")) return;
+        airwaysGetPlain('/admin/journey/set-heartbeat-to-now?jId=' + id, function () {
             reloadData();
         });
     }
 
-    function adminRemove(id) {
+/*    function adminRemove(id) {
         if (!confirm("Do you want to remove this flight?")) return;
         airwaysGetPlain('/admin/transport-flight/remove?tfId=' + id, function () {
             reloadData();
