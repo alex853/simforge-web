@@ -101,13 +101,13 @@
                 <h5>Flights</h5>
                 <ul class="list-group" id="flightList">
                     <li class="list-group-item active">
-                        <!--div>SU1234</div-->
+                        <!--div>AB1234</div-->
                         <div><span id="fltList1DepIcao"></span> → <span id="fltList1DestIcao"></span></div>
                         <div><span id="fltList1Status">Preflight</span></div>
                     </li>
                     <!--li class="list-group-item">
-                        <div>SU5678</div>
-                        <small>MOW → AER</small><br>
+                        <div>AB5678</div>
+                        <small>AAA → BBB</small><br>
                         <small>Status: Scheduled</small>
                     </li-->
                 </ul>
@@ -135,11 +135,15 @@
                             <span id="fltNextStatusWrap" class="text-secondary fst-italic"> → <span id="fltNextStatus"></span></span>
                         </div>
                         <button id="fltBtnStart" class="btn btn-primary m-2" style="display: none;">Start</button>
+                        <button id="fltBtnStartEarly" class="btn btn-outline-danger m-2 disabled" style="display: none;">Start</button>
                         <button id="fltBtnBlocksOff" class="btn btn-primary m-2" style="display: none;">Blocks Off</button>
+                        <button id="fltBtnBlocksOffDisabled" class="btn btn-outline-danger m-2 disabled" style="display: none;">Blocks Off</button>
                         <button id="fltBtnTakeoff" class="btn btn-primary m-2" style="display: none;">Takeoff</button>
                         <button id="fltBtnLanding" class="btn btn-primary m-2" style="display: none;">Landing</button>
+                        <button id="fltBtnLandingDisabled" class="btn btn-outline-danger m-2 disabled" style="display: none;">Landing</button>
                         <button id="fltBtnBlocksOn" class="btn btn-primary m-2" style="display: none;">Blocks On</button>
                         <button id="fltBtnFinish" class="btn btn-primary m-2" style="display: none;">Finish</button>
+                        <button id="fltBtnFinishDisabled" class="btn btn-outline-danger m-2 disabled" style="display: none;">Finish</button>
                     </div>
                 </div>
 
@@ -150,8 +154,14 @@
                             Status: <span id="tfStatus" class="fw-bold"></span>
                             <span id="tfNextStatusWrap" class="text-secondary fst-italic"> → <span id="tfNextStatus"></span></span>
                         </div>
+                        <!-- todo ak1 cabin layout -->
+                        <!-- todo ak1 sold tickets -->
+                        <!-- todo ak1 boarding progress -->
+                        <!-- todo ak1 deboarding progress -->
                         <button id="tfBtnStartBoarding" class="btn btn-primary m-2" style="display: none;">Start Boarding</button>
+                        <button id="tfBtnStartBoardingDisabled" class="btn btn-outline-secondary m-2 disabled" style="display: none;">Start Boarding</button>
                         <button id="tfBtnStartDeboarding" class="btn btn-primary m-2" style="display: none;">Start Deboarding</button>
+                        <button id="tfBtnStartDeboardingDisabled" class="btn btn-outline-secondary m-2 disabled" style="display: none;">Start Deboarding</button>
                         <!--div>Check-in: <span id="paxChecked">120</span> / <span id="paxTotal">150</span></div>
                         <div>Onboard: <span id="paxOnboard">0</span> / <span id="paxTotal">150</span></div-->
 
@@ -198,11 +208,15 @@
         refreshNextStatus(flightInfo.flight.nextPlannedStatus, '#fltNextStatus');
 
         refreshActionButton(flightInfo.flight.permittedActions, 'start', '#fltBtnStart');
+        refreshActionButton(flightInfo.flight.permittedActions, 'start-early-with-caution', '#fltBtnStartEarly');
         refreshActionButton(flightInfo.flight.permittedActions, 'blocks-off', '#fltBtnBlocksOff');
+        refreshActionButton(flightInfo.flight.permittedActions, 'blocks-off-disabled', '#fltBtnBlocksOffDisabled');
         refreshActionButton(flightInfo.flight.permittedActions, 'takeoff', '#fltBtnTakeoff');
         refreshActionButton(flightInfo.flight.permittedActions, 'landing', '#fltBtnLanding');
+        refreshActionButton(flightInfo.flight.permittedActions, 'landing-disabled', '#fltBtnLandingDisabled');
         refreshActionButton(flightInfo.flight.permittedActions, 'blocks-on', '#fltBtnBlocksOn');
         refreshActionButton(flightInfo.flight.permittedActions, 'finish', '#fltBtnFinish');
+        refreshActionButton(flightInfo.flight.permittedActions, 'finish-disabled', '#fltBtnFinishDisabled');
 
         $('#fltList1DepIcao').text(flightInfo.flight.depIcao);
         $('#fltList1DestIcao').text(flightInfo.flight.destIcao);
@@ -212,12 +226,23 @@
         refreshNextStatus(flightInfo.transportFlight.nextPlannedStatus, '#tfNextStatus');
 
         refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-boarding', '#tfBtnStartBoarding');
+        refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-boarding-disabled', '#tfBtnStartBoardingDisabled');
         refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-deboarding', '#tfBtnStartDeboarding');
+        refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-deboarding-disabled', '#tfBtnStartDeboardingDisabled');
     }
 
     function refreshActionButton(permittedActions, action, buttonId) {
-        if (permittedActions && permittedActions.indexOf(action) !== -1) { // todo ak1 permitted actions will be reworked
-            $(buttonId).show();
+        if (permittedActions) {
+            const actions = permittedActions
+                .split(',')
+                .map(a => a.trim())
+                .filter(a => a.length > 0);
+
+            if (actions.includes(action)) {
+                $(buttonId).show();
+            } else {
+                $(buttonId).hide();
+            }
         } else {
             $(buttonId).hide();
         }
@@ -233,173 +258,44 @@
         }
     }
 
-    $('#fltBtnStart').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
+    function actionHandler(btnId, urlAction) {
+        $(btnId).on('click', function () {
+            // todo ak1 confirmation dialog?
+            // todo ak1 disable / hide?
+            // todo ak1 block automatic refreshes?
 
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/start-flight",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
+            $.ajax({
+                url: airwaysServiceUrl + "/flight-dashboard/" + urlAction,
+                method: 'POST',
+                data: {
+                    flightId: flightId,
+                },
+                success: function (response) {
+                    flightInfo = response;
+                    updateUI();
+                },
+                error: function (e) {
+                    alert('error'); // todo ak0 ??? alert, reload, refresh
+                }
+            });
         });
-    });
+    }
 
-    $('#fltBtnBlocksOff').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
+    actionHandler('#fltBtnStart', 'start-flight');
+    // todo ak1 actionHandler('#fltBtnStartEarly', 'start-flight');
+    actionHandler('#fltBtnBlocksOff', 'blocks-off');
+    // todo ak1 actionHandler('#fltBtnBlocksOffDisabled', 'blocks-off');
+    actionHandler('#fltBtnTakeoff', 'takeoff');
+    actionHandler('#fltBtnLanding', 'landing');
+    // todo ak1 actionHandler('#fltBtnLandingDisabled', 'landing');
+    actionHandler('#fltBtnBlocksOn', 'blocks-on');
+    actionHandler('#fltBtnFinish', 'finish-flight');
+    // todo ak1 actionHandler('#fltBtnFinishDisabled', 'finish-flight');
 
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/blocks-off",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
-
-    $('#fltBtnTakeoff').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
-
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/takeoff",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
-
-    $('#fltBtnLanding').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
-
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/landing",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
-
-    $('#fltBtnBlocksOn').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
-
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/blocks-on",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
-
-    $('#fltBtnFinish').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
-
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/finish-flight",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
-
-    $('#tfBtnStartBoarding').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
-
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/start-boarding",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
-
-    $('#tfBtnStartDeboarding').on('click', function () {
-        // todo ak1 confirmation dialog?
-        // todo ak1 disable / hide?
-        // todo ak1 block automatic refreshes?
-
-        $.ajax({
-            url: airwaysServiceUrl + "/flight-dashboard/start-deboarding",
-            method: 'POST',
-            data: {
-                flightId: flightId,
-            },
-            success: function (response) {
-                flightInfo = response;
-                updateUI();
-            },
-            error: function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            }
-        });
-    });
+    actionHandler('#tfBtnStartBoarding', 'start-boarding');
+    // todo ak1 actionHandler('#tfBtnStartBoardingDisabled', 'start-boarding');
+    actionHandler('#tfBtnStartDeboarding', 'start-deboarding');
+    // todo ak1 actionHandler('#tfBtnStartDeboardingDisabled', 'start-deboarding');
 
     function loadFlightInfo() {
         airwaysGet("/flight-dashboard/status?flightId=" + flightId, function (response) {
