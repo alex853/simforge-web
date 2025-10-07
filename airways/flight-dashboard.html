@@ -154,33 +154,20 @@
                             Status: <span id="tfStatus" class="fw-bold"></span>
                             <span id="tfNextStatusWrap" class="text-secondary fst-italic"> → <span id="tfNextStatus"></span></span>
                         </div>
-                        <!-- todo ak1 cabin layout -->
-                        <!-- todo ak1 sold tickets -->
-                        <!-- todo ak1 boarding progress -->
-                        <!-- todo ak1 deboarding progress -->
+                        <div id="tfSoldDiv" style="display: none;">
+                            Sold seats: <span id="tfSoldSeats" class="fw-bold"></span> of <span id="tfTotalSeats" class="fw-bold"></span>,
+                            Remained seats by cabin: <span id="tfRemainedSeats" class="fw-bold"></span>
+                        </div>
+                        <div id="tfCheckInDiv">
+                            Check-in: <span id="tfCheckInSeats" class="fw-bold"></span> of <span id="tfCheckInSoldSeats" class="fw-bold"></span> passengers checked in
+                        </div>
+                        <div id="tfOnBoardDiv" style="display: none;">
+                            On board: <span id="tfOnBoard" class="fw-bold"></span>
+                        </div>
                         <button id="tfBtnStartBoarding" class="btn btn-primary m-2" style="display: none;">Start Boarding</button>
                         <button id="tfBtnStartBoardingDisabled" class="btn btn-outline-secondary m-2 disabled" style="display: none;">Start Boarding</button>
                         <button id="tfBtnStartDeboarding" class="btn btn-primary m-2" style="display: none;">Start Deboarding</button>
                         <button id="tfBtnStartDeboardingDisabled" class="btn btn-outline-secondary m-2 disabled" style="display: none;">Start Deboarding</button>
-                        <!--div>Check-in: <span id="paxChecked">120</span> / <span id="paxTotal">150</span></div>
-                        <div>Onboard: <span id="paxOnboard">0</span> / <span id="paxTotal">150</span></div-->
-
-                        <!--div class="progress my-2">
-                            <div id="boardingProgress" class="progress-bar bg-success" role="progressbar"
-                                 style="width: 0%"></div>
-                        </div-->
-
-                        <!--div class="mt-2">
-                            <button id="startBoarding" class="btn btn-success btn-sm">Start Boarding</button>
-                            <button id="completeBoarding" class="btn btn-primary btn-sm" disabled>Complete Boarding
-                            </button>
-                            <button id="startDeboarding" class="btn btn-warning btn-sm" style="display:none;">Start
-                                Deboarding
-                            </button>
-                            <button id="finishDeboarding" class="btn btn-secondary btn-sm" style="display:none;">Finish
-                                Deboarding
-                            </button>
-                        </div-->
                     </div>
                 </div>
             </div>
@@ -207,33 +194,45 @@
         $('#fltStatus').text(flightInfo.flight.status);
         refreshNextStatus(flightInfo.flight.nextPlannedStatus, '#fltNextStatus');
 
-        refreshActionButton(flightInfo.flight.permittedActions, 'start', '#fltBtnStart');
-        refreshActionButton(flightInfo.flight.permittedActions, 'start-early-with-caution', '#fltBtnStartEarly');
-        refreshActionButton(flightInfo.flight.permittedActions, 'blocks-off', '#fltBtnBlocksOff');
-        refreshActionButton(flightInfo.flight.permittedActions, 'blocks-off-disabled', '#fltBtnBlocksOffDisabled');
-        refreshActionButton(flightInfo.flight.permittedActions, 'takeoff', '#fltBtnTakeoff');
-        refreshActionButton(flightInfo.flight.permittedActions, 'landing', '#fltBtnLanding');
-        refreshActionButton(flightInfo.flight.permittedActions, 'landing-disabled', '#fltBtnLandingDisabled');
-        refreshActionButton(flightInfo.flight.permittedActions, 'blocks-on', '#fltBtnBlocksOn');
-        refreshActionButton(flightInfo.flight.permittedActions, 'finish', '#fltBtnFinish');
-        refreshActionButton(flightInfo.flight.permittedActions, 'finish-disabled', '#fltBtnFinishDisabled');
+        refreshShownElement(flightInfo.flight.shownElements, 'start', '#fltBtnStart');
+        refreshShownElement(flightInfo.flight.shownElements, 'start-early-with-caution', '#fltBtnStartEarly');
+        refreshShownElement(flightInfo.flight.shownElements, 'blocks-off', '#fltBtnBlocksOff');
+        refreshShownElement(flightInfo.flight.shownElements, 'blocks-off-disabled', '#fltBtnBlocksOffDisabled');
+        refreshShownElement(flightInfo.flight.shownElements, 'takeoff', '#fltBtnTakeoff');
+        refreshShownElement(flightInfo.flight.shownElements, 'landing', '#fltBtnLanding');
+        refreshShownElement(flightInfo.flight.shownElements, 'landing-disabled', '#fltBtnLandingDisabled');
+        refreshShownElement(flightInfo.flight.shownElements, 'blocks-on', '#fltBtnBlocksOn');
+        refreshShownElement(flightInfo.flight.shownElements, 'finish', '#fltBtnFinish');
+        refreshShownElement(flightInfo.flight.shownElements, 'finish-disabled', '#fltBtnFinishDisabled');
 
         $('#fltList1DepIcao').text(flightInfo.flight.depIcao);
         $('#fltList1DestIcao').text(flightInfo.flight.destIcao);
         $('#fltList1Status').text(flightInfo.flight.status);
 
-        $('#tfStatus').text(flightInfo.transportFlight.status);
         refreshNextStatus(flightInfo.transportFlight.nextPlannedStatus, '#tfNextStatus');
+        $('#tfStatus').text(flightInfo.transportFlight.status);
 
-        refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-boarding', '#tfBtnStartBoarding');
-        refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-boarding-disabled', '#tfBtnStartBoardingDisabled');
-        refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-deboarding', '#tfBtnStartDeboarding');
-        refreshActionButton(flightInfo.transportFlight.permittedActions, 'start-deboarding-disabled', '#tfBtnStartDeboardingDisabled');
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'sold', '#tfSoldDiv');
+        $('#tfSoldSeats').text(flightInfo.transportFlight.soldSeats)
+        $('#tfTotalSeats').text(flightInfo.transportFlight.totalSeats)
+        $('#tfRemainedSeats').text(flightInfo.transportFlight.remainedTickets)
+
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'check-in', '#tfCheckInDiv');
+        $('#tfCheckInSeats').text(flightInfo.transportFlight.checkedIn)
+        $('#tfCheckInSoldSeats').text(flightInfo.transportFlight.soldSeats)
+
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'on-board', '#tfOnBoardDiv');
+        $('#tfOnBoard').text(flightInfo.transportFlight.onBoard)
+
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-boarding', '#tfBtnStartBoarding');
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-boarding-disabled', '#tfBtnStartBoardingDisabled');
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-deboarding', '#tfBtnStartDeboarding');
+        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-deboarding-disabled', '#tfBtnStartDeboardingDisabled');
     }
 
-    function refreshActionButton(permittedActions, action, buttonId) {
-        if (permittedActions) {
-            const actions = permittedActions
+    function refreshShownElement(shownElements, action, buttonId) {
+        if (shownElements) {
+            const actions = shownElements
                 .split(',')
                 .map(a => a.trim())
                 .filter(a => a.length > 0);
