@@ -22,8 +22,9 @@
     <h2 class="mb-4">Transport Flight Board</h2>
     <div class="mb-3">
         <div class="btn-group" role="group" aria-label="Filter status">
-            <button type="button" class="btn btn-outline-primary filter-btn active" data-filter="all">All</button>
-            <button type="button" class="btn btn-outline-primary filter-btn" data-filter="actual">Actual</button>
+            <button type="button" class="btn btn-outline-primary filter-btn" data-filter="all">All</button>
+            <button type="button" class="btn btn-outline-primary filter-btn active" data-filter="actual">Actual</button>
+            <button type="button" class="btn btn-outline-primary filter-btn" data-filter="actual-manual">Actual & Manual</button>
         </div>
     </div>
     <div class="table-responsive">
@@ -75,7 +76,7 @@
 
 <script>
 
-    let currentFilter = 'all'; // Default
+    let currentFilter = 'actual'; // Default
     let dataIsLoadingNow = false;
 
     // Update active filter button
