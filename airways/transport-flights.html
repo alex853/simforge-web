@@ -106,6 +106,7 @@
             <td class="text-center align-middle">${item.ckdIn ?? ''}</td>
             <td class="text-center align-middle">${item.ponBrd ?? ''}</td>
             <td class="text-center align-middle">
+                ${item.pcMode ? `<button type="button" class="btn btn-success btn-xsm" onclick="openFlightDashboard(${item.fmId})">D</button>` : ''}
                 <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button>
                 <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>
             </td>
@@ -132,6 +133,11 @@
 
         setInterval(() => reloadData(), 60000);
     });
+
+    function openFlightDashboard(flightId) {
+        const url = `./flight-dashboard.html?flightId=${flightId}`;
+        window.open(url, 'airways-flight-' + flightId);
+    }
 
     function adminCancel(id) {
         if (!confirm("Do you want to cancel this flight?")) return;
