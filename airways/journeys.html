@@ -32,28 +32,52 @@
     <div class="table-responsive">
         <table class="table font-xsm">
             <colgroup>
-                <col style="15%;">
-                <col style="5%;">
-                <col style="15%;">
-                <col style="5%;">
-                <col style="15%;">
-                <col style="5%;">
-                <col style="15%;">
-                <col style="5%;">
-                <col style="15%;">
-                <col style="5%;">
+                <col style="width: 15%;">
+                <col style="width: 5%;">
+                <col style="width: 15%;">
+                <col style="width: 5%;">
+                <col style="width: 15%;">
+                <col style="width: 5%;">
+                <col style="width: 15%;">
+                <col style="width: 5%;">
+                <col style="width: 15%;">
+                <col style="width: 5%;">
             </colgroup>
             <tr>
                 <td>Looking for tickets</td>
-                <td>1234</td>
+                <td id="statsLookingForTickets" class="align-middle"></td>
                 <td>Waiting for check-in</td>
-                <td>2345</td>
+                <td id="statsWaitingForCheckIn" class="align-middle"></td>
                 <td>On board</td>
-                <td>3456</td>
+                <td id="statsOnBoard" class="align-middle"></td>
                 <td>Waiting for deboarding</td>
-                <td>2345</td>
+                <td id="statsWaitingForDeboarding" class="align-middle"></td>
                 <td>Finished</td>
-                <td>2345</td>
+                <td id="statsFinished" class="align-middle"></td>
+            </tr>
+            <tr>
+                <td></td>
+                <td></td>
+                <td>Waiting for boarding</td>
+                <td id="statsWaitingForBoarding" class="align-middle"></td>
+                <td></td>
+                <td></td>
+                <td>Just arrived</td>
+                <td id="statsJustArrived" class="align-middle"></td>
+                <td>Could not find tickets</td>
+                <td id="statsCouldNotFindTickets" class="align-middle"></td>
+            </tr>
+            <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>Itineraries done</td>
+                <td id="statsItinerariesDone" class="align-middle"></td>
+                <td>Too late to board</td>
+                <td id="statsTooLateToBoard" class="align-middle"></td>
             </tr>
         </table>
         
@@ -83,14 +107,6 @@
             <tr>
                 <th class="text-center align-middle">From</th>
                 <th class="text-center align-middle">To</th>
-                <!--th class="text-center align-middle">ID</th>
-                <th class="text-center align-middle">Status</th>
-                <!--th class="text-center align-middle">Dep</th>
-                <th class="text-center align-middle">Arr</th>
-                <!--th class="text-center align-middle">Total</th>
-                <th class="text-center align-middle">Rem-d</th>
-                <th class="text-center align-middle">Ckd In</th>
-                <th class="text-center align-middle">On Brd</th-->
             </tr>
             </thead>
             <tbody id="table-body">
@@ -141,6 +157,19 @@
         })
     }
 
+    function updateStats(data) {
+        $('#statsLookingForTickets').text(data.LookingForTickets || '');
+        $('#statsWaitingForCheckIn').text(data.WaitingForCheckIn || '');
+        $('#statsWaitingForBoarding').text(data.WaitingForBoarding || '');
+        $('#statsOnBoard').text(data.OnBoard || '');
+        $('#statsWaitingForDeboarding').text(data.WaitingForDeboarding || '');
+        $('#statsJustArrived').text(data.JustArrived || '');
+        $('#statsItinerariesDone').text(data.ItinerariesDone || '');
+        $('#statsFinished').text(data.Finished || '');
+        $('#statsCouldNotFindTickets').text(data.CouldNotFindTickets || '');
+        $('#statsTooLateToBoard').text(data.TooLateToBoard || '');
+    }
+
     function reloadData() {
         if (dataIsLoadingNow) {
             return;
@@ -154,10 +183,19 @@
         });
     }
 
+    function reloadStats() {
+        airwaysGet('/journey/stats', function (response) {
+            updateStats(response);
+        }, function () {
+        });
+    }
+
     $(document).ready(function () {
         reloadData();
+        reloadStats();
 
-        setInterval(() => reloadData(), 10000);
+        setInterval(() => reloadData(), 60000);
+        setInterval(() => reloadStats(), 60000);
     });
 
     function adminHeartbeat(id) {
