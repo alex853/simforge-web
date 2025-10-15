@@ -109,8 +109,8 @@
             </td>
             <td class="text-center align-middle">
                 ${item.aarr != null 
-                      ? (item.aarr !== item.parr ? `${item.aarr}<br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`) 
-                      : (item.earr !== item.parr ? `<i>${item.earr}</i><br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`)}
+                      ? (item.aarr !== item.parr ? `${item.aarr}<br><span class="font-xsm" data-bs-toggle="tooltip" title="Planned time">${item.parr}</span>` : `${item.parr}`) 
+                      : (item.earr !== item.parr ? `<i>${item.earr}</i><br><span class="font-xsm" data-bs-toggle="tooltip" title="Planned time">${item.parr}</span>` : `${item.parr}`)}
             </td>
             <td class="text-center align-middle">${item.ttkts}</td>
             <td class="text-center align-middle">${item.stkts ?? ''}</td>
