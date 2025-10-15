@@ -17,6 +17,17 @@
         .font-xsm {
             font-size: .725rem;
         }
+
+        .time-planned-2nd-line {
+            font-size: .725rem;
+        }
+        .time-actual {
+            font-weight: 600;
+        }
+        .time-estimated {
+            font-style: italic;
+            font-color: gray;
+        }
     </style>
 
 </head>
@@ -109,8 +120,8 @@
             </td>
             <td class="text-center align-middle">
                 ${item.aarr != null 
-                      ? (item.aarr !== item.parr ? `${item.aarr}<br><span class="font-xsm" data-bs-toggle="tooltip" title="Planned time">${item.parr}</span>` : `${item.parr}`) 
-                      : (item.earr !== item.parr ? `<i>${item.earr}</i><br><span class="font-xsm" data-bs-toggle="tooltip" title="Planned time">${item.parr}</span>` : `${item.parr}`)}
+                      ? (item.aarr !== item.parr ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Arrival">${item.aarr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` : `${item.parr}`) 
+                      : (item.earr !== item.parr ? `<span class="time-actual" data-bs-toggle="tooltip" title="Estimated time of Arrival">${item.earr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` : `${item.parr}`)}
             </td>
             <td class="text-center align-middle">${item.ttkts}</td>
             <td class="text-center align-middle">${item.stkts ?? ''}</td>
