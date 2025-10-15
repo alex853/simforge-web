@@ -103,9 +103,15 @@
             <td class="text-center align-middle">${item.dep}</td>
             <td class="text-center align-middle">${item.dest}</td>
             <td class="text-center align-middle">
-                ${item.adep != null && item.adep !== item.pdep ? `${item.adep}<br><span class="font-xsm">${item.pdep}&nbsp;(p)</span>` : `${item.pdep}`}
+                ${item.adep != null && item.adep !== item.pdep 
+                      ? `${item.adep}<br><span class="font-xsm">${item.pdep}&nbsp;(p)</span>` 
+                      : `${item.pdep}`}
             </td>
-            <td class="text-center align-middle">${item.parr}</td>
+            <td class="text-center align-middle">
+                ${item.aarr != null 
+                      ? (item.aarr !== item.parr ? `${item.aarr}<br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`) 
+                      : (item.earr !== item.parr ? `${item.earr}<br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`)}
+            </td>
             <td class="text-center align-middle">${item.ttkts}</td>
             <td class="text-center align-middle">${item.stkts ?? ''}</td>
             <td class="text-center align-middle">${item.ckdIn ?? ''}</td>
