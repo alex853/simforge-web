@@ -21,7 +21,7 @@
         .time-planned {
         }
         .time-planned-2nd-line {
-            font-size: .725rem;
+            font-size: .650rem;
         }
         .time-actual {
             font-weight: 600;
@@ -117,7 +117,7 @@
             <td class="text-center align-middle">${item.dest}</td>
             <td class="text-center align-middle">
                 ${item.adep != null && item.adep !== item.pdep 
-                      ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Departure">${item.adep}</span><br><span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>` 
+                      ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Departure">${item.adep}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>` 
                       : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>`}
             </td>
             <td class="text-center align-middle">
