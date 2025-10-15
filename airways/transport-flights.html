@@ -54,7 +54,7 @@
                 <th rowspan="2" class="text-center align-middle">Heartbeat</th>
                 <th rowspan="2" class="text-center align-middle">Status</th>
                 <th colspan="2" class="text-center align-middle">Route</th>
-                <th colspan="2" class="text-center align-middle">Planned Time</th>
+                <th colspan="2" class="text-center align-middle">Time</th>
                 <th colspan="2" class="text-center align-middle">Tickets</th>
                 <th colspan="2" class="text-center align-middle">PAX</th>
                 <th rowspan="2" class="text-center align-middle">Actions</th>
@@ -110,7 +110,7 @@
             <td class="text-center align-middle">
                 ${item.aarr != null 
                       ? (item.aarr !== item.parr ? `${item.aarr}<br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`) 
-                      : (item.earr !== item.parr ? `${item.earr}<br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`)}
+                      : (item.earr !== item.parr ? `<i>${item.earr}</i><br><span class="font-xsm">${item.parr}&nbsp;(p)</span>` : `${item.parr}`)}
             </td>
             <td class="text-center align-middle">${item.ttkts}</td>
             <td class="text-center align-middle">${item.stkts ?? ''}</td>
