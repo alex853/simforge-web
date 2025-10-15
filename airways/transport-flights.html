@@ -18,6 +18,8 @@
             font-size: .725rem;
         }
 
+        .time-planned {
+        }
         .time-planned-2nd-line {
             font-size: .725rem;
         }
@@ -26,7 +28,7 @@
         }
         .time-estimated {
             font-style: italic;
-            font-color: gray;
+            color: gray;
         }
     </style>
 
@@ -115,13 +117,17 @@
             <td class="text-center align-middle">${item.dest}</td>
             <td class="text-center align-middle">
                 ${item.adep != null && item.adep !== item.pdep 
-                      ? `${item.adep}<br><span class="font-xsm">${item.pdep}&nbsp;(p)</span>` 
-                      : `${item.pdep}`}
+                      ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Departure">${item.adep}</span><br><span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>` 
+                      : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>`}
             </td>
             <td class="text-center align-middle">
                 ${item.aarr != null 
-                      ? (item.aarr !== item.parr ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Arrival">${item.aarr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` : `${item.parr}`) 
-                      : (item.earr !== item.parr ? `<span class="time-estimated" data-bs-toggle="tooltip" title="Estimated time of Arrival">${item.earr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` : `${item.parr}`)}
+                      ? (item.aarr !== item.parr 
+                             ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Arrival">${item.aarr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` 
+                             : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>`) 
+                      : (item.earr !== item.parr 
+                             ? `<span class="time-estimated" data-bs-toggle="tooltip" title="Estimated time of Arrival">${item.earr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` 
+                             : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>`)}
             </td>
             <td class="text-center align-middle">${item.ttkts}</td>
             <td class="text-center align-middle">${item.stkts ?? ''}</td>
@@ -154,6 +160,10 @@
         reloadData();
 
         setInterval(() => reloadData(), 60000);
+    });
+    
+    $(function () {
+      $('[data-bs-toggle="tooltip"]').tooltip();
     });
 
     function openFlightDashboard(flightId) {
