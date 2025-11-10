@@ -80,7 +80,12 @@
                 <td id="statsTooLateToBoard" class="align-middle"></td>
             </tr>
         </table>
-        
+
+        <div class="d-flex justify-content-between mb-3">
+            <button id="prevPageBtn" class="btn btn-outline-primary btn-sm">← Prev Page</button>
+            <button id="nextPageBtn" class="btn btn-outline-primary btn-sm">Next Page →</button>
+        </div>
+
         <table class="table table-bordered table-striped table-hover">
             <colgroup>
                 <col>
@@ -122,6 +127,8 @@
 
     let currentFilter = 'all'; // Default
     let dataIsLoadingNow = false;
+    let pageOffset = 0;
+    const pageLimit = 1000;
 
     // Update active filter button
 /*    $('.filter-btn').on('click', function () {
@@ -178,7 +185,10 @@
             return;
         }
         dataIsLoadingNow = true;
-        airwaysGet('/journey/' + currentFilter, function (response) {
+
+        const url = `/journey/${currentFilter}?offset=${pageOffset}&limit=${pageLimit}`;
+
+        airwaysGet(url, function (response) {
             dataIsLoadingNow = false;
             updateTableData(response);
         }, function () {
@@ -199,6 +209,18 @@
 
         setInterval(() => reloadData(), 60000);
         setInterval(() => reloadStats(), 60000);
+
+        $('#prevPageBtn').on('click', function () {
+            if (pageOffset >= pageLimit) {
+                pageOffset -= pageLimit;
+                reloadData();
+            }
+        });
+
+        $('#nextPageBtn').on('click', function () {
+            pageOffset += pageLimit;
+            reloadData();
+        });
     });
 
     function adminHeartbeat(id) {
