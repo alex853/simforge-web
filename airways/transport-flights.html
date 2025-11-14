@@ -54,6 +54,7 @@
                 <col style="width: 6%;">
                 <col style="width: 6%;">
                 <col style="width: 6%;">
+                <col style="width: 6%;">
                 <col style="width: 8%;">
                 <col style="width: 4%;">
                 <col style="width: 4%;">
@@ -66,13 +67,14 @@
                 <th rowspan="2" class="text-center align-middle">DOF</th>
                 <th rowspan="2" class="text-center align-middle">Heartbeat</th>
                 <th rowspan="2" class="text-center align-middle">Status</th>
-                <th colspan="2" class="text-center align-middle">Route</th>
+                <th colspan="3" class="text-center align-middle">Route</th>
                 <th colspan="2" class="text-center align-middle">Time</th>
                 <th colspan="2" class="text-center align-middle">Tickets</th>
                 <th colspan="2" class="text-center align-middle">PAX</th>
                 <th rowspan="2" class="text-center align-middle">Actions</th>
             </tr>
             <tr>
+                <th class="text-center align-middle">Flt #</th>
                 <th class="text-center align-middle">From</th>
                 <th class="text-center align-middle">To</th>
                 <th class="text-center align-middle">Dep</th>
@@ -113,6 +115,7 @@
             <td class="text-center align-middle">${item.dof}</td>
             <td class="text-center align-middle">${item.hrtBt ?? ''}</td>
             <td class="text-center align-middle">${item.st}</td>
+            <td class="text-center align-middle">${item.sfNo ?? ''}</td>
             <td class="text-center align-middle">${item.dep}</td>
             <td class="text-center align-middle">${item.dest}</td>
             <td class="text-center align-middle">
