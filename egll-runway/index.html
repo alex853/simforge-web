@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Heathrow Runway Alternation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+            height: 100vh;
+        }
+
+        .page-wrapper {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .page-title {
+            text-align: center;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+
+        .table {
+            table-layout: fixed;
+        }
+
+        .label-cell {
+        }
+
+        .time-now {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        .time-end {
+            font-size: 1.2rem;
+        }
+
+        .time-range {
+            font-size: 1.2rem;
+        }
+
+        .ellipsis {
+            font-size: 1.5rem;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+    <div class="container">
+
+        <h1 class="page-title">Heathrow Runway Alternation</h1>
+
+        <table class="table table-bordered text-center">
+            <tbody>
+
+            <!-- TIME -->
+            <tr>
+                <td class="label-cell" style="width: 18%;">Time</td>
+
+                <td style="width: 24%;">
+                    <span class="time-now" id="currentTime">--:--</span>
+                    <span class="time-end">– <span id="currentEnd">--:--</span></span> UTC
+                </td>
+
+                <td style="width: 24%;">
+                    <span class="time-range" id="nextInterval">--:-- – --:--</span> UTC
+                </td>
+
+                <td style="width: 24%;">
+                    <span class="time-range" id="next2Interval">--:-- – --:--</span> UTC
+                </td>
+
+                <td class="ellipsis" style="width: 8%;">...</td>
+            </tr>
+
+            <!-- DEPARTURE -->
+            <tr>
+                <td class="label-cell">Departure runway</td>
+
+                <td id="depNow">—</td>
+                <td id="depNext">—</td>
+                <td id="depNext2">—</td>
+                <td class="ellipsis">...</td>
+            </tr>
+
+            <!-- ARRIVAL -->
+            <tr>
+                <td class="label-cell">Arrival runway</td>
+
+                <td id="arrNow">—</td>
+                <td id="arrNext">—</td>
+                <td id="arrNext2">—</td>
+                <td class="ellipsis">...</td>
+            </tr>
+
+            </tbody>
+        </table>
+
+    </div>
+</div>
+
+<script>
+
+    let metar;
+
+    const daytimeData = {
+        "2025-12-22": ["27L", "27R"],
+        "2025-12-29": ["27R", "27L"],
+        "2026-01-05": ["27L", "27R"],
+        "2026-01-12": ["27R", "27L"],
+        "2026-01-19": ["27L", "27R"],
+        "2026-01-26": ["27R", "27L"],
+        "2026-02-02": ["27L", "27R"],
+        "2026-02-09": ["27R", "27L"],
+        "2026-02-16": ["27L", "27R"],
+        "2026-02-23": ["27R", "27L"],
+    }
+
+    const nighttimeData = {
+        "2025-12-22": ["27L", "09R"],
+        "2025-12-29": ["09L", "27R"],
+        "2026-01-05": ["27R", "09L"],
+        "2026-01-12": ["09R", "27L"],
+        "2026-01-19": ["27L", "09R"],
+        "2026-01-26": ["09L", "27R"],
+        "2026-02-02": ["27R", "09L"],
+        "2026-02-09": ["09R", "27L"],
+    }
+
+    function updateData() {
+        const now = new Date();
+
+        const currInterval = calcInterval(now);
+        const nextInterval = calcInterval(currInterval.end);
+        const next2Interval = calcInterval(nextInterval.end);
+
+        document.getElementById('currentTime').textContent = formatUTC(now);
+        document.getElementById('currentEnd').textContent = formatUTC(currInterval.end);
+        document.getElementById('nextInterval').textContent = `${formatUTC(nextInterval.start)} – ${formatUTC(nextInterval.end)}`;
+        document.getElementById('next2Interval').textContent = `${formatUTC(next2Interval.start)} – ${formatUTC(next2Interval.end)}`;
+
+        document.getElementById('depNow').textContent = currInterval.departureRunway;
+        document.getElementById('arrNow').textContent = currInterval.arrivalRunway;
+
+        document.getElementById('depNext').textContent = nextInterval.departureRunway;
+        document.getElementById('arrNext').textContent = nextInterval.arrivalRunway;
+
+        document.getElementById('depNext2').textContent = next2Interval.departureRunway;
+        document.getElementById('arrNext2').textContent = next2Interval.arrivalRunway;
+    }
+
+    function calcInterval(now) {
+        const weekday = now.getUTCDay() || 7;
+
+        const weekStart = new Date(now);
+        weekStart.setUTCDate(weekStart.getUTCDate() - (weekday - 1));
+        weekStart.setUTCHours(6, 0, 0, 0); // todo ak2 timezone change
+        if (now < weekStart) {
+            weekStart.setUTCDate(weekStart.getUTCDate() - 7);
+        }
+
+        const hour = now.getUTCHours(); // todo ak2 timezone change
+        let type;
+        let start;
+        let end;
+        if (hour < 6) {
+            type = "night-time";
+
+            start = cloneUTCatHour(now, 23);
+            start.setUTCDate(start.getUTCDate() - 1);
+            end = cloneUTCatHour(now, 6);
+        } else if (hour >= 6 && hour < 7) {
+            type = "day-time-morning-rush";
+
+            start = cloneUTCatHour(now, 6);
+            end = cloneUTCatHour(now, 7);
+        } else if (hour >= 7 && hour < 15) {
+            type = "day-time-morning";
+
+            start = cloneUTCatHour(now, 7);
+            end = cloneUTCatHour(now, 15);
+        } else if (hour >= 15 && hour < 23) {
+            type = "day-time-evening";
+
+            start = cloneUTCatHour(now, 15);
+            end = cloneUTCatHour(now, 23);
+        } else { // hour >= 23
+            type = "night-time";
+
+            start = cloneUTCatHour(now, 23);
+            end = cloneUTCatHour(now, 6);
+            end.setUTCDate(end.getUTCDate() + 1);
+        }
+
+        const weekCode = formatUTCDate(weekStart);
+
+        const windsKnown = metar !== undefined;
+        const headwind270 = windsKnown ? runwayWindComponent(metar.data[0].wind.degrees, metar.data[0].wind.speed_kts, 270) > 0 : 0; // todo ak1 taf consideration? gust consideration?
+
+        let departureRunway;
+        let arrivalRunway;
+
+        if (type === "night-time") {
+            const weekData = nighttimeData[weekCode];
+            const nightPrimaryArrivalRunway = weekData[0];
+            const nightSecondaryArrivalRunway = weekData[1];
+
+            const rw27 = nightPrimaryArrivalRunway.startsWith('27');
+            if (rw27) {
+                departureRunway = headwind270 ? nightPrimaryArrivalRunway : nightSecondaryArrivalRunway;
+                arrivalRunway = departureRunway;
+            } else {
+                const headwind090 = !headwind270;
+                departureRunway = "09R";
+                arrivalRunway = headwind090 ? nightPrimaryArrivalRunway : nightSecondaryArrivalRunway;
+            }
+        } else { // day time
+            const weekData = daytimeData[weekCode];
+            const dayMorningArrivalRunway = weekData[0];
+            const dayEveningArrivalRunway = weekData[1];
+
+            const westerlyOperations = !windsKnown || headwind270;
+
+            if (westerlyOperations) {
+                if (type === 'day-time-morning-rush') {
+                    departureRunway = "27L / 27R";
+                    arrivalRunway = dayMorningArrivalRunway;
+                } else if (type === 'day-time-morning') {
+                    departureRunway = dayEveningArrivalRunway;
+                    arrivalRunway = dayMorningArrivalRunway;
+                } else { // day-time-evening
+                    departureRunway = dayMorningArrivalRunway;
+                    arrivalRunway = dayEveningArrivalRunway;
+                }
+            } else {
+                departureRunway = "09R";
+                if (type === 'day-time-morning-rush') {
+                    arrivalRunway = "09L / 09R";
+                } else {
+                    arrivalRunway = "09L";
+                }
+            }
+        }
+
+        return {
+            type: type,
+            start: start,
+            end: end,
+            departureRunway: departureRunway,
+            arrivalRunway: arrivalRunway
+        }
+    }
+
+    function runwayWindComponent(windDir, windSpeed, runwayHeading) {
+        let angle = windDir - runwayHeading;
+
+        angle = Math.abs(angle);
+        if (angle > 180) angle = 360 - angle;
+
+        const radians = angle * Math.PI / 180;
+        return windSpeed * Math.cos(radians);
+    }
+
+    function cloneUTCatHour(date, hour) {
+        const clone = new Date(date);
+        clone.setUTCHours(hour, 0, 0, 0);
+        return clone;
+    }
+
+    function pad(n) {
+        return n.toString().padStart(2, '0');
+    }
+
+    function formatUTC(date) {
+        return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+    }
+
+    function formatUTCDate(date) {
+        const y = date.getUTCFullYear();
+        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function loadMetar() {
+        $.ajax({
+            url: "https://api.checkwx.com/metar/EGLL/decoded",
+            method: 'GET',
+                headers: {
+                    'X-API-Key': '588fa90eef4a4a138388956dc1106008'
+                },
+            dataType: 'json',
+            success: function (response) {
+                metar = response;
+                updateData();
+            },
+            error: function (e) {
+                console.log(e.responseText);
+            }
+        });
+    }
+
+
+    updateData();
+    setInterval(updateData, 10000);
+    loadMetar();
+
+</script>
+
+</body>
+</html>
