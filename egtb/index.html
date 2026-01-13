@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EGTB Pressure</title>
+    
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .page-wrapper {
+            text-align: center;
+        }
+        
+        .airport-header {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .elevation {
+            font-size: 1.5rem;
+            margin-bottom: 3rem;
+            color: #6c757d;
+        }
+        
+        .indicators {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+        }
+        
+        .indicator {
+            min-width: 200px;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .indicator-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .indicator-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #212529;
+        }
+        
+        .indicator-unit {
+            font-size: 1.2rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrapper">
+        <h1 class="airport-header">EGTB</h1>
+        <div class="elevation" id="elevation">516 ft</div>
+        
+        <div class="indicators">
+            <div class="indicator">
+                <div class="indicator-label">QNH</div>
+                <div class="indicator-value" id="qnh">--</div>
+                <div class="indicator-unit">hPa</div>
+            </div>
+            <div class="indicator">
+                <div class="indicator-label">QFE</div>
+                <div class="indicator-value" id="qfe">--</div>
+                <div class="indicator-unit">hPa</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EGTB_ELEVATION_FT = 516;
+        let metar;
+
+        function loadMetar() {
+            $.ajax({
+                url: "https://api.checkwx.com/metar/EGLL/decoded",
+                method: 'GET',
+                headers: {
+                    'X-API-Key': '588fa90eef4a4a138388956dc1106008'
+                },
+                dataType: 'json',
+                success: function (response) {
+                    metar = response;
+                    updateDisplay();
+                },
+                error: function (e) {
+                    console.log(e.responseText);
+                    $('#qnh').text('Error');
+                    $('#qfe').text('Error');
+                }
+            });
+        }
+
+        function updateDisplay() {
+            if (!metar || !metar.data || !metar.data[0]) {
+                return;
+            }
+            
+            const metarData = metar.data[0];
+            let qnh = null;
+            
+            // Try to get QNH from barometer field
+            if (metarData.barometer) {
+                if (metarData.barometer.hpa) {
+                    qnh = metarData.barometer.hpa;
+                } else if (metarData.barometer.hg) {
+                    // Convert inches of mercury to hPa
+                    qnh = metarData.barometer.hg * 33.8639;
+                }
+            }
+            
+            if (qnh !== null) {
+                $('#qnh').text(qnh.toFixed(0));
+                
+                // Calculate QFE: QFE = QNH - (elevation_ft / 27.3) approximately
+                const qfe = qnh - (EGTB_ELEVATION_FT / 27.3);
+                $('#qfe').text(qfe.toFixed(0));
+            } else {
+                $('#qnh').text('N/A');
+                $('#qfe').text('N/A');
+            }
+        }
+
+        $(document).ready(function() {
+            loadMetar();
+            setInterval(loadMetar, 600000); // Reload every 10 minutes (600000 ms)
+        });
+    </script>
+</body>
+</html>
