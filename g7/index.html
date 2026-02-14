@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Systems Display</title>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: black;
+            font-family: Arial, sans-serif;
+        }
+
+        #screen {
+            width: 1200px;
+            height: 800px;
+            display: flex;
+            flex-direction: column;
+            background: black;
+        }
+
+        /* ============================
+           CONTENT AREA
+        ============================ */
+
+        #content {
+            flex: 7;
+            position: relative;
+            padding: 30px;
+        }
+
+        /* ============================
+           BOTTOM MENU (1/8 HEIGHT)
+        ============================ */
+
+        #menu {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            background: linear-gradient(to top, #111, #333);
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .menu-button {
+            border-radius: 10px;
+            border: 2px solid #777;
+            background: linear-gradient(to bottom, #444, #111);
+            color: #ccc;
+            font-size: 18px;
+            cursor: pointer;
+            white-space: pre-line;
+        }
+
+        .menu-button.active {
+            border: 2px solid #00ff66;
+            color: #00ff66;
+            background: linear-gradient(to bottom, #003300, #000);
+        }
+
+        /* ============================
+           SYSTEM BUTTONS (EXT LIGHTS)
+        ============================ */
+
+        .system-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: auto auto auto;
+            gap: 50px;
+        }
+
+        .system-button {
+            height: 150px;
+            border-radius: 14px;
+            border: 2px solid #888;
+            background: linear-gradient(to bottom, #444, #111);
+            color: #ccc;
+            font-size: 20px;
+            white-space: pre-line;
+            cursor: pointer;
+        }
+
+        .system-button.on {
+            border: 2px solid #00ff66;
+            color: #00ff66;
+            background: linear-gradient(to bottom, #003300, #000);
+        }
+
+        /* Placeholder for aircraft diagram */
+        .diagram {
+            grid-column: 1 / span 2;
+            grid-row: 3;
+            border: 2px solid #555;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #777;
+            font-size: 22px;
+        }
+
+    </style>
+</head>
+
+<body>
+<div id="screen">
+    <div id="content"></div>
+    <div id="menu"></div>
+</div>
+
+<script>
+
+    /* ============================
+       STATE
+    ============================ */
+
+    let currentPage = "Exterior\nLights";
+
+    let simData = {
+        Nav: false,
+        Beacon: false,
+        Strobe: false,
+        Logo: false,
+        Wingtip: false,
+        Taxi: false,
+        Pulse: false,
+        LeftLanding: false,
+        RightLanding: false,
+        Ice: false,
+        SeatBelt: false,
+        NoSmoke: false,
+        WheelWell: false
+    };
+
+    /* ============================
+       MENU SETUP
+    ============================ */
+
+    const pages = [
+        "IRS/\nAPU/\nBatt",
+        "ECS",
+        "Exterior\nLights",
+        "Fuel",
+        "Hyd/\nCPCS",
+        "Cockpit\nLights",
+        "Anti-Ice",
+        "DU Ctrl/\nTest"
+    ];
+
+    function buildMenu() {
+        const menu = document.getElementById("menu");
+
+        pages.forEach(p => {
+            const btn = document.createElement("button");
+            btn.className = "menu-button";
+            btn.innerText = p;
+            btn.onclick = () => {
+                currentPage = p;
+                render();
+            };
+            menu.appendChild(btn);
+        });
+    }
+
+    function updateMenu() {
+        document.querySelectorAll(".menu-button").forEach(btn => {
+            btn.classList.toggle("active", btn.innerText === currentPage);
+        });
+    }
+
+    /* ============================
+       RENDER
+    ============================ */
+
+    function render() {
+        const content = document.getElementById("content");
+        content.innerHTML = "";
+
+        if (currentPage === "Exterior\nLights")
+            renderExterior(content);
+
+        updateMenu();
+    }
+
+    /* ============================
+       EXTERIOR LIGHTS PAGE
+    ============================ */
+
+    function renderExterior(container) {
+
+        const grid = document.createElement("div");
+        grid.className = "system-grid";
+
+        const row1 = ["Nav","Beacon","Strobe","Logo","Wingtip"];
+        const row2 = ["Taxi","Pulse","Left\nLanding","Right\nLanding","Ice"];
+        const row3 = ["Seat\nBelt","No\nSmoke","Wheel\nWell"];
+
+        // Row 1
+        row1.forEach(name => grid.appendChild(makeButton(name)));
+
+        // Row 2
+        row2.forEach(name => grid.appendChild(makeButton(name)));
+
+        // Row 3 diagram placeholder (first 2 columns)
+        const diagram = document.createElement("div");
+        diagram.className = "diagram";
+        diagram.innerText = "AIRCRAFT\nDIAGRAM";
+        grid.appendChild(diagram);
+
+        // Row 3 right column buttons
+        row3.forEach(name => grid.appendChild(makeButton(name)));
+
+        container.appendChild(grid);
+    }
+
+    /* ============================
+       BUTTON FACTORY
+    ============================ */
+
+    function makeButton(name) {
+
+        const key = name.replace(/\n/g,'').replace(" ","");
+
+        const btn = document.createElement("button");
+        btn.className = "system-button";
+        btn.innerText = name;
+
+        btn.onclick = () => {
+            simData[key] = !simData[key];
+            updateDynamic();
+        };
+
+        btn.dataset.key = key;
+
+        return btn;
+    }
+
+    /* ============================
+       UPDATE
+    ============================ */
+
+    function updateDynamic() {
+        document.querySelectorAll(".system-button").forEach(btn => {
+            const key = btn.dataset.key;
+            if (simData[key])
+                btn.classList.add("on");
+            else
+                btn.classList.remove("on");
+        });
+    }
+
+    /* ============================
+       INIT
+    ============================ */
+
+    buildMenu();
+    render();
+
+</script>
+</body>
+</html>
