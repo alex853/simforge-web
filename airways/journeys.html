@@ -231,7 +231,7 @@
     }
 
     function adminRemove(id) {
-        if (!confirm("Do you want to remove this flight?")) return;
+        if (!confirm("Do you want to remove this journey?")) return;
         airwaysGetPlain('/admin/journey/remove?journeyId=' + id, function () {
             reloadData();
         });
