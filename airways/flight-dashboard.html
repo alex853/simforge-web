@@ -87,6 +87,30 @@
             flex: 1;
             padding: 1rem;
         }
+
+        .flight-list-item {
+            cursor: pointer;
+        }
+
+        .flight-list-item.flight-selected {
+            border: 2px solid #0d6efd; /* bootstrap primary */
+        }
+
+        .flight-dof-today {
+            background-color: #eaf7ee; /* light green */
+        }
+
+        .flight-dof-tomorrow {
+            background-color: #eaf2ff; /* light blue */
+        }
+
+        .flight-dof-future {
+            background-color: #f3f7ff; /* very light blue */
+        }
+
+        .flight-dof-past {
+            background-color: #fff8db; /* light yellow */
+        }
     </style>
 </head>
 <body>
@@ -100,16 +124,6 @@
             <div class="sidebar">
                 <h5>Flights</h5>
                 <ul class="list-group" id="flightList">
-                    <li class="list-group-item active">
-                        <!--div>AB1234</div-->
-                        <div><span id="fltList1DepIcao"></span> → <span id="fltList1DestIcao"></span></div>
-                        <div><span id="fltList1Status">Preflight</span></div>
-                    </li>
-                    <!--li class="list-group-item">
-                        <div>AB5678</div>
-                        <small>AAA → BBB</small><br>
-                        <small>Status: Scheduled</small>
-                    </li-->
                 </ul>
             </div>
 
@@ -129,6 +143,10 @@
                 <div class="section">
                     <div class="section-label">Flight</div>
                     <div class="section-content">
+                        <div>
+                            DOF: <span id="fltPlanDOF" class="fw-bold"></span>
+                            <span id="fltPlanDOFLabel" class="text-secondary fst-italic"></span>
+                        </div>
                         <div>Route: <span id="fltDepIcao" class="fw-bold"></span> (<span id="fltPlanDepTime"></span>) → <span id="fltDestIcao" class="fw-bold"></span> (<span id="fltPlanArrTime"></span>)</div>
                         <div>
                             Status: <span id="fltStatus" class="fw-bold"></span>
@@ -177,8 +195,22 @@
 
 <script>
 
+    let myFlights = [];
+    let selectedFlightId = null;
+
+    // restored original single-flight state
     let flightId;
     let flightInfo;
+    let refreshTimerId = null;
+
+    function escapeHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 
     function updateUI() {
         $('#acReg').text(flightInfo.aircraft.regNo);
@@ -188,6 +220,31 @@
 
         $('#fltDepIcao').text(flightInfo.flight.depIcao);
         $('#fltDestIcao').text(flightInfo.flight.destIcao);
+        const planDOF = flightInfo.flight.planDOF ?? '';
+        $('#fltPlanDOF').text(planDOF);
+        $('#fltPlanDOFLabel').text('');
+        if (planDOF) {
+            const todayUtc = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+            const yesterdayDate = new Date();
+            yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+            const yesterdayUtc = yesterdayDate.toISOString().slice(0, 10);
+
+            const tomorrowDate = new Date();
+            tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+            const tomorrowUtc = tomorrowDate.toISOString().slice(0, 10);
+
+            const datDate = new Date();
+            datDate.setUTCDate(datDate.getUTCDate() + 2);
+            const datUtc = datDate.toISOString().slice(0, 10);
+
+            let label = '';
+            if (planDOF === yesterdayUtc) label = ' (Yesterday)';
+            else if (planDOF === todayUtc) label = ' (Today)';
+            else if (planDOF === tomorrowUtc) label = ' (Tomorrow)';
+            else if (planDOF === datUtc) label = ' (Day after tomorrow)';
+
+            $('#fltPlanDOFLabel').text(label);
+        }
         $('#fltPlanDepTime').text(flightInfo.flight.planDepTime);
         $('#fltPlanArrTime').text(flightInfo.flight.planArrTime);
 
@@ -205,29 +262,25 @@
         refreshShownElement(flightInfo.flight.shownElements, 'finish', '#fltBtnFinish');
         refreshShownElement(flightInfo.flight.shownElements, 'finish-disabled', '#fltBtnFinishDisabled');
 
-        $('#fltList1DepIcao').text(flightInfo.flight.depIcao);
-        $('#fltList1DestIcao').text(flightInfo.flight.destIcao);
-        $('#fltList1Status').text(flightInfo.flight.status);
+        refreshNextStatus(flightInfo.transportFlight?.nextPlannedStatus, '#tfNextStatus');
+        $('#tfStatus').text(flightInfo.transportFlight?.status ?? 'N/A');
 
-        refreshNextStatus(flightInfo.transportFlight.nextPlannedStatus, '#tfNextStatus');
-        $('#tfStatus').text(flightInfo.transportFlight.status);
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'sold', '#tfSoldDiv');
+        $('#tfSoldSeats').text(flightInfo.transportFlight?.soldSeats ?? '')
+        $('#tfTotalSeats').text(flightInfo.transportFlight?.totalSeats ?? '')
+        $('#tfRemainedSeats').text(flightInfo.transportFlight?.remainedTickets ?? '')
 
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'sold', '#tfSoldDiv');
-        $('#tfSoldSeats').text(flightInfo.transportFlight.soldSeats)
-        $('#tfTotalSeats').text(flightInfo.transportFlight.totalSeats)
-        $('#tfRemainedSeats').text(flightInfo.transportFlight.remainedTickets)
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'check-in', '#tfCheckInDiv');
+        $('#tfCheckInSeats').text(flightInfo.transportFlight?.checkedIn ?? '')
+        $('#tfCheckInSoldSeats').text(flightInfo.transportFlight?.soldSeats ?? '')
 
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'check-in', '#tfCheckInDiv');
-        $('#tfCheckInSeats').text(flightInfo.transportFlight.checkedIn)
-        $('#tfCheckInSoldSeats').text(flightInfo.transportFlight.soldSeats)
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'on-board', '#tfOnBoardDiv');
+        $('#tfOnBoard').text(flightInfo.transportFlight?.onBoard ?? '')
 
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'on-board', '#tfOnBoardDiv');
-        $('#tfOnBoard').text(flightInfo.transportFlight.onBoard)
-
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-boarding', '#tfBtnStartBoarding');
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-boarding-disabled', '#tfBtnStartBoardingDisabled');
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-deboarding', '#tfBtnStartDeboarding');
-        refreshShownElement(flightInfo.transportFlight.shownElements, 'start-deboarding-disabled', '#tfBtnStartDeboardingDisabled');
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'start-boarding', '#tfBtnStartBoarding');
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'start-boarding-disabled', '#tfBtnStartBoardingDisabled');
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'start-deboarding', '#tfBtnStartDeboarding');
+        refreshShownElement(flightInfo.transportFlight?.shownElements, 'start-deboarding-disabled', '#tfBtnStartDeboardingDisabled');
     }
 
     function refreshShownElement(shownElements, action, buttonId) {
@@ -257,6 +310,14 @@
         }
     }
 
+    function refreshSelectedFromMyFlights() {
+        const selected = myFlights?.find(f => f?.flight?.id === flightId);
+        if (selected) {
+            flightInfo = selected;
+            updateUI();
+        }
+    }
+
     function actionHandler(btnId, urlAction) {
         $(btnId).on('click', function () {
             // todo ak1 confirmation dialog?
@@ -266,12 +327,15 @@
             $.ajax({
                 url: airwaysServiceUrl + "/flight-dashboard/" + urlAction,
                 method: 'POST',
+                headers: airwaysAuthHeaders(),
                 data: {
                     flightId: flightId,
                 },
                 success: function (response) {
                     flightInfo = response;
                     updateUI();
+                    // Keep the left list in sync after state-changing actions.
+                    loadMyFlights(false);
                 },
                 error: function (e) {
                     alert('error'); // todo ak0 ??? alert, reload, refresh
@@ -296,23 +360,119 @@
     actionHandler('#tfBtnStartDeboarding', 'start-deboarding');
     // todo ak1 actionHandler('#tfBtnStartDeboardingDisabled', 'start-deboarding');
 
-    function loadFlightInfo() {
-        airwaysGet("/flight-dashboard/status?flightId=" + flightId, function (response) {
-            flightInfo = response;
-            updateUI();
+    function restartRefreshTimer() {
+        if (refreshTimerId) {
+            clearInterval(refreshTimerId);
+        }
+        refreshTimerId = setInterval(function () {
+            loadMyFlights(false);
+        }, 10000);
+    }
+
+    function renderFlightList() {
+        const $list = $('#flightList');
+        $list.empty();
+
+        if (!myFlights || myFlights.length === 0) {
+            $list.append('<li class="list-group-item text-secondary">No flights</li>');
+            return;
+        }
+
+        for (const f of myFlights) {
+            const flight = f.flight ?? {};
+            const id = flight.id;
+            const dep = escapeHtml(flight.depIcao ?? '');
+            const dest = escapeHtml(flight.destIcao ?? '');
+            const status = escapeHtml(flight.status ?? '');
+            const planDep = escapeHtml(flight.planDepTime ?? '');
+            const dof = escapeHtml(flight.planDOF ?? '');
+
+            const isActive = (id === selectedFlightId);
+            const selectedClass = isActive ? ' flight-selected' : '';
+
+            const todayUtc = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+            const tomorrowDate = new Date();
+            tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+            const tomorrowUtc = tomorrowDate.toISOString().slice(0, 10);
+            const dayAfterTomorrowDate = new Date();
+            dayAfterTomorrowDate.setUTCDate(dayAfterTomorrowDate.getUTCDate() + 2);
+            const dayAfterTomorrowUtc = dayAfterTomorrowDate.toISOString().slice(0, 10);
+
+            let whenText = '';
+            if (dof && dof === todayUtc) {
+                whenText = 'Today';
+            } else if (dof && dof === tomorrowUtc) {
+                whenText = 'Tomorrow';
+            } else if (dof && dof < todayUtc) {
+                whenText = dof;
+            } else if (dof) {
+                whenText = dof;
+            }
+
+            let dofClass = '';
+            if (dof && dof === todayUtc) {
+                dofClass = ' flight-dof-today';
+            } else if (dof && dof === tomorrowUtc) {
+                dofClass = ' flight-dof-tomorrow';
+            } else if (dof && dof < todayUtc) {
+                dofClass = ' flight-dof-past';
+            } else if (dof && dof >= dayAfterTomorrowUtc) {
+                dofClass = ' flight-dof-future';
+            } else if (dof) {
+                // dof is after tomorrow but we don't really expect gaps; treat as future
+                dofClass = ' flight-dof-future';
+            }
+
+            const whenHtml = (whenText && planDep)
+                ? ('<div><small>' + escapeHtml(whenText) + ' at ' + planDep + '</small></div>')
+                : (planDep ? ('<div><small>' + planDep + '</small></div>') : '');
+
+            const $item = $(
+                '<li class="list-group-item flight-list-item' + selectedClass + dofClass + '">' +
+                '  <div class="fw-semibold">' + dep + ' → ' + dest + '</div>' +
+                '  <div><small>' + status + '</small></div>' +
+                whenHtml +
+                '</li>'
+            );
+
+            $item.on('click', function () {
+                selectFlight(id);
+            });
+
+            $list.append($item);
+        }
+    }
+
+    function selectFlight(selectedId) {
+        selectedFlightId = selectedId;
+        flightId = selectedId;
+        renderFlightList();
+        refreshSelectedFromMyFlights();
+    }
+
+    function loadMyFlights(restartTimer) {
+        airwaysGetAuth('/flight-dashboard/my-flights', function (response) {
+            myFlights = (response && response.flights) ? response.flights : [];
+            if (!flightId) {
+                selectedFlightId = myFlights?.[0]?.flight?.id ?? null;
+                flightId = selectedFlightId;
+            } else {
+                selectedFlightId = flightId;
+            }
+            renderFlightList();
+            refreshSelectedFromMyFlights();
+            if (restartTimer) {
+                restartRefreshTimer();
+            }
+        }, function () {
+            $('#flightList').empty().append(
+                '<li class="list-group-item text-danger">Failed to load flights (check token in localStorage: airwaysToken)</li>'
+            );
         });
     }
 
     $(document).ready(function () {
-        const url = new URL(window.location.href);
-        flightId = url.searchParams.get("flightId");
-
-        if (flightId) {
-            loadFlightInfo();
-            setInterval(loadFlightInfo, 10000);
-        } else {
-            alert('no flight id found!!!!')
-        }
+        loadMyFlights(true);
     });
 
 </script>
