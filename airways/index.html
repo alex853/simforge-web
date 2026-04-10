@@ -33,6 +33,7 @@
             background-color: transparent;
             border: none;
             box-shadow: none;
+            color: #ccc; /* good for dark map tiles */
         }
 
         .always-shown-tooltip.leaflet-tooltip::before {
@@ -67,7 +68,8 @@
     let airportMarkers = [];
     let aircraftMarkers = {};
 
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    // World_Dark_Gray_Base, World_Light_Gray_Base
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
         maxZoom: mapZoomMax,
         minZoom: mapZoomMin
