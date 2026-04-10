@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>airways / busyBirds mission booking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/requests.js"></script>
+    <style>
+        .fs-7 { font-size: 0.875rem; }
+        .table-missions { table-layout: fixed; width: 100%; }
+        .table-missions th,
+        .table-missions td {
+            vertical-align: middle;
+            padding: 0.35rem 0.45rem;
+            font-size: 0.8125rem;
+        }
+        .table-missions .col-radio { width: 5%; min-width: 2.25rem; text-align: center; }
+        .table-missions .col-from,
+        .table-missions .col-to {
+            width: 25%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .table-missions .col-pax { width: 15%; text-align: center; white-space: nowrap; }
+        .table-missions .col-dist { width: 15%; text-align: right; white-space: nowrap; }
+        .table-missions .col-pay { width: 15%; text-align: right; white-space: nowrap; }
+    </style>
+</head>
+<body>
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+            <h2 class="mb-3 fs-4">busyBirds mission booking</h2>
+            <p class="text-muted fs-7 mb-4">Select aircraft and mission, preview legs, then book or go back.</p>
+
+            <div id="alertHost"></div>
+
+            <!-- Step 1: mission + aircraft -->
+            <div id="panelSelect">
+                <div class="mb-3">
+                    <label class="form-label mb-1 fs-7" for="aircraftSelect">Aircraft</label>
+                    <select id="aircraftSelect" class="form-select form-select-sm" disabled>
+                        <option value="">Loading…</option>
+                    </select>
+                    <div class="form-text fs-7" id="aircraftHelp"></div>
+                </div>
+
+                <h6 class="mb-2 text-secondary">Missions</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped table-hover table-sm table-missions">
+                        <thead class="table-light">
+                        <tr>
+                            <th class="col-radio"></th>
+                            <th class="col-from">From</th>
+                            <th class="col-to">To</th>
+                            <th class="col-pax">PAX</th>
+                            <th class="col-dist">Distance</th>
+                            <th class="col-pay">Pay</th>
+                        </tr>
+                        </thead>
+                        <tbody id="missionsBody">
+                        <tr><td colspan="6" class="text-muted text-center">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <button type="button" id="btnShowLegs" class="btn btn-primary btn-sm">Show legs</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Plan modal (messages or legs) -->
+<div class="modal fade" id="planModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="planModalTitle">Proposed Mission Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="planMetaWrap" class="mb-2" style="display: none;">
+                    <div class="small text-muted">Aircraft</div>
+                    <div class="mb-2">
+                        <span class="fw-bold" id="planMetaAcReg"></span>
+                        <span class="text-muted" id="planMetaAcType"></span>
+                        <span class="text-muted" id="planMetaAcLoc"></span>
+                    </div>
+                    <div class="small text-muted">Mission</div>
+                    <div class="mb-0">
+                        <span class="fw-bold" id="planMetaMissionRoute"></span>
+                        <span class="text-muted">Pay:</span> <span class="fw-bold" id="planMetaMissionPay"></span>
+                    </div>
+                    <hr class="my-2">
+                </div>
+
+                <div id="planMessagesWrap" style="display: none;">
+                    <ul class="mb-0 ps-3" id="planMessagesList"></ul>
+                </div>
+
+                <div id="planLegsWrap" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-sm mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th style="width: 3rem;">#</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th style="width: 9rem;">Type</th>
+                                <th style="width: 4.5rem;" class="text-center">PAX</th>
+                                <th style="width: 6.5rem;" class="text-end">Distance</th>
+                                <th style="width: 6.5rem;" class="text-end">Duration</th>
+                            </tr>
+                            </thead>
+                            <tbody id="planLegsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Back</button>
+                <button type="button" id="btnPlanBook" class="btn btn-success btn-sm" style="display: none;">Book</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /** Adjust when backend paths are final */
+    const BUSY_BIRDS_MISSIONS = '/busy-birds/mission/to-book';
+    /** Use /busy-birds/aicraft/available here if that is what your server exposes (typo variant). */
+    const BUSY_BIRDS_AIRCRAFT = '/busy-birds/aircraft/available';
+    const BUSY_BIRDS_GET_PLAN = '/busy-birds/mission/get-plan';
+    const BUSY_BIRDS_BOOK = '/busy-birds/mission/book';
+
+    let missions = [];
+    let aircraft = [];
+    let selectedMissionId = null;
+    let selectedAircraftId = null;
+    let legsPayload = [];
+    let planModal;
+
+    function showAlert(type, message) {
+        const html = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+            message +
+            '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
+        $('#alertHost').html(html);
+    }
+
+    function clearAlert() {
+        $('#alertHost').empty();
+    }
+
+    function formatPay(n) {
+        if (n === undefined || n === null || n === '') {
+            return '—';
+        }
+        const num = Number(n);
+        if (Number.isNaN(num)) {
+            return String(n);
+        }
+        return num.toLocaleString();
+    }
+
+    function renderMissions(data) {
+        missions = Array.isArray(data) ? data : [];
+        const $tb = $('#missionsBody');
+        $tb.empty();
+        if (missions.length === 0) {
+            $tb.append('<tr><td colspan="6" class="text-muted text-center">No missions</td></tr>');
+            return;
+        }
+        missions.forEach(function (m) {
+            const id = m.id;
+            const dist = m.distance ?? m.distanceNm ?? '';
+            const pay = formatPay(m.pay ?? m.payment);
+            const row = $('<tr></tr>');
+            row.append($('<td class="col-radio"></td>').append(
+                $('<input type="radio" class="form-check-input mission-radio" name="missionId">').attr('value', id)
+            ));
+            const $from = $('<td class="col-from"></td>').text(m.fromCityName ?? '');
+            $from.attr('title', m.fromCityName ?? '');
+            const $to = $('<td class="col-to"></td>').text(m.toCityName ?? '');
+            $to.attr('title', m.toCityName ?? '');
+            row.append($from, $to);
+            row.append($('<td class="col-pax"></td>').text(m.pax ?? ''));
+            row.append($('<td class="col-dist"></td>').text(dist !== '' && dist !== null ? String(dist) : '—'));
+            row.append($('<td class="col-pay"></td>').text(pay));
+            $tb.append(row);
+        });
+    }
+
+    function renderAircraftList(list) {
+        aircraft = Array.isArray(list) ? list : [];
+        const $sel = $('#aircraftSelect');
+        $sel.empty();
+        if (!aircraft || aircraft.length === 0) {
+            $sel.append('<option value="">No aircraft</option>');
+            $sel.prop('disabled', true);
+            $('#aircraftHelp').text('No aircraft returned (check ' + BUSY_BIRDS_AIRCRAFT + ').');
+            return;
+        }
+        $sel.append('<option value="">Choose aircraft…</option>');
+        aircraft.forEach(function (a) {
+            const id = a.id;
+            const reg = a.regNo ?? '';
+            const type = a.typeCode ?? a.type ?? '';
+            const loc = a.locationAirportIcao ?? a.locationAirportName ?? a.locationAirportId ?? '';
+            const parts = [reg || ('#' + id), type, loc].filter(function (p) { return p; });
+            const label = parts.join(' · ');
+            $sel.append('<option value="' + id + '">' + label + '</option>');
+        });
+        $sel.prop('disabled', false);
+        $('#aircraftHelp').text('');
+    }
+
+    function refreshPlanMeta() {
+        const m = missions.find(function (x) { return x.id === selectedMissionId; });
+        const a = aircraft.find(function (x) { return x.id === selectedAircraftId; });
+        if (!m || !a) {
+            $('#planMetaWrap').hide();
+            return;
+        }
+
+        const acReg = a.regNo ?? ('#' + a.id);
+        const acType = a.typeCode ?? a.type ?? '';
+        const acLoc = a.locationAirportIcao ?? a.locationAirportName ?? a.locationAirportId ?? '';
+
+        const route = (m.fromCityName ?? '') + ' → ' + (m.toCityName ?? '');
+        const pay = formatPay(m.pay ?? m.payment);
+
+        $('#planMetaAcReg').text(acReg);
+        $('#planMetaAcType').text(acType ? (' · ' + acType) : '');
+        $('#planMetaAcLoc').text(acLoc ? (' · ' + acLoc) : '');
+        $('#planMetaMissionRoute').text(route);
+        $('#planMetaMissionPay').text(pay);
+
+        $('#planMetaWrap').show();
+    }
+
+    function normalizePlanResponse(response) {
+        if (response && Array.isArray(response.legs)) {
+            return {legs: response.legs, messages: null};
+        }
+        if (response && Array.isArray(response.messages)) {
+            return {legs: null, messages: response.messages};
+        }
+        if (Array.isArray(response)) {
+            if (response.length > 0 && typeof response[0] === 'string') {
+                return {legs: null, messages: response};
+            }
+            return {legs: response, messages: null};
+        }
+        return {legs: null, messages: ['Unexpected get-plan response']};
+    }
+
+    function showMessagesModal(messages) {
+        $('#planModalTitle').text('Messages');
+        $('#planMetaWrap').hide();
+        $('#planLegsWrap').hide();
+        $('#planMessagesWrap').show();
+        $('#btnPlanBook').hide();
+
+        const $list = $('#planMessagesList');
+        $list.empty();
+        const arr = Array.isArray(messages) ? messages : (messages != null ? [messages] : []);
+        if (arr.length === 0) {
+            $list.append($('<li></li>').text('No details.'));
+        } else {
+            arr.forEach(function (m) {
+                const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
+                $list.append($('<li></li>').text(text));
+            });
+        }
+        planModal.show();
+    }
+
+    function legCell(leg, keyCandidates, fallback) {
+        for (let i = 0; i < keyCandidates.length; i++) {
+            const k = keyCandidates[i];
+            if (leg[k] !== undefined && leg[k] !== null && leg[k] !== '') {
+                return leg[k];
+            }
+        }
+        return fallback;
+    }
+
+    function renderLegs(legs) {
+        legsPayload = legs;
+        const $tb = $('#planLegsBody');
+        $tb.empty();
+        if (!legs || legs.length === 0) {
+            $tb.append('<tr><td colspan="7" class="text-muted text-center">No legs in response</td></tr>');
+            return;
+        }
+        legs.forEach(function (leg, idx) {
+            const from = legCell(leg, ['fromAirportIcao', 'fromIcao', 'fromAirport', 'departureAirport', 'from', 'depIcao'], '—');
+            const to = legCell(leg, ['toAirportIcao', 'toIcao', 'toAirport', 'arrivalAirport', 'to', 'destIcao'], '—');
+            const type = legCell(leg, ['type', 'legType', 'kind', 'flightType'], '—');
+            const pax = (String(type).toLowerCase() === 'revenue') ? (leg.pax ?? '') : '';
+            const dist = legCell(leg, ['distance', 'distanceNm', 'dist'], '—');
+            const duration = legCell(leg, ['duration', 'flightTime', 'time', 'blockTime'], '—');
+            const row = '<tr>' +
+                '<td class="text-center">' + (idx + 1) + '</td>' +
+                '<td>' + from + '</td>' +
+                '<td>' + to + '</td>' +
+                '<td>' + type + '</td>' +
+                '<td class="text-center">' + pax + '</td>' +
+                '<td class="text-end">' + dist + '</td>' +
+                '<td class="text-end">' + duration + '</td>' +
+                '</tr>';
+            $tb.append(row);
+        });
+    }
+
+    function showLegsModal(legs) {
+        $('#planModalTitle').text('Proposed Mission Plan');
+        $('#planMessagesWrap').hide();
+        $('#planLegsWrap').show();
+        $('#btnPlanBook').show();
+        refreshPlanMeta();
+        renderLegs(legs);
+        planModal.show();
+    }
+
+    function getSelectedMissionId() {
+        const v = $('input.mission-radio:checked').val();
+        return v ? parseInt(v, 10) : null;
+    }
+
+    function getSelectedAircraftId() {
+        const v = $('#aircraftSelect').val();
+        return v ? parseInt(v, 10) : null;
+    }
+
+    $(document).ready(function () {
+        planModal = new bootstrap.Modal(document.getElementById('planModal'));
+
+        airwaysGet(BUSY_BIRDS_MISSIONS, function (data) {
+            renderMissions(data);
+        }, function () {
+            $('#missionsBody').html('<tr><td colspan="6" class="text-danger text-center">Failed to load missions</td></tr>');
+        });
+
+        $.ajax({
+            url: airwaysServiceUrl + BUSY_BIRDS_AIRCRAFT,
+            method: 'GET',
+            dataType: 'json',
+            success: function (list) {
+                renderAircraftList(list);
+            },
+            error: function () {
+                const $sel = $('#aircraftSelect');
+                $sel.empty();
+                $sel.append('<option value="">Unavailable</option>');
+                $sel.prop('disabled', true);
+                $('#aircraftHelp').text('Aircraft list not available yet. Set URL in page script: ' + BUSY_BIRDS_AIRCRAFT);
+            }
+        });
+
+        $('#btnShowLegs').on('click', function () {
+            clearAlert();
+            const missionId = getSelectedMissionId();
+            const aircraftId = getSelectedAircraftId();
+            if (!missionId) {
+                showAlert('warning', 'Select a mission.');
+                return;
+            }
+            if (!aircraftId) {
+                showAlert('warning', 'Select an aircraft.');
+                return;
+            }
+            selectedMissionId = missionId;
+            selectedAircraftId = aircraftId;
+
+            $.ajax({
+                url: airwaysServiceUrl + BUSY_BIRDS_GET_PLAN,
+                method: 'POST',
+                headers: airwaysAuthHeaders(),
+                dataType: 'json',
+                data: {
+                    missionId: missionId,
+                    aircraftId: aircraftId
+                },
+                success: function (response) {
+                    const plan = normalizePlanResponse(response);
+                    if (plan.messages) {
+                        showMessagesModal(plan.messages);
+                    } else {
+                        showLegsModal(plan.legs);
+                    }
+                },
+                error: function (xhr) {
+                    const j = xhr.responseJSON;
+                    const plan = normalizePlanResponse(j);
+                    if (plan.messages) {
+                        showMessagesModal(plan.messages);
+                        return;
+                    }
+                    showAlert('danger', 'Failed to call get-plan. Check endpoint ' + BUSY_BIRDS_GET_PLAN + ' and POST parameters.');
+                }
+            });
+        });
+
+        $('#btnPlanBook').on('click', function () {
+            const missionId = selectedMissionId;
+            const aircraftId = selectedAircraftId;
+            if (!missionId || !aircraftId) {
+                showMessagesModal(['Missing mission or aircraft; close and try again.']);
+                return;
+            }
+            $.ajax({
+                url: airwaysServiceUrl + BUSY_BIRDS_BOOK,
+                method: 'POST',
+                headers: airwaysAuthHeaders(),
+                dataType: 'json',
+                data: {missionId: missionId, aircraftId: aircraftId},
+                success: function (response) {
+                    const flightId = response?.flightId ?? response?.id ??
+                        (response?.flightIds && response.flightIds.length ? response.flightIds[0] : null);
+                    if (flightId !== null && flightId !== undefined) {
+                        window.location.href = 'flight-dashboard.html?flightId=' + encodeURIComponent(flightId);
+                        return;
+                    }
+                    showMessagesModal(['Booked (no flightId in response yet).', JSON.stringify(response)]);
+                },
+                error: function (xhr) {
+                    const j = xhr.responseJSON;
+                    const plan = normalizePlanResponse(j);
+                    if (plan.messages) {
+                        showMessagesModal(plan.messages);
+                        return;
+                    }
+                    showMessagesModal(['Book failed. Check endpoint ' + BUSY_BIRDS_BOOK + '.']);
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>
