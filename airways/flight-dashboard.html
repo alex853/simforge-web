@@ -324,22 +324,15 @@
             // todo ak1 disable / hide?
             // todo ak1 block automatic refreshes?
 
-            $.ajax({
-                url: airwaysServiceUrl + "/flight-dashboard/" + urlAction,
-                method: 'POST',
-                headers: airwaysAuthHeaders(),
-                data: {
-                    flightId: flightId,
-                },
-                success: function (response) {
-                    flightInfo = response;
-                    updateUI();
-                    // Keep the left list in sync after state-changing actions.
-                    loadMyFlights(false);
-                },
-                error: function (e) {
-                    alert('error'); // todo ak0 ??? alert, reload, refresh
-                }
+            airwaysAuth('POST', `/flight-dashboard/${urlAction}`, {
+                flightId: flightId,
+            }, function (response) {
+                flightInfo = response;
+                updateUI();
+                // Keep the left list in sync after state-changing actions.
+                loadMyFlights(false);
+            }, function (e) {
+                alert('error'); // todo ak0 ??? alert, reload, refresh
             });
         });
     }
@@ -451,7 +444,7 @@
     }
 
     function loadMyFlights(restartTimer) {
-        airwaysGetAuth('/flight-dashboard/my-flights', function (response) {
+        airwaysAuth('GET', '/flight-dashboard/my-flights', {}, function (response) {
             myFlights = (response && response.flights) ? response.flights : [];
             if (!flightId) {
                 selectedFlightId = myFlights?.[0]?.flight?.id ?? null;
