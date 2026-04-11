@@ -48,29 +48,31 @@
     <div class="table-responsive">
         <table class="table table-bordered table-striped table-hover">
             <colgroup>
-                <col>
-                <col>
-                <col>
-                <col>
-                <col style="width: 6%;">
-                <col style="width: 6%;">
-                <col style="width: 6%;">
-                <col style="width: 6%;">
-                <col style="width: 6%;">
-                <col style="width: 8%;">
-                <col style="width: 4%;">
-                <col style="width: 4%;">
-                <col style="width: 4%;">
-                <col style="width: 8%;">
+                <col> <!--  -->
+                <col> <!-- DOF -->
+<!--                <col>--> <!-- Heartbeat -->
+                <col> <!-- Status -->
+                <col style="width: 6%;"> <!-- Flt # -->
+                <col style="width: 6%;"> <!-- From -->
+                <col style="width: 6%;"> <!-- To -->
+                <col style="width: 5%;"> <!-- Dep -->
+                <col style="width: 5%;"> <!-- T/O -->
+                <col style="width: 5%;"> <!-- Land -->
+                <col style="width: 5%;"> <!-- Arr -->
+                <col style="width: 7%;"> <!-- Total -->
+                <col style="width: 3%;"> <!-- Sold -->
+                <col style="width: 3%;"> <!-- Ckd In -->
+                <col style="width: 3%;"> <!-- On Brd -->
+                <col style="width: 8%;"> <!-- Actions -->
             </colgroup>
             <thead class="table-dark">
             <tr>
                 <th rowspan="2" class="text-center align-middle">ID</th>
                 <th rowspan="2" class="text-center align-middle">DOF</th>
-                <th rowspan="2" class="text-center align-middle">Heartbeat</th>
+<!--                <th rowspan="2" class="text-center align-middle">Heartbeat</th>-->
                 <th rowspan="2" class="text-center align-middle">Status</th>
                 <th colspan="3" class="text-center align-middle">Route</th>
-                <th colspan="2" class="text-center align-middle">Time</th>
+                <th colspan="4" class="text-center align-middle">Time</th>
                 <th colspan="2" class="text-center align-middle">Tickets</th>
                 <th colspan="2" class="text-center align-middle">PAX</th>
                 <th rowspan="2" class="text-center align-middle">Actions</th>
@@ -80,6 +82,8 @@
                 <th class="text-center align-middle">From</th>
                 <th class="text-center align-middle">To</th>
                 <th class="text-center align-middle">Dep</th>
+                <th class="text-center align-middle">T/O</th>
+                <th class="text-center align-middle">Land</th>
                 <th class="text-center align-middle">Arr</th>
                 <th class="text-center align-middle">Total</th>
                 <th class="text-center align-middle">Sold</th>
@@ -114,35 +118,43 @@
         data.forEach(item => {
             const row = `
           <tr>
-            <td class="text-center align-middle">${item.fmId}</td>
+            <td class="text-center align-middle">
+                ${item.fmId}
+            </td>
             <td class="text-center align-middle">${item.dof}</td>
-            <td class="text-center align-middle">${item.hrtBt ?? ''}</td>
-            <td class="text-center align-middle">${item.fmSt}</td>
+<!--            <td class="text-center align-middle">${item.hrtBt ?? ''}</td>-->
+            <td class="text-center align-middle">
+                <span data-bs-toggle="tooltip" title="Flight Mission Status">${item.fmSt}</span>
+                ${item.tfSt != null ? (item.tfSt !== item.fmSt ? ` / <span data-bs-toggle="tooltip" title="Transport Flight Status">${item.tfSt}</span>` : '<span class="font-xsm" data-bs-toggle="tooltip" title="Transport Flight Status is the Same">x2</span>') : ''}
+            </td>
             <td class="text-center align-middle">${item.sfNo ?? ''}</td>
             <td class="text-center align-middle">${item.dep}</td>
             <td class="text-center align-middle">${item.dest}</td>
-            <td class="text-center align-middle">
-                ${item.adep != null && item.adep !== item.pdep 
-                      ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Departure">${item.adep}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>` 
-                      : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>`}
+            <td class="text-center align-middle">${
+                item.adep != null ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Takeoff">${item.adep}</span>` :
+                    `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>`}
             </td>
-            <td class="text-center align-middle">
-                ${item.aarr != null 
-                      ? (item.aarr !== item.parr 
-                             ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Arrival">${item.aarr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` 
-                             : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>`) 
-                      : (item.earr !== item.parr 
-                             ? `<span class="time-estimated" data-bs-toggle="tooltip" title="Estimated time of Arrival">${item.earr}</span><br><span class="time-planned-2nd-line" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>` 
-                             : `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>`)}
+            <td class="text-center align-middle">${
+                item.atkf != null ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Takeoff">${item.atkf}</span>` :
+                    `<span class="time-estimated" data-bs-toggle="tooltip" title="Estimated time of Takeoff">${item.etkf}</span>`}
             </td>
-            <td class="text-center align-middle">${item.ttkts}</td>
+            <td class="text-center align-middle">${
+                item.aldg != null ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Landing">${item.aldg}</span>` :
+                    `<span class="time-estimated" data-bs-toggle="tooltip" title="Estimated time of Landing">${item.eldg}</span>`}
+            </td>
+            <td class="text-center align-middle">${
+                item.aarr != null ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Arrival">${item.aarr}</span>` :
+                    item.earr != null ? `<span class="time-estimated" data-bs-toggle="tooltip" title="Estimated time of Arrival">${item.earr}</span>` :
+                        `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Arrival">${item.parr}</span>`}
+            </td>
+            <td class="text-center align-middle">${item.ttkts ?? ''}</td>
             <td class="text-center align-middle">${item.stkts ?? ''}</td>
             <td class="text-center align-middle">${item.ckdIn ?? ''}</td>
             <td class="text-center align-middle">${item.ponBrd ?? ''}</td>
             <td class="text-center align-middle">
-                ${item.pcMode ? `<button type="button" class="btn btn-success btn-xsm" onclick="openFlightDashboard(${item.fmId})">D</button>` : ''}
-                <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.id})">C</button>
-                <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>
+                <!--${item.pcMode ? `<button type="button" class="btn btn-success btn-xsm" onclick="openFlightDashboard(${item.fmId})">D</button>` : ''}-->
+                <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.fmId})">C</button>
+                <!--<button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>-->
             </td>
           </tr>`;
             $tbody.append(row);
@@ -176,16 +188,17 @@
 /*    function openFlightDashboard(flightId) {
         const url = `./flight-dashboard.html?flightId=${flightId}`;
         window.open(url, 'airways-flight-' + flightId);
-    }
+    }*/
 
     function adminCancel(id) {
-        if (!confirm("Do you want to cancel this flight?")) return;
-        airwaysGetPlain('/admin/transport-flight/cancel?tfId=' + id, function () {
+        if (!confirm("Do you want to cancel this flight including transport flight?")) return;
+        airwaysGetPlain('/admin/flight/cancel?id=' + id, function (response) {
+            alert(response);
             reloadData();
         });
     }
 
-    function adminRemove(id) {
+/*    function adminRemove(id) {
         if (!confirm("Do you want to remove this flight?")) return;
         airwaysGetPlain('/admin/transport-flight/remove?tfId=' + id, function () {
             reloadData();
