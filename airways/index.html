@@ -165,18 +165,21 @@
             cityMarkers.push(marker);
         });
         data.airports.forEach(a => {
-            const marker = L.marker([a.latitude, a.longitude], {icon: getIcon('airport', airportIconSize)})
-                .bindTooltip(a.icao, {
-                    permanent: true,
-                    direction: 'right',
-                    offset: [airportIconSize / 10, 0],
-                    className: 'always-shown-tooltip'
-                })
+            let marker = L.marker([a.latitude, a.longitude], {icon: getIcon('airport', airportIconSize)})
                 .bindPopup('')
                 .on('popupopen', function (e) {
                     showAirportPopup(e.target);
                     updateAirportPopup(e.target);
                 });
+            if (zoom >= 8) {
+                marker = marker
+                    .bindTooltip(a.icao, {
+                        permanent: true,
+                        direction: 'right',
+                        offset: [airportIconSize / 10, 0],
+                        className: 'always-shown-tooltip'
+                    });
+            }
             marker.airport = a;
             marker.addTo(map);
             airportMarkers.push(marker);
@@ -284,17 +287,20 @@
             const existingMarker = aircraftMarkers[key];
 
             if (!existingMarker) {
-                const marker = L.marker([a.lat, a.lon], {icon: getIcon('plane', planeIconSize, a.id)})
-                    .bindTooltip(a.acReg, {
-                        permanent: true,
-                        direction: 'right',
-                        offset: [planeIconSize / 5, 0],
-                        className: 'always-shown-tooltip'
-                    })
+                let marker = L.marker([a.lat, a.lon], {icon: getIcon('plane', planeIconSize, a.id)})
                     .bindPopup('')
                     .on('popupopen', function (e) {
                         updateAircraftPopup(e.target);
                     });
+                if (zoom >= 8) {
+                    marker = marker
+                        .bindTooltip(a.acReg, {
+                            permanent: true,
+                            direction: 'right',
+                            offset: [planeIconSize / 5, 0],
+                            className: 'always-shown-tooltip'
+                        });
+                }
                 marker.setRotationAngle(a.hdg + airplaneIcons[a.id % airplaneIcons.length][1]);
                 marker.addTo(map);
                 marker.aircraftId = a.id;
