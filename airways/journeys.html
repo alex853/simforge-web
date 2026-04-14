@@ -56,8 +56,8 @@
                 <td id="statsFinished" class="align-middle"></td>
             </tr>
             <tr>
-                <td></td>
-                <td></td>
+                <td>Spending their time</td>
+                <td id="spendingTheirTime" class="align-middle"></td>
                 <td>Waiting for boarding</td>
                 <td id="statsWaitingForBoarding" class="align-middle"></td>
                 <td></td>
@@ -68,8 +68,8 @@
                 <td id="statsCouldNotFindTickets" class="align-middle"></td>
             </tr>
             <tr>
-                <td></td>
-                <td></td>
+                <td style="font-weight: bold;">Total</td>
+                <td id="total" class="align-middle" style="font-weight: bold;"></td>
                 <td></td>
                 <td></td>
                 <td></td>
@@ -169,6 +169,7 @@
 
     function updateStats(data) {
         $('#statsLookingForTickets').text(data.LookingForTickets || '');
+        $('#statsSpendingTheirTime').text(data.SpendingTheirTime || '');
         $('#statsWaitingForCheckIn').text(data.WaitingForCheckIn || '');
         $('#statsWaitingForBoarding').text(data.WaitingForBoarding || '');
         $('#statsOnBoard').text(data.OnBoard || '');
@@ -178,6 +179,18 @@
         $('#statsFinished').text(data.Finished || '');
         $('#statsCouldNotFindTickets').text(data.CouldNotFindTickets || '');
         $('#statsTooLateToBoard').text(data.TooLateToBoard || '');
+
+        $('#total').text((data.LookingForTickets || 0)
+            + (data.SpendingTheirTime || 0)
+            + (data.WaitingForCheckIn || 0)
+            + (data.WaitingForBoarding || 0)
+            + (data.OnBoard || 0)
+            + (data.WaitingForDeboarding || 0)
+            + (data.JustArrived || 0)
+            + (data.ItinerariesDone || 0)
+            + (data.Finished || 0)
+            + (data.CouldNotFindTickets || 0)
+            + (data.TooLateToBoard || 0));
     }
 
     function reloadData() {
