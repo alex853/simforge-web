@@ -95,6 +95,32 @@
             padding: 1rem;
         }
 
+        .airport-icao {
+            font-size: 3rem;
+            text-align: center;
+        }
+
+        .flight-time {
+            font-size: 1.0rem;
+            text-align: center;
+        }
+
+        .time-planned {
+        }
+        .time-actual {
+            font-weight: 600;
+        }
+        .time-estimated {
+            font-style: italic;
+            color: gray;
+        }
+
+
+
+
+
+
+
         .flight-list-item {
             cursor: pointer;
         }
@@ -146,9 +172,22 @@
                     <div style="flex: 1;">VATSIM</div>
                 </div>
 
-                <div class="section">
-                    <div>AAAA - ZZZZ</div>
-                    <div>00:00 00:10 01:10 01:20</div>
+                <div class="section" style="flex-direction: column;">
+                    <div style="display: flex; flex-direction: row;">
+                        <div style="flex: 2;"></div>
+                        <div id="flight-route-departure-icao" class="airport-icao" style="flex: 3;">AAAA</div>
+                        <div class="airport-icao" style="flex: 1;">-</div>
+                        <div id="flight-planned-destination-icao" class="airport-icao" style="flex: 3;">ZZZZ</div>
+                        <div style="flex: 2;"></div>
+                    </div>
+                    <div style="display: flex; flex-direction: row;">
+                        <div style="flex: 1;"></div>
+                        <div id="flight-time-of-departure" class="flight-time" style="flex: 1;">00:00</div>
+                        <div id="flight-time-of-takeoff" class="flight-time time-estimated" style="flex: 1;">00:10</div>
+                        <div id="flight-time-of-landing" class="flight-time" style="flex: 1;">01:00</div>
+                        <div id="flight-time-of-arrival" class="flight-time" style="flex: 1;">01:10</div>
+                        <div style="flex: 1;"></div>
+                    </div>
                 </div>
 
                 <div class="section">
