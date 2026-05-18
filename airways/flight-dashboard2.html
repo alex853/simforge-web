@@ -60,15 +60,20 @@
             flex-direction: column;
         }
 
+        .hidden {
+            display: none;
+        }
+
         .section-top {
-            flex: 1;
+            /*flex: 1;*/
+            height: 3rem;
             display: flex;
             border-bottom: 1px solid #eee;
             flex-direction: row;
         }
 
         .section {
-            flex: 3;
+            /*flex: 3;*/
             display: flex;
             border-bottom: 1px solid #eee;
         }
@@ -177,72 +182,49 @@
                         <div style="flex: 2;"></div>
                         <div id="flight-route-departure-icao" class="airport-icao" style="flex: 3;">AAAA</div>
                         <div class="airport-icao" style="flex: 1;">-</div>
-                        <div id="flight-planned-destination-icao" class="airport-icao" style="flex: 3;">ZZZZ</div>
+                        <div id="flight-route-destination-icao" class="airport-icao" style="flex: 3;">ZZZZ</div>
                         <div style="flex: 2;"></div>
                     </div>
                     <div style="display: flex; flex-direction: row;">
                         <div style="flex: 1;"></div>
                         <div id="flight-time-of-departure" class="flight-time" style="flex: 1;">00:00</div>
-                        <div id="flight-time-of-takeoff" class="flight-time time-estimated" style="flex: 1;">00:10</div>
+                        <div id="flight-time-of-takeoff" class="flight-time" style="flex: 1;">00:10</div>
                         <div id="flight-time-of-landing" class="flight-time" style="flex: 1;">01:00</div>
                         <div id="flight-time-of-arrival" class="flight-time" style="flex: 1;">01:10</div>
                         <div style="flex: 1;"></div>
                     </div>
-                </div>
-
-                <div class="section">
-                    <div class="section-label">Aircraft & Flight</div>
-                    <div class="section-content">
-                        <div>Reg: <span id="acReg"></span></div>
-                        <div>Type: <span id="acType"></span></div>
-                        <div>Location Status: <span id="acLocationStatus"></span></div>
-                        <div>Operational Status: <span id="acOperationalStatus"></span></div>
-                        <!--button class="btn btn-sm btn-warning m-1">Refuel</button>
-                        <button class="btn btn-sm btn-danger m-1">Repair</button-->
-
-                        <div>
-                            DOF: <span id="fltPlanDOF" class="fw-bold"></span>
-                            <span id="fltPlanDOFLabel" class="text-secondary fst-italic"></span>
-                        </div>
-                        <div>Route: <span id="fltDepIcao" class="fw-bold"></span> (<span id="fltPlanDepTime"></span>) → <span id="fltDestIcao" class="fw-bold"></span> (<span id="fltPlanArrTime"></span>)</div>
-                        <div>
-                            Status: <span id="fltStatus" class="fw-bold"></span>
-                            <span id="fltNextStatusWrap" class="text-secondary fst-italic"> → <span id="fltNextStatus"></span></span>
-                        </div>
-                        <button id="fltBtnStart" class="btn btn-primary m-2" style="display: none;">Start</button>
-                        <button id="fltBtnStartEarly" class="btn btn-outline-danger m-2 disabled" style="display: none;">Start</button>
-                        <button id="fltBtnBlocksOff" class="btn btn-primary m-2" style="display: none;">Blocks Off</button>
-                        <button id="fltBtnBlocksOffDisabled" class="btn btn-outline-danger m-2 disabled" style="display: none;">Blocks Off</button>
-                        <button id="fltBtnTakeoff" class="btn btn-primary m-2" style="display: none;">Takeoff</button>
-                        <button id="fltBtnLanding" class="btn btn-primary m-2" style="display: none;">Landing</button>
-                        <button id="fltBtnLandingDisabled" class="btn btn-outline-danger m-2 disabled" style="display: none;">Landing</button>
-                        <button id="fltBtnBlocksOn" class="btn btn-primary m-2" style="display: none;">Blocks On</button>
-                        <button id="fltBtnFinish" class="btn btn-primary m-2" style="display: none;">Finish</button>
-                        <button id="fltBtnFinishDisabled" class="btn btn-outline-danger m-2 disabled" style="display: none;">Finish</button>
+                    <div id="flight-stage-dispatched" class="hidden">
+                        <div>Before Start Flight</div>
+                        <div>[CHECKS]</div>
+                        <div><button id="flight-stage-dispatched-start-flight-button" class="btn btn-outline-danger m-2 disabled">Start</button></div>
                     </div>
-                </div>
-
-                <div class="section">
-                    <div class="section-label">Payload</div>
-                    <div class="section-content">
-                        <div>
-                            Status: <span id="tfStatus" class="fw-bold"></span>
-                            <span id="tfNextStatusWrap" class="text-secondary fst-italic"> → <span id="tfNextStatus"></span></span>
-                        </div>
-                        <div id="tfSoldDiv" style="display: none;">
-                            Sold seats: <span id="tfSoldSeats" class="fw-bold"></span> of <span id="tfTotalSeats" class="fw-bold"></span>,
-                            Remained seats by cabin: <span id="tfRemainedSeats" class="fw-bold"></span>
-                        </div>
-                        <div id="tfCheckInDiv">
-                            Check-in: <span id="tfCheckInSeats" class="fw-bold"></span> of <span id="tfCheckInSoldSeats" class="fw-bold"></span> passengers checked in
-                        </div>
-                        <div id="tfOnBoardDiv" style="display: none;">
-                            On board: <span id="tfOnBoard" class="fw-bold"></span>
-                        </div>
-                        <button id="tfBtnStartBoarding" class="btn btn-primary m-2" style="display: none;">Start Boarding</button>
-                        <button id="tfBtnStartBoardingDisabled" class="btn btn-outline-secondary m-2 disabled" style="display: none;">Start Boarding</button>
-                        <button id="tfBtnStartDeboarding" class="btn btn-primary m-2" style="display: none;">Start Deboarding</button>
-                        <button id="tfBtnStartDeboardingDisabled" class="btn btn-outline-secondary m-2 disabled" style="display: none;">Start Deboarding</button>
+                    <div id="flight-stage-preflight" class="hidden">
+                        <div>Preflight</div>
+                        <div>[CHECKS]</div>
+                        <div><button id="flight-stage-preflight-start-boarding-button" class="btn btn-outline-danger m-2 disabled">Start Boarding</button></div>
+                    </div>
+                    <div id="flight-stage-departure" class="hidden">
+                        <div>Departure</div>
+                        <div>[CHECKS]</div>
+                        <div>[Takeoff]</div>
+                    </div>
+                    <div id="flight-stage-flying" class="hidden">
+                        <div>Flying</div>
+                        <div>[CHECKS]</div>
+                        <div>[Landing]</div>
+                    </div>
+                    <div id="flight-stage-arrival" class="hidden">
+                        <div>Arrival</div>
+                        <div>[CHECKS]</div>
+                        <div>[Blocks On]</div>
+                    </div>
+                    <div id="flight-stage-postflight" class="hidden">
+                        <div>Postflight</div>
+                        <div>[CHECKS]</div>
+                        <div>[Start Deboarding]</div>
+                    </div>
+                    <div id="flight-stage-finished" class="hidden">
+                        <div>Finished</div>
                     </div>
                 </div>
             </div>
@@ -387,7 +369,7 @@
                 flightInfo = response;
                 updateUI();
                 // Keep the left list in sync after state-changing actions.
-                loadMyFlights(false);
+                // loadMyFlights(false);
             }, function (e) {
                 alert('error'); // todo ak0 ??? alert, reload, refresh
             });
@@ -415,7 +397,7 @@
             clearInterval(refreshTimerId);
         }
         refreshTimerId = setInterval(function () {
-            loadMyFlights(false);
+            // loadMyFlights(false);
             loadStatus2(false);
         }, 10000);
     }
@@ -501,6 +483,76 @@
         $('#sim-status-parking-brake').text(status.sim.parkingBrake === null ? '' : status.sim.parkingBrake ? 'SET' : 'OFF');
         $('#sim-status-engine-running').text(status.sim.engineRunning === null ? '' : status.sim.engineRunning ? 'RUN' : 'OFF');
         $('#sim-status-measured-gs').text(status.sim.measuredGs);
+
+        if (!status.flight) {
+            // todo ak1 show 'no flight' panel
+            return;
+        }
+
+        $('#flight-route-departure-icao').text(status.flight.dep);
+        $('#flight-route-destination-icao').text(status.flight.dest);
+        $('#flight-time-of-departure').text(status.flight.pdep);
+        $('#flight-time-of-arrival').text(status.flight.parr);
+
+        hide('#flight-stage-dispatched');
+        hide('#flight-stage-preflight');
+        hide('#flight-stage-departure');
+        hide('#flight-stage-flying');
+        hide('#flight-stage-arrival');
+        hide('#flight-stage-postflight');
+        hide('#flight-stage-finished');
+
+        const flightStatus = status.flight.fmSt;
+        if (flightStatus === 'Dispatched') {
+            show('#flight-stage-dispatched');
+            renderDispatchedPanel();
+        } else if (flightStatus === 'Preflight') {
+            show('#flight-stage-preflight');
+            renderPreflightPanel();
+        } else if (flightStatus === 'Departure') {
+            show('#flight-stage-departure');
+            renderDeparturePanel();
+        } else if (flightStatus === 'flying') {
+            show('#flight-stage-flying');
+            renderFlyingPanel();
+        } else if (flightStatus === 'arrival') {
+            show('#flight-stage-arrival');
+            renderArrivalPanel();
+        } else if (flightStatus === 'postflight') {
+            show('#flight-stage-postflight');
+            renderPostflightPanel();
+        } else if (flightStatus === 'finished') {
+            show('#flight-stage-finished');
+            renderFinishedPanel();
+        }
+    }
+
+    function renderDispatchedPanel() {
+
+    }
+
+    function renderPreflightPanel() {
+
+    }
+
+    function renderDeparturePanel() {
+
+    }
+
+    function renderFlyingPanel() {
+
+    }
+
+    function renderArrivalPanel() {
+
+    }
+
+    function renderPostflightPanel() {
+
+    }
+
+    function renderFinishedPanel() {
+
     }
 
     function selectFlight(selectedId) {
@@ -519,7 +571,7 @@
             } else {
                 selectedFlightId = flightId;
             }
-            renderFlightList();
+            // renderFlightList();
             refreshSelectedFromMyFlights();
             if (restartTimer) {
                 restartRefreshTimer();
@@ -535,6 +587,14 @@
         airwaysAuth('GET', '/flight-dashboard/status2', {}, function (response) {
             renderStatus2(response);
         });
+    }
+
+    function show(id) {
+        $(id).removeClass('hidden');
+    }
+
+    function hide(id) {
+        $(id).addClass('hidden');
     }
 
     $(document).ready(function () {
