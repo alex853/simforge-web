@@ -168,8 +168,7 @@
             let marker = L.marker([a.latitude, a.longitude], {icon: getIcon('airport', airportIconSize)})
                 .bindPopup('')
                 .on('popupopen', function (e) {
-                    showAirportPopup(e.target);
-                    updateAirportPopup(e.target);
+                    refreshAirportDataAndPopup(e.target);
                 });
             if (zoom >= 8) {
                 marker = marker
@@ -211,7 +210,7 @@
         marker.setPopupContent(content);
     }
 
-    function showAirportPopup(marker) {
+    function refreshAirportDataAndPopup(marker) {
         updateAirportPopup(marker);
 
         const airport = marker.airport;
@@ -290,7 +289,7 @@
                 let marker = L.marker([a.lat, a.lon], {icon: getIcon('plane', planeIconSize, a.id)})
                     .bindPopup('')
                     .on('popupopen', function (e) {
-                        updateAircraftPopup(e.target);
+                        refreshAircraftDataAndPopup(e.target);
                     });
                 if (zoom >= 8) {
                     marker = marker
@@ -319,6 +318,16 @@
             });
     }
 
+    function refreshAircraftDataAndPopup(marker) {
+        updateAircraftPopup(marker);
+
+        const aircraftId = marker.aircraftId;
+        airwaysGet(`/map/aircraft/details?id=${aircraftId}`, function (details) {
+            marker.details = details;
+            updateAircraftPopup(marker);
+        })
+    }
+
     function updateAircraftPopup(marker) {
         const aircraft = data.aircraft.find(ac => ac.id === marker.aircraftId);
         if (!aircraft) {
@@ -326,30 +335,32 @@
             return;
         }
 
+        const details = marker.details;
+
         const content = `
         <div class="fs-4 fw-bold">${aircraft.acReg}</div>
         <table class="table table-sm">
             <tr>
                 <td colspan="1" class="text-start text-muted">TYPE</td>
-                <td colspan="3" class="text-end fw-bold">${aircraft.acType}</td>
+                <td colspan="3" class="text-end fw-bold">${details?.acType || ''}</td>
             </tr>
             <!--tr> todo ak3 add airline operator here
                 <td colspan="1" class="text-start text-muted">AIRLINE</td>
                 <td colspan="3" class="text-end fw-bold">ShadowJet</td>
             </tr-->
             <tr>
-                <td colspan="2" class="text-center fs-5 fw-bold">${aircraft.fpDep}</td>
-                <td colspan="2" class="text-center fs-5 fw-bold">${aircraft.fpDest}</td>
+                <td colspan="2" class="text-center fs-5 fw-bold">${details?.dep || ''}</td>
+                <td colspan="2" class="text-center fs-5 fw-bold">${details?.dest || ''}</td>
             </tr>
             <tr>
                 <td class="text-start text-muted" title="Scheduled Time of Departure">STD</td>
-                <td class="text-end fw-bold" title="Scheduled Time of Departure">${aircraft.pdep}</td>
+                <td class="text-end fw-bold" title="Scheduled Time of Departure">${details?.pdep || ''}</td>
                 <td class="text-start text-muted" title="Scheduled Time of Arrival">STA</td>
-                <td class="text-end fw-bold" title="Scheduled Time of Arrival">${aircraft.parr}</td>
+                <td class="text-end fw-bold" title="Scheduled Time of Arrival">${details?.parr || ''}</td>
             </tr>
             <tr>
                 <td class="text-start text-muted" title="Actual Time of Departure">ATD</td>
-                <td class="text-end fw-bold" title="Actual Time of Departure">${aircraft.atof}</td>
+                <td class="text-end fw-bold" title="Actual Time of Departure">${details?.atkf || ''}</td>
                 <td class="text-start text-muted" title="Estimated Time of Arrival">ETA</td>
                 <td class="text-end" title="Estimated Time of Arrival"><span style="color: red">n/a</span></td>
             </tr>
@@ -369,10 +380,34 @@
     }
 
     function doAircraftDataReload() {
-        loadFlyingAircraft(function (aircraftData) {
-            data.aircraft = aircraftData;
-            drawAircraft();
-        });
+        airwaysGet('/map/aircraft/flying',
+            function (response) {
+                data.aircraft = response;
+                drawAircraft();
+            },
+            function (e) {
+                console.error("error loading aircraft data");
+            });
+    }
+
+    function loadCities(callback) {
+        airwaysGet('/geo/cities',
+            function (response) {
+                callback(response);
+            },
+            function (e) {
+                console.error("error loading city data");
+            });
+    }
+
+    function loadAirports(callback) {
+        airwaysGet('/geo/airports',
+            function (response) {
+                callback(response);
+            },
+            function (e) {
+                console.error("error loading airports data");
+            });
     }
 
     $(document).ready(function () {
