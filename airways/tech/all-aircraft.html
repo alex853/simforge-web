@@ -28,6 +28,7 @@
                 <th>Airport</th>
                 <th>Lat<br>Long</th>
                 <th>Hdg<br>Alt</th>
+                <th>Flt Time<br>Cycles</th>
             </tr>
             </thead>
             <tbody id="data-table-body">
@@ -57,6 +58,7 @@
             <td>${item.lcApt ?? ''}</td>
             <td>${item.lat}<br>${item.lon}</td>
             <td>${item.hdg}<br>${item.alt}</td>
+            <td>${item.fsTime}<br>${item.fsCycles}</td>
           </tr>`;
             $tbody.append(row);
         })
