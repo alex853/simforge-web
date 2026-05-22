@@ -25,6 +25,10 @@
         .table-missions .col-pax { width: 15%; text-align: center; white-space: nowrap; }
         .table-missions .col-dist { width: 15%; text-align: right; white-space: nowrap; }
         .table-missions .col-pay { width: 15%; text-align: right; white-space: nowrap; }
+        .plan-options-row .plan-turnaround-select { width: 6.25rem; max-width: 100%; }
+        .plan-options-row > .col:last-child { min-width: 0; }
+        .plan-options-row .ferry-check { padding-bottom: 0.15rem; }
+        .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
     </style>
 </head>
 <body>
@@ -102,6 +106,30 @@
                 </div>
 
                 <div id="planLegsWrap" style="display: none;">
+                    <div class="row g-2 align-items-end mb-3 plan-options-row">
+                        <div class="col-md-4 col-lg-5">
+                            <label class="form-label mb-1" for="planSelect">Plan</label>
+                            <select id="planSelect" class="form-select form-select-sm">
+                                <option value="" disabled selected>Select plan…</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label mb-1 text-nowrap" for="turnaroundSelect">Turnaround time</label>
+                            <select id="turnaroundSelect" class="form-select form-select-sm plan-turnaround-select">
+                                <option value="1">1 hour</option>
+                                <option value="3">3 hours</option>
+                                <option value="6">6 hours</option>
+                                <option value="12">12 hours</option>
+                                <option value="24">24 hours</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <div class="form-check mb-1 ferry-check">
+                                <input type="checkbox" class="form-check-input" id="ferryBackToBase" name="ferryBackToBase" checked>
+                                <label class="form-check-label" for="ferryBackToBase">Ferry flight back to base</label>
+                            </div>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped table mb-0">
                             <thead class="table-light">
@@ -135,6 +163,7 @@
     let selectedMissionId = null;
     let selectedAircraftId = null;
     let legsPayload = [];
+    let buildPlans = [];
     let planModal;
 
     function showAlert(type, message) {
@@ -251,6 +280,61 @@
         return {legs: null, messages: ['Unexpected get-plan response']};
     }
 
+    function normalizeBuildPlansResponse(response) {
+        if (response && Array.isArray(response.messages)) {
+            return {plans: null, messages: response.messages};
+        }
+        const rawPlans = response && Array.isArray(response.plans) ? response.plans : null;
+        if (!rawPlans) {
+            return {plans: null, messages: ['Unexpected build-plans response']};
+        }
+        return {
+            plans: rawPlans.map(function (p, idx) {
+                const norm = normalizePlanResponse(p);
+                return {
+                    id: p.id != null ? p.id : idx,
+                    description: p.description ?? ('Plan ' + (idx + 1)),
+                    legs: norm.legs,
+                    messages: norm.messages
+                };
+            }),
+            messages: null
+        };
+    }
+
+    function renderPlanSelect(plans) {
+        const $sel = $('#planSelect');
+        $sel.empty();
+        plans.forEach(function (p) {
+            $sel.append($('<option></option>').attr('value', p.id).text(p.description));
+        });
+    }
+
+    function findPlanById(planId) {
+        const idStr = String(planId);
+        return buildPlans.find(function (p) { return String(p.id) === idStr; });
+    }
+
+    function applySelectedPlan(planId) {
+        const plan = findPlanById(planId);
+        if (!plan) {
+            renderLegs([]);
+            return;
+        }
+        if (plan.messages) {
+            const $tb = $('#planLegsBody');
+            $tb.empty();
+            legsPayload = [];
+            const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
+            arr.forEach(function (m) {
+                const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
+                $tb.append('<tr><td colspan="7" class="text-muted text-center">' + text + '</td></tr>');
+            });
+            return;
+        }
+        renderLegs(plan.legs);
+    }
+
     function showMessagesModal(messages) {
         $('#planModalTitle').text('Messages');
         $('#planMetaWrap').hide();
@@ -313,14 +397,102 @@
         });
     }
 
-    function showLegsModal(legs) {
+    function getPlanOptionParams() {
+        return {
+            turnaroundTime: parseInt($('#turnaroundSelect').val(), 10),
+            ferryBackToBase: $('#ferryBackToBase').is(':checked')
+        };
+    }
+
+    function getBuildPlansParams() {
+        return Object.assign({
+            missionId: selectedMissionId,
+            aircraftId: selectedAircraftId
+        }, getPlanOptionParams());
+    }
+
+    function showLegsModal(plans, options) {
+        options = options || {};
+        buildPlans = plans;
         $('#planModalTitle').text('Proposed Mission Plan');
         $('#planMessagesWrap').hide();
         $('#planLegsWrap').show();
         $('#btnPlanBook').show();
         refreshPlanMeta();
-        renderLegs(legs);
-        planModal.show();
+        renderPlanSelect(plans);
+        let planId = plans[0].id;
+        if (options.preferredPlanId != null) {
+            const found = plans.find(function (p) {
+                return String(p.id) === String(options.preferredPlanId);
+            });
+            if (found) {
+                planId = found.id;
+            }
+        }
+        $('#planSelect').val(String(planId));
+        applySelectedPlan(planId);
+        if (!options.skipShowModal) {
+            planModal.show();
+        }
+    }
+
+    function setPlanOptionsBusy(busy) {
+        $('#turnaroundSelect, #ferryBackToBase, #planSelect').prop('disabled', busy);
+    }
+
+    function loadBuildPlans(options) {
+        options = options || {};
+        const missionId = options.missionId != null ? options.missionId : selectedMissionId;
+        const aircraftId = options.aircraftId != null ? options.aircraftId : selectedAircraftId;
+        if (!missionId || !aircraftId) {
+            if (!options.silent) {
+                showAlert('warning', 'Select a mission and aircraft.');
+            }
+            return;
+        }
+        selectedMissionId = missionId;
+        selectedAircraftId = aircraftId;
+
+        const preferredPlanId = options.refresh
+            ? $('#planSelect').val()
+            : null;
+
+        setPlanOptionsBusy(true);
+        airwaysAuth('GET', '/busy-birds/mission/build-plans', getBuildPlansParams(), function (response) {
+            setPlanOptionsBusy(false);
+            const result = normalizeBuildPlansResponse(response);
+            if (result.messages) {
+                showMessagesModal(result.messages);
+                return;
+            }
+            if (!result.plans || result.plans.length === 0) {
+                showMessagesModal(['No plans available.']);
+                return;
+            }
+            const hasLegs = result.plans.some(function (p) { return p.legs && p.legs.length > 0; });
+            if (!hasLegs) {
+                const withMessages = result.plans.find(function (p) { return p.messages; });
+                showMessagesModal(withMessages ? withMessages.messages : ['No legs in any plan.']);
+                return;
+            }
+            showLegsModal(result.plans, {
+                skipShowModal: !!options.refresh,
+                preferredPlanId: preferredPlanId
+            });
+        }, function (xhr) {
+            setPlanOptionsBusy(false);
+            const j = xhr && xhr.responseJSON;
+            const result = normalizeBuildPlansResponse(j);
+            if (result.messages) {
+                showMessagesModal(result.messages);
+                return;
+            }
+            if (!options.refresh) {
+                showAlert('danger', 'Failed to load plans. Check endpoint ' + '/busy-birds/mission/build-plans' + ' and parameters.');
+            } else {
+                showMessagesModal(['Failed to refresh plans.']);
+            }
+        });
     }
 
     function getSelectedMissionId() {
@@ -364,41 +536,44 @@
                 showAlert('warning', 'Select an aircraft.');
                 return;
             }
-            selectedMissionId = missionId;
-            selectedAircraftId = aircraftId;
+            loadBuildPlans({missionId: missionId, aircraftId: aircraftId});
+        });
 
-            airwaysAuth('GET', '/busy-birds/mission/build-plan', {
-                missionId: missionId,
-                aircraftId: aircraftId
-            }, function (response) {
-                const plan = normalizePlanResponse(response);
-                if (plan.messages) {
-                    showMessagesModal(plan.messages);
-                } else {
-                    showLegsModal(plan.legs);
-                }
-            }, function (xhr) {
-                const j = xhr.responseJSON;
-                const plan = normalizePlanResponse(j);
-                if (plan.messages) {
-                    showMessagesModal(plan.messages);
-                    return;
-                }
-                showAlert('danger', 'Failed to call get-plan. Check endpoint ' + '/busy-birds/mission/get-plan' + ' and POST parameters.');
-            });
+        $('#turnaroundSelect, #ferryBackToBase').on('change', function () {
+            if (!selectedMissionId || !selectedAircraftId) {
+                return;
+            }
+            if (!$('#planLegsWrap').is(':visible')) {
+                return;
+            }
+            loadBuildPlans({refresh: true, silent: true});
+        });
+
+        $('#planSelect').on('change', function () {
+            const planId = $(this).val();
+            if (planId === '' || planId == null) {
+                return;
+            }
+            applySelectedPlan(planId);
         });
 
         $('#btnPlanBook').on('click', function () {
             const missionId = selectedMissionId;
             const aircraftId = selectedAircraftId;
+            const plan = findPlanById($('#planSelect').val());
             if (!missionId || !aircraftId) {
                 showMessagesModal(['Missing mission or aircraft; close and try again.']);
                 return;
             }
-            airwaysAuth('PUT', '/busy-birds/mission/book', {
+            if (!plan) {
+                showMessagesModal(['Select a plan.']);
+                return;
+            }
+            airwaysAuth('PUT', '/busy-birds/mission/book', Object.assign({
                 missionId: missionId,
-                aircraftId: aircraftId
-            }, function (response) {
+                aircraftId: aircraftId,
+                planId: plan.id
+            }, getPlanOptionParams()), function (response) {
                 window.location.href = 'flight-dashboard.html';
             }, function (xhr) {
                 const j = xhr.responseJSON;

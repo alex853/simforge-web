@@ -597,8 +597,20 @@
     }
 
     function renderPostflightPanel(status) {
+        hide('#flight-stage-postflight-start-deboarding-disabled-button');
+        hide('#flight-stage-postflight-start-deboarding-button');
+
         hide('#flight-stage-postflight-finish-flight-disabled-button');
         hide('#flight-stage-postflight-finish-flight-button');
+
+        const startDeboardingAction = status.sim.actions.find(a => a.name === "start-deboarding");
+        if (startDeboardingAction) {
+            if (startDeboardingAction.allowed) {
+                show('#flight-stage-postflight-start-deboarding-button');
+            } else {
+                show('#flight-stage-postflight-start-deboarding-disabled-button');
+            }
+        }
 
         const finishFlightAction = status.sim.actions.find(a => a.name === "finish-flight");
         if (finishFlightAction) {
