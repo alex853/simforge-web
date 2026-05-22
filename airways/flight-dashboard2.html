@@ -122,8 +122,18 @@
 
 
 
+        .stage-title {
+            text-align: center;
+            font-size: 1.5rem;
+        }
 
+        .stage-content {
+            text-align: center;
+        }
 
+        .stage-buttons {
+            text-align: center;
+        }
 
 
         .flight-list-item {
@@ -194,37 +204,57 @@
                         <div style="flex: 1;"></div>
                     </div>
                     <div id="flight-stage-dispatched" class="hidden">
-                        <div>Before Start Flight</div>
-                        <div>[CHECKS]</div>
-                        <div><button id="flight-stage-dispatched-start-flight-button" class="btn btn-outline-danger m-2 disabled">Start</button></div>
+                        <div class="stage-title">Before Start Flight</div>
+                        <div class="stage-content">[CHECKS]</div>
+                        <div class="stage-buttons">
+                            <button id="flight-stage-dispatched-start-flight-disabled-button" class="btn btn-outline-danger m-2 disabled hidden">Start Flight</button>
+                            <button id="flight-stage-dispatched-start-flight-button" class="btn btn-success m-2 hidden" onclick="action_StartFlight();">Start Flight</button>
+                        </div>
                     </div>
                     <div id="flight-stage-preflight" class="hidden">
-                        <div>Preflight</div>
-                        <div>[CHECKS]</div>
-                        <div><button id="flight-stage-preflight-start-boarding-button" class="btn btn-outline-danger m-2 disabled">Start Boarding</button></div>
+                        <div class="stage-title">Preflight</div>
+                        <div class="stage-content">[CHECKS]</div>
+                        <div class="stage-buttons">
+                            <button id="flight-stage-preflight-start-boarding-disabled-button" class="btn btn-outline-danger m-2 disabled hidden">Start Boarding</button>
+                            <button id="flight-stage-preflight-start-boarding-button" class="btn btn-success m-2 hidden" onclick="action_StartBoarding();">Start Boarding</button>
+
+                            <button id="flight-stage-preflight-blocks-off-automatically-button" class="btn btn-outline-primary m-2 disabled hidden">Blocks Off will be tracked automatically</button>
+                        </div>
                     </div>
                     <div id="flight-stage-departure" class="hidden">
-                        <div>Departure</div>
-                        <div>[CHECKS]</div>
-                        <div>[Takeoff]</div>
+                        <div class="stage-title">Departure</div>
+                        <div class="stage-content">[CHECKS]</div>
+                        <div class="stage-buttons">
+                            <button id="flight-stage-departure-takeoff-automatically-button" class="btn btn-outline-primary m-2 disabled">Takeoff will be tracked automatically</button>
+                        </div>
                     </div>
                     <div id="flight-stage-flying" class="hidden">
-                        <div>Flying</div>
-                        <div>[CHECKS]</div>
-                        <div>[Landing]</div>
+                        <div class="stage-title">Flying</div>
+                        <div class="stage-content">[CHECKS]</div>
+                        <div class="stage-buttons">
+                            <button id="flight-stage-flying-landing-automatically-button" class="btn btn-outline-primary m-2 disabled">Landing will be tracked automatically</button>
+                        </div>
                     </div>
                     <div id="flight-stage-arrival" class="hidden">
-                        <div>Arrival</div>
-                        <div>[CHECKS]</div>
-                        <div>[Blocks On]</div>
+                        <div class="stage-title">Arrival</div>
+                        <div class="stage-content">[CHECKS]</div>
+                        <div class="stage-buttons">
+                            <button id="flight-stage-arrival-blocks-on-automatically-button" class="btn btn-outline-primary m-2 disabled">Blocks On will be tracked automatically</button>
+                        </div>
                     </div>
                     <div id="flight-stage-postflight" class="hidden">
-                        <div>Postflight</div>
-                        <div>[CHECKS]</div>
-                        <div>[Start Deboarding]</div>
+                        <div class="stage-title">Postflight</div>
+                        <div class="stage-content">[CHECKS]</div>
+                        <div class="stage-buttons">
+                            <button id="flight-stage-postflight-start-deboarding-disabled-button" class="btn btn-outline-danger m-2 disabled hidden">Start Deboarding</button>
+                            <button id="flight-stage-postflight-start-deboarding-button" class="btn btn-success m-2 hidden" onclick="action_StartDeboarding();">Start Deboarding</button>
+
+                            <button id="flight-stage-postflight-finish-flight-disabled-button" class="btn btn-outline-danger m-2 disabled hidden">Finish Flight</button>
+                            <button id="flight-stage-postflight-finish-flight-button" class="btn btn-success m-2 hidden" onclick="action_FinishFlight();">Finish Flight</button>
+                        </div>
                     </div>
                     <div id="flight-stage-finished" class="hidden">
-                        <div>Finished</div>
+                        <div class="stage-title">Finished</div>
                     </div>
                 </div>
             </div>
@@ -239,7 +269,6 @@
 
     // restored original single-flight state
     let flightId;
-    let flightInfo;
     let refreshTimerId = null;
 
     function escapeHtml(s) {
@@ -357,26 +386,7 @@
         }
     }
 
-    function actionHandler(btnId, urlAction) {
-        $(btnId).on('click', function () {
-            // todo ak1 confirmation dialog?
-            // todo ak1 disable / hide?
-            // todo ak1 block automatic refreshes?
-
-            airwaysAuth('POST', `/flight-dashboard/${urlAction}`, {
-                flightId: flightId,
-            }, function (response) {
-                flightInfo = response;
-                updateUI();
-                // Keep the left list in sync after state-changing actions.
-                // loadMyFlights(false);
-            }, function (e) {
-                alert('error'); // todo ak0 ??? alert, reload, refresh
-            });
-        });
-    }
-
-    actionHandler('#fltBtnStart', 'start-flight');
+/*    actionHandler('#fltBtnStart', 'start-flight');
     // todo ak1 actionHandler('#fltBtnStartEarly', 'start-flight');
     actionHandler('#fltBtnBlocksOff', 'blocks-off');
     // todo ak1 actionHandler('#fltBtnBlocksOffDisabled', 'blocks-off');
@@ -390,7 +400,7 @@
     actionHandler('#tfBtnStartBoarding', 'start-boarding');
     // todo ak1 actionHandler('#tfBtnStartBoardingDisabled', 'start-boarding');
     actionHandler('#tfBtnStartDeboarding', 'start-deboarding');
-    // todo ak1 actionHandler('#tfBtnStartDeboardingDisabled', 'start-deboarding');
+    // todo ak1 actionHandler('#tfBtnStartDeboardingDisabled', 'start-deboarding');*/
 
     function restartRefreshTimer() {
         if (refreshTimerId) {
@@ -477,6 +487,8 @@
     }
 
     function renderStatus2(status) {
+        flightId = status.flight ? status.flight.fmId : null;
+
         $('#sim-status-status').text(status.sim.status);
         $('#sim-status-location-status').text(status.sim.locationStatus);
         $('#sim-status-airport-icao').text(status.sim.airportIcao);
@@ -491,8 +503,11 @@
 
         $('#flight-route-departure-icao').text(status.flight.dep);
         $('#flight-route-destination-icao').text(status.flight.dest);
-        $('#flight-time-of-departure').text(status.flight.pdep);
-        $('#flight-time-of-arrival').text(status.flight.parr);
+
+        renderFlightTimeField('#flight-time-of-departure', status, 'dep');
+        renderFlightTimeField('#flight-time-of-takeoff', status, 'tkf');
+        renderFlightTimeField('#flight-time-of-landing', status, 'ldg');
+        renderFlightTimeField('#flight-time-of-arrival', status, 'arr');
 
         hide('#flight-stage-dispatched');
         hide('#flight-stage-preflight');
@@ -505,62 +520,127 @@
         const flightStatus = status.flight.fmSt;
         if (flightStatus === 'Dispatched') {
             show('#flight-stage-dispatched');
-            renderDispatchedPanel();
+            renderDispatchedPanel(status);
         } else if (flightStatus === 'Preflight') {
             show('#flight-stage-preflight');
-            renderPreflightPanel();
+            renderPreflightPanel(status);
         } else if (flightStatus === 'Departure') {
             show('#flight-stage-departure');
-            renderDeparturePanel();
-        } else if (flightStatus === 'flying') {
+            renderDeparturePanel(status);
+        } else if (flightStatus === 'Flying') {
             show('#flight-stage-flying');
-            renderFlyingPanel();
-        } else if (flightStatus === 'arrival') {
+            renderFlyingPanel(status);
+        } else if (flightStatus === 'Arrival') {
             show('#flight-stage-arrival');
-            renderArrivalPanel();
-        } else if (flightStatus === 'postflight') {
+            renderArrivalPanel(status);
+        } else if (flightStatus === 'Postflight') {
             show('#flight-stage-postflight');
-            renderPostflightPanel();
-        } else if (flightStatus === 'finished') {
+            renderPostflightPanel(status);
+        } else if (flightStatus === 'Finished') {
             show('#flight-stage-finished');
-            renderFinishedPanel();
+            renderFinishedPanel(status);
         }
     }
 
-    function renderDispatchedPanel() {
+    function renderDispatchedPanel(status) {
+        hide('#flight-stage-dispatched-start-flight-disabled-button');
+        hide('#flight-stage-dispatched-start-flight-button');
+
+        const startFlightAction = status.sim.actions.find(a => a.name === "start-flight");
+        if (startFlightAction && startFlightAction.allowed) {
+            show('#flight-stage-dispatched-start-flight-button');
+        } else {
+            show('#flight-stage-dispatched-start-flight-disabled-button');
+        }
+    }
+
+    function action_StartFlight() {
+        hide('#flight-stage-dispatched');
+        sendAction('start-flight');
+    }
+
+    function renderPreflightPanel(status) {
+        hide('#flight-stage-preflight-start-boarding-disabled-button');
+        hide('#flight-stage-preflight-start-boarding-button');
+        hide('#flight-stage-preflight-blocks-off-automatically-button');
+
+        const startBoardingAction = status.sim.actions.find(a => a.name === "start-boarding");
+        if (startBoardingAction) {
+            if (startBoardingAction.allowed) {
+                show('#flight-stage-preflight-start-boarding-button');
+            } else {
+                show('#flight-stage-preflight-start-boarding-disabled-button');
+            }
+        }
+
+        const blocksOffAction = status.sim.actions.find(a => a.name === "blocks-off");
+        if (blocksOffAction) {
+            show('#flight-stage-preflight-blocks-off-automatically-button');
+        }
+    }
+
+    function action_StartBoarding() {
+        hide('#flight-stage-preflight');
+        sendAction('start-boarding');
+    }
+
+    function renderDeparturePanel(status) {
 
     }
 
-    function renderPreflightPanel() {
+    function renderFlyingPanel(status) {
 
     }
 
-    function renderDeparturePanel() {
+    function renderArrivalPanel(status) {
 
     }
 
-    function renderFlyingPanel() {
+    function renderPostflightPanel(status) {
+        hide('#flight-stage-postflight-finish-flight-disabled-button');
+        hide('#flight-stage-postflight-finish-flight-button');
+
+        const finishFlightAction = status.sim.actions.find(a => a.name === "finish-flight");
+        if (finishFlightAction) {
+            if (finishFlightAction.allowed) {
+                show('#flight-stage-postflight-finish-flight-button');
+            } else {
+                show('#flight-stage-postflight-finish-flight-disabled-button');
+            }
+        }
+    }
+
+    function action_FinishFlight() {
+        hide('#flight-stage-postflight');
+        sendAction('finish-flight');
+    }
+
+    function renderFinishedPanel(status) {
 
     }
 
-    function renderArrivalPanel() {
+    function renderFlightTimeField(id, status, time) {
+        $(id).removeClass('time-planned').removeClass('time-estimated').removeClass('time-actual');
 
+        const planned = status.flight[`p${time}`];
+        const estimated = status.flight[`e${time}`];
+        const actual = status.flight[`a${time}`];
+
+        if (actual) {
+            $(id).text(actual).addClass('time-actual');
+        } else if (estimated) {
+            $(id).text(estimated).addClass('time-estimated');
+        } else {
+            $(id).text(planned).addClass('time-planned');
+        }
     }
 
-    function renderPostflightPanel() {
-
-    }
-
-    function renderFinishedPanel() {
-
-    }
-
-    function selectFlight(selectedId) {
+/*    function selectFlight(selectedId) {
         selectedFlightId = selectedId;
         flightId = selectedId;
         renderFlightList();
         refreshSelectedFromMyFlights();
-    }
+    }*/
 
     function loadMyFlights(restartTimer) {
         airwaysAuth('GET', '/flight-dashboard/my-flights', {}, function (response) {
@@ -589,6 +669,16 @@
         });
     }
 
+    function sendAction(actionName) {
+        airwaysAuth('POST', `/flight-dashboard/${actionName}`, {
+            flightId: flightId,
+        }, function (response) {
+            renderStatus2(response);
+        }, function (e) {
+            alert('error'); // todo ak0 ??? alert, reload, refresh
+        });
+    }
+
     function show(id) {
         $(id).removeClass('hidden');
     }
@@ -596,6 +686,7 @@
     function hide(id) {
         $(id).addClass('hidden');
     }
+
 
     $(document).ready(function () {
         loadMyFlights(true);
