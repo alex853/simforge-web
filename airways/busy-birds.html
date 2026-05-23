@@ -234,15 +234,19 @@
             const loc = a.locationAirportIcao ?? a.locationAirportName ?? a.locationAirportId ?? '';
             const parts = [reg || ('#' + id), type, loc].filter(function (p) { return p; });
             const label = parts.join(' · ');
-            $sel.append('<option value="' + id + '">' + label + '</option>');
+            $sel.append($('<option></option>').attr('value', id).text(label));
         });
         $sel.prop('disabled', false);
         $('#aircraftHelp').text('');
     }
 
+    function sameId(a, b) {
+        return a != null && b != null && String(a) === String(b);
+    }
+
     function refreshPlanMeta() {
-        const m = missions.find(function (x) { return x.id === selectedMissionId; });
-        const a = aircraft.find(function (x) { return x.id === selectedAircraftId; });
+        const m = missions.find(function (x) { return sameId(x.id, selectedMissionId); });
+        const a = aircraft.find(function (x) { return sameId(x.id, selectedAircraftId); });
         if (!m || !a) {
             $('#planMetaWrap').hide();
             return;
@@ -497,12 +501,12 @@
 
     function getSelectedMissionId() {
         const v = $('input.mission-radio:checked').val();
-        return v ? parseInt(v, 10) : null;
+        return (v != null && v !== '') ? String(v) : null;
     }
 
     function getSelectedAircraftId() {
         const v = $('#aircraftSelect').val();
-        return v ? parseInt(v, 10) : null;
+        return (v != null && v !== '') ? String(v) : null;
     }
 
     $(document).ready(function () {
