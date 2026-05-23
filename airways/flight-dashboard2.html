@@ -622,6 +622,11 @@
         }
     }
 
+    function action_StartDeboarding() {
+        hide('#flight-stage-postflight');
+        sendAction('start-deboarding');
+    }
+
     function action_FinishFlight() {
         hide('#flight-stage-postflight');
         sendAction('finish-flight');

@@ -126,6 +126,17 @@
         ['icons/airplane/016-airplane-4.png', 0]
     ];
 
+    function hashCode(str) {
+        let hash = 0;
+
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash |= 0;
+        }
+
+        return hash;
+    }
+
     function getIcon(type, size, id) {
         let url;
         switch (type) {
@@ -136,7 +147,7 @@
                 url = 'icons/airport/001-airplane.png';
                 break;
             case 'plane':
-                url = airplaneIcons[id % airplaneIcons.length][0];
+                url = airplaneIcons[hashCode(id) % airplaneIcons.length][0];
                 break;
         }
         return L.icon({
@@ -300,13 +311,13 @@
                             className: 'always-shown-tooltip'
                         });
                 }
-                marker.setRotationAngle(a.hdg + airplaneIcons[a.id % airplaneIcons.length][1]);
+                marker.setRotationAngle(a.hdg + airplaneIcons[hashCode(a.id) % airplaneIcons.length][1]);
                 marker.addTo(map);
                 marker.aircraftId = a.id;
                 aircraftMarkers[key] = marker;
             } else {
                 existingMarker.setLatLng([a.lat, a.lon]);
-                existingMarker.setRotationAngle(a.hdg + airplaneIcons[a.id % airplaneIcons.length][1]);
+                existingMarker.setRotationAngle(a.hdg + airplaneIcons[hashCode(a.id) % airplaneIcons.length][1]);
             }
         });
 
