@@ -17,22 +17,6 @@ function loadAllEventsToProcess(callback) {
     });
 }
 
-function loadAllFlightMissions(callback) {
-    $.ajax({
-        url: airwaysServiceUrl + '/flight-mission/all',
-        method: 'GET',
-        dataType: 'json',
-        success: function (response) {
-            if (callback) {
-                callback(response);
-            }
-        },
-        error: function (e) {
-            console.error("error loading flight mission data");
-        }
-    });
-}
-
 function loadAllEventLogs(callback) {
     $.ajax({
         url: airwaysServiceUrl + '/event-log/all',

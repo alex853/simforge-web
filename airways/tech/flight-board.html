@@ -136,7 +136,11 @@
             </td>
             <td class="text-center align-middle">${item.sfNo ?? ''}</td>
             <td class="text-center align-middle">${item.dep}</td>
-            <td class="text-center align-middle">${item.dest}</td>
+            <td class="text-center align-middle">${
+                (item.aldgA === null || item.aldgA === item.dest)
+                    ? item.dest
+                    : '<span style="color: red;">' + item.aldgA + '</span><br><span style="text-decoration: line-through;">' + item.dest + '</span>'
+            }</td>
             <td class="text-center align-middle">${
                 item.adep != null ? `<span class="time-actual" data-bs-toggle="tooltip" title="Actual time of Takeoff">${item.adep}</span>` :
                     `<span class="time-planned" data-bs-toggle="tooltip" title="Planned time of Departure">${item.pdep}</span>`}
