@@ -120,11 +120,30 @@
             color: gray;
         }
 
+        .flight-type {
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-align: center;
+            padding-top: 10px;
+        }
+
+        .flight-passenger-count-layout {
+            display: flex;
+            flex-direction: row;
+            padding-bottom: 10px;
+        }
+
+        .flight-passenger-count {
+            flex: 1;
+            text-align: center;
+        }
 
 
         .stage-title {
+            border-top: 1px solid #f4f4f4;
             text-align: center;
             font-size: 1.5rem;
+            padding-top: 5px;
         }
 
         .stage-content {
@@ -188,20 +207,38 @@
                 </div>
 
                 <div class="section" style="flex-direction: column;">
-                    <div style="display: flex; flex-direction: row;">
-                        <div style="flex: 2;"></div>
-                        <div id="flight-route-departure-icao" class="airport-icao" style="flex: 3;">AAAA</div>
-                        <div class="airport-icao" style="flex: 1;">-</div>
-                        <div id="flight-route-destination-icao" class="airport-icao" style="flex: 3;">ZZZZ</div>
-                        <div style="flex: 2;"></div>
+                    <div id="flight-info" class="hidden">
+                        <div style="display: flex; flex-direction: row;">
+                            <div style="flex: 2;"></div>
+                            <div id="flight-route-departure-icao" class="airport-icao" style="flex: 3;">AAAA</div>
+                            <div class="airport-icao" style="flex: 1;">-</div>
+                            <div id="flight-route-destination-icao" class="airport-icao" style="flex: 3;">ZZZZ</div>
+                            <div style="flex: 2;"></div>
+                        </div>
+                        <div style="display: flex; flex-direction: row;">
+                            <div style="flex: 1;"></div>
+                            <div id="flight-time-of-departure" class="flight-time" style="flex: 1;">00:00</div>
+                            <div id="flight-time-of-takeoff" class="flight-time" style="flex: 1;">00:10</div>
+                            <div id="flight-time-of-landing" class="flight-time" style="flex: 1;">01:00</div>
+                            <div id="flight-time-of-arrival" class="flight-time" style="flex: 1;">01:10</div>
+                            <div style="flex: 1;"></div>
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <div id="flight-payload-ferry" class="flight-type">Ferry flight</div>
+                            <div id="flight-payload-passenger">
+                                <div class="flight-type">Passenger flight</div>
+                                <div class="flight-passenger-count-layout">
+                                    <div class="flight-passenger-count"></div>
+                                    <div id="flight-payload-pax-sold" class="flight-passenger-count">Sold: <span id="flight-payload-pax-sold-count">-</span></div>
+                                    <div id="flight-payload-pax-checked-in" class="flight-passenger-count">Checked-in: <span id="flight-payload-pax-checked-in-count">-</span></div>
+                                    <div id="flight-payload-pax-on-board" class="flight-passenger-count">On board: <span id="flight-payload-pax-on-board-count">-</span></div>
+                                    <div class="flight-passenger-count"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div style="display: flex; flex-direction: row;">
-                        <div style="flex: 1;"></div>
-                        <div id="flight-time-of-departure" class="flight-time" style="flex: 1;">00:00</div>
-                        <div id="flight-time-of-takeoff" class="flight-time" style="flex: 1;">00:10</div>
-                        <div id="flight-time-of-landing" class="flight-time" style="flex: 1;">01:00</div>
-                        <div id="flight-time-of-arrival" class="flight-time" style="flex: 1;">01:10</div>
-                        <div style="flex: 1;"></div>
+                    <div id="flight-not-found" class="hidden">
+                        <div class="stage-title">No active flight found</div>
                     </div>
                     <div id="flight-stage-dispatched" class="hidden">
                         <div class="stage-title">Before Start Flight</div>
@@ -487,8 +524,6 @@
     }
 
     function renderStatus2(status) {
-        flightId = status.flight ? status.flight.fmId : null;
-
         $('#sim-status-status').text(status.sim.status);
         $('#sim-status-location-status').text(status.sim.locationStatus);
         $('#sim-status-airport-icao').text(status.sim.airportIcao);
@@ -496,10 +531,31 @@
         $('#sim-status-engine-running').text(status.sim.engineRunning === null ? '' : status.sim.engineRunning ? 'RUN' : 'OFF');
         $('#sim-status-measured-gs').text(status.sim.measuredGs);
 
-        if (!status.flight) {
-            // todo ak1 show 'no flight' panel
+        hide('#flight-info');
+        hide('#flight-not-found');
+
+        hide('#flight-payload-ferry');
+        hide('#flight-payload-passenger');
+        hide('#flight-payload-pax-sold');
+        hide('#flight-payload-pax-checked-in');
+        hide('#flight-payload-pax-on-board');
+
+        hide('#flight-stage-dispatched');
+        hide('#flight-stage-preflight');
+        hide('#flight-stage-departure');
+        hide('#flight-stage-flying');
+        hide('#flight-stage-arrival');
+        hide('#flight-stage-postflight');
+        hide('#flight-stage-finished');
+
+        if (status.flight === null) {
+            show('#flight-not-found');
             return;
         }
+
+        show('#flight-info');
+
+        flightId = status.flight.fmId;
 
         $('#flight-route-departure-icao').text(status.flight.dep);
         $('#flight-route-destination-icao').text(status.flight.dest);
@@ -509,13 +565,34 @@
         renderFlightTimeField('#flight-time-of-landing', status, 'ldg');
         renderFlightTimeField('#flight-time-of-arrival', status, 'arr');
 
-        hide('#flight-stage-dispatched');
-        hide('#flight-stage-preflight');
-        hide('#flight-stage-departure');
-        hide('#flight-stage-flying');
-        hide('#flight-stage-arrival');
-        hide('#flight-stage-postflight');
-        hide('#flight-stage-finished');
+        if (status.flight.tfId !== null) {
+            show('#flight-payload-passenger');
+        } else {
+            show('#flight-payload-ferry');
+        }
+
+        const tfSt = status.flight.tfSt;
+        if (tfSt === 'Scheduled'
+            || tfSt === 'CheckIn'
+            || tfSt === 'WaitingForBoarding'
+            || tfSt === 'Boarding') {
+            show('#flight-payload-pax-sold');
+            $('#flight-payload-pax-sold-count').text(status.flight.stkts);
+        }
+        if (tfSt === 'CheckIn' || tfSt === 'WaitingForBoarding' || tfSt === 'Boarding') {
+            show('#flight-payload-pax-checked-in');
+            $('#flight-payload-pax-checked-in-count').text(status.flight.ckdIn);
+        }
+        if (tfSt === 'Boarding'
+            || tfSt === 'WaitingForDeparture'
+            || tfSt === 'Departure'
+            || tfSt === 'Flying'
+            || tfSt === 'Arrival'
+            || tfSt === 'WaitingForDeboarding'
+            || tfSt === 'Deboarding') {
+            show('#flight-payload-pax-on-board');
+            $('#flight-payload-pax-on-board-count').text(status.flight.ponBrd);
+        }
 
         const flightStatus = status.flight.fmSt;
         if (flightStatus === 'Dispatched') {
