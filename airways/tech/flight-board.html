@@ -166,7 +166,7 @@
             <td class="text-center align-middle">${item.ponBrd ?? ''}</td>
             <td class="text-center align-middle">
                 <!--${item.pcMode ? `<button type="button" class="btn btn-success btn-xsm" onclick="openFlightDashboard(${item.fmId})">D</button>` : ''}-->
-                <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel(${item.fmId})">C</button>
+                <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminCancel('${item.fmId}')">C</button>
                 <!--<button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>-->
             </td>
           </tr>`;
