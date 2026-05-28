@@ -92,6 +92,7 @@
                 <col>
                 <col>
                 <col style="width: 5%;"> <!-- Dir/AttCnt -->
+                <col style="width: 10%;"> <!-- Location -->
                 <col style="width: 10%;"> <!-- Route From -->
                 <col style="width: 10%;"> <!-- Route To -->
                 <col style="width: 5%;"> <!-- PAX -->
@@ -105,6 +106,7 @@
                 <th rowspan="2" class="text-center align-middle">Heartbeat</th>
                 <th rowspan="2" class="text-center align-middle">Status</th>
                 <th rowspan="2" class="text-center align-middle">Dir Cnt</th>
+                <th rowspan="2" class="text-center align-middle">Location</th>
                 <th colspan="2" class="text-center align-middle">Route</th>
                 <th rowspan="2" class="text-center align-middle">PAX</th>
                 <th rowspan="2" class="text-center align-middle">T/F 1</th>
@@ -145,9 +147,10 @@
             const row = `
           <tr>
             <td class="text-center align-middle">${item.id}</td>
-            <td class="text-center align-middle">${item.hrtBt ?? ''}</td>
+            <td class="text-center align-middle font-xsm">${item.hrtBt ?? ''}</td>
             <td class="text-center align-middle">${item.st}</td>
             <td class="text-center align-middle">${item.dir === 0 ? "d" : "R"}${item.atCnt}${item.sp}</td>
+            <td class="text-center align-middle">${item.lcn ?? ''}</td>
             <td class="text-center align-middle">${item.fcn}</td>
             <td class="text-center align-middle">${item.tcn}</td>
             <td class="text-center align-middle">${item.pcs === item.bcs
