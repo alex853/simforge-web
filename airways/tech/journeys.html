@@ -150,14 +150,15 @@
             <td class="text-center align-middle">${item.dir === 0 ? "d" : "R"}${item.atCnt}${item.sp}</td>
             <td class="text-center align-middle">${item.fcn}</td>
             <td class="text-center align-middle">${item.tcn}</td>
-            <td class="text-center align-middle">${item.cs}${item.gs}</td>
+            <td class="text-center align-middle">${item.pcs === item.bcs
+                ? `${item.pcs}${item.gs}`
+                : `${item.bcs}(${item.pcs})${item.gs}`}</td>
             <td class="text-center align-middle font-xsm">${item.tf1Id
                 ? `#${item.tf1Id} - ${item.tf1St}<br>${item.tf1From} - ${item.tf1To}`
                 : ''}</td>
             <td class="text-center align-middle font-xsm">${item.tf2Id
                 ? `#${item.tf2Id} - ${item.tf2St}<br>${item.tf2From} - ${item.tf2To}`
                 : ''}</td>
-            <!--td class="text-center align-middle"></td-->
             <td class="text-center align-middle">
                 <button type="button" class="btn btn-outline-warning btn-xsm" onclick="adminHeartbeat(${item.id})">H</button>
                 <button type="button" class="btn btn-outline-danger btn-xsm" onclick="adminRemove(${item.id})">R</button>
