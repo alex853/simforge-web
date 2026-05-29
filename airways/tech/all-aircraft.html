@@ -55,7 +55,7 @@
             <td>${item.acType}<br>${item.acReg}</td>
             <td>${item.lu ?? ''}</td>
             <td>${item.aoName ?? ''}</td>
-            <td>${item.fmId !== null ? item.dep + '-' + item.dest + '<br>' + item.fmId : ''}</td>
+            <td>${(item.fmId !== null && item.fmId !== "0") ? item.dep + '-' + item.dest + '<br>' + item.fmId : ''}</td>
             <td>${item.opSt}<br>${item.lcSt}</td>
             <td>${item.lcApt ?? ''}</td>
             <td>${item.lat}<br>${item.lon}</td>
