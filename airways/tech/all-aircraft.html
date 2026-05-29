@@ -22,6 +22,7 @@
             <tr>
                 <th>ID</th>
                 <th>Type<br>Reg No</th>
+                <th>Last<br>Updated</th>
                 <th>A/C Op</th>
                 <th>Flight Mission</th>
                 <th>Operational Status<br>Location Status</th>
@@ -52,8 +53,9 @@
           <tr>
             <td>${item.id}</td>
             <td>${item.acType}<br>${item.acReg}</td>
+            <td>${item.lu ?? ''}</td>
             <td>${item.aoName ?? ''}</td>
-            <td>${item.fmId !== null ? item.fmId + ' : ' + item.dep + '-' + item.dest : ''}</td>
+            <td>${item.fmId !== null ? item.dep + '-' + item.dest + '<br>' + item.fmId : ''}</td>
             <td>${item.opSt}<br>${item.lcSt}</td>
             <td>${item.lcApt ?? ''}</td>
             <td>${item.lat}<br>${item.lon}</td>
