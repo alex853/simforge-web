@@ -179,7 +179,7 @@
             return;
         }
         dataIsLoadingNow = true;
-        airwaysGet('/flight-board/' + currentFilter, function (response) {
+        airwaysGet('/admin/flight-board/' + currentFilter, function (response) {
             dataIsLoadingNow = false;
             updateTableData(response);
         }, function () {
