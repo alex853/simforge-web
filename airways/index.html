@@ -350,30 +350,33 @@
 
         const content = `
         <div class="fs-4 fw-bold">${aircraft.acReg}</div>
+        <div class="fs-10 fw-bold">${details?.aoName ?? 'n/a'}</div>
         <table class="table table-sm">
             <tr>
                 <td colspan="1" class="text-start text-muted">TYPE</td>
-                <td colspan="3" class="text-end fw-bold">${details?.acType || ''}</td>
+                <td colspan="3" class="text-end fw-bold">${details?.acType ?? ''}</td>
             </tr>
-            <!--tr> todo ak3 add airline operator here
-                <td colspan="1" class="text-start text-muted">AIRLINE</td>
-                <td colspan="3" class="text-end fw-bold">ShadowJet</td>
-            </tr-->
+
             <tr>
-                <td colspan="2" class="text-center fs-5 fw-bold">${details?.dep || ''}</td>
-                <td colspan="2" class="text-center fs-5 fw-bold">${details?.dest || ''}</td>
+                <td colspan="2" class="text-center fs-5 fw-bold border-bottom-0">${details?.dep ?? '-'}</td>
+                <td colspan="2" class="text-center fs-5 fw-bold border-bottom-0">${details?.dest ?? '-'}</td>
             </tr>
             <tr>
-                <td class="text-start text-muted" title="Scheduled Time of Departure">STD</td>
-                <td class="text-end fw-bold" title="Scheduled Time of Departure">${details?.pdep || ''}</td>
-                <td class="text-start text-muted" title="Scheduled Time of Arrival">STA</td>
-                <td class="text-end fw-bold" title="Scheduled Time of Arrival">${details?.parr || ''}</td>
+                <td colspan="2" class="text-center fw-bold" title="Actual Time of Departure">${details?.atkf ?? '-'}</td>
+                <td colspan="2" class="text-center fst-italic" title="Estimated Time of Arrival">${details?.eldg ?? '-'}</td>
+            </tr>
+
+            <tr>
+                <td colspan="2" class="text-start text-muted" title="Passengers On Board">PAX</td>
+                <td colspan="2" class="text-center fw-bold" title="Passengers On Board">${details?.pax ?? '-'}</td>
+            </tr>
+
+            <tr>
+                <td colspan="4" class="text-start text-muted border-bottom-0">AIRFRAME STATS</td>
             </tr>
             <tr>
-                <td class="text-start text-muted" title="Actual Time of Departure">ATD</td>
-                <td class="text-end fw-bold" title="Actual Time of Departure">${details?.atkf || ''}</td>
-                <td class="text-start text-muted" title="Estimated Time of Arrival">ETA</td>
-                <td class="text-end" title="Estimated Time of Arrival"><span style="color: red">n/a</span></td>
+                <td colspan="2" class="text-center fw-bold" title="Airframe flown time">${details?.fsT ?? '-'}</td>
+                <td colspan="2" class="text-center fw-bold" title="Airframe cycles">${details?.fsC ?? '-'}</td>
             </tr>
         </table>
         <div class="text-end">
