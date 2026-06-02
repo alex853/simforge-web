@@ -179,7 +179,7 @@
             return;
         }
         dataIsLoadingNow = true;
-        airwaysGet('/admin/flight-board/' + currentFilter, function (response) {
+        airwaysAuthAdmin('GET', '/admin/flight-board/' + currentFilter, {}, function (response) {
             dataIsLoadingNow = false;
             updateTableData(response);
         }, function () {
@@ -205,7 +205,7 @@
 
     function adminCancel(id) { // todo ak0 hide it in Cancelled/Finished statuses
         if (!confirm("Do you want to cancel this flight including transport flight?")) return;
-        airwaysGetPlain('/admin/flight/cancel?id=' + id, function (response) {
+        airwaysAuthAdmin('GET', '/admin/flight/cancel?id=' + id, {}, function (response) {
             alert(response);
             reloadData();
         });

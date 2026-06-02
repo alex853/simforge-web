@@ -72,7 +72,7 @@
         }
         dataIsLoadingNow = true;
 
-        airwaysGet(`/admin/aircraft/all?offset=${pageOffset}&limit=${pageLimit}`, function (response) {
+        airwaysAuthAdmin('GET', `/admin/aircraft/all?offset=${pageOffset}&limit=${pageLimit}`, {}, function (response) {
             dataIsLoadingNow = false;
             showAircraftTable(response);
         },  function () {

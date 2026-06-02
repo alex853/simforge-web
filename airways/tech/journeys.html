@@ -205,7 +205,7 @@
 
         const url = `/admin/journey/${currentFilter}?offset=${pageOffset}&limit=${pageLimit}`;
 
-        airwaysGet(url, function (response) {
+        airwaysAuthAdmin('GET', url, {}, function (response) {
             dataIsLoadingNow = false;
             updateTableData(response);
         }, function () {
@@ -214,7 +214,7 @@
     }
 
     function reloadStats() {
-        airwaysGet('/admin/journey/stats', function (response) {
+        airwaysAuthAdmin('GET', '/admin/journey/stats', {}, function (response) {
             updateStats(response);
         }, function () {
         });
@@ -242,14 +242,14 @@
 
     function adminHeartbeat(id) {
         if (!confirm("Do you want to reset heartbeat to now?")) return;
-        airwaysGetPlain('/admin/journey/set-heartbeat-to-now?jId=' + id, function () {
+        airwaysAuthAdmin('GET', '/admin/journey/set-heartbeat-to-now?jId=' + id, {}, function () {
             reloadData();
         });
     }
 
     function adminRemove(id) {
         if (!confirm("Do you want to remove this journey?")) return;
-        airwaysGetPlain('/admin/journey/remove?journeyId=' + id, function () {
+        airwaysAuthAdmin('GET', '/admin/journey/remove?journeyId=' + id, {}, function () {
             reloadData();
         });
     }
