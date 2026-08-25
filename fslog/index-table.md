@@ -2,24 +2,37 @@
 
 ## Overview
 
-A single-page web application that displays a pilot's flight log as a paginated HTML table. It fetches flight records from a remote AWS API Gateway endpoint, renders them in a structured table resembling a traditional pilot logbook, and provides client-side pagination. The page includes a Flight Editor modal that opens on row click.
+A single-page web application that displays a pilot's flight log as a paginated HTML table. It fetches flight records from a remote AWS API Gateway endpoint, renders them in a structured table resembling a traditional pilot logbook, and provides client-side pagination. The page includes a Flight Editor modal that opens on row click and can save updates back to the server.
 
 ## Technology Stack
 
 - **jQuery 3.3.1** — DOM manipulation, AJAX requests, event handling
 - **Bootstrap** (bundle with Popper.js) — styling, grid layout, modals, buttons
-- **common.js** — shared utility functions (`parseHHMM`, `formatMinutesAsHMM`, `showAlert`, `Record` class, etc.)
+- **common.js** — shared utility functions (`parseHHMM`, `formatMinutesAsHMM`, `showAlert`, `nonEmpty`, `nonEmptyUpperCase`, `nonEmptyInt`, etc.)
 
 ## Data Source
 
 - **Endpoint**: `https://1fkt6ue7af.execute-api.us-east-1.amazonaws.com/default/fslog`
-- **Method**: `GET`
-- **Authentication**: Bearer token read from `localStorage` key `fslog.token`, sent via `Authorization` header
-- **Response format**: JSON object with an `Items` array, where each item has:
+- **Load**: `GET` with `Authorization` header = `localStorage` key `fslog.token`
+- **Update**: `POST` of the full flight record JSON (same pattern as `index.html` / `flight-editor.js` `updateExistingFlight()`)
+- **Response format** (load): JSON object with an `Items` array, where each item has:
   - `Type` — record type (only `"flight"` records are used)
   - `Date` — flight date in `YYYY-MM-DD` format
   - `Flight` — nested object containing flight details
   - `Comment`, `Remarks`, `Tags` — optional metadata fields
+
+### Flight fields used by the table / editor
+
+| Field | Used for |
+|-------|----------|
+| `Flight.AircraftType`, `AircraftRegistration` | Aircraft columns / editor |
+| `Flight.Departure`, `Destination` | Route columns / editor |
+| `Flight.TimeOut`, `TimeOff`, `TimeOn`, `TimeIn` | Times (table shows Out/In; editor has all four) |
+| `Flight.TotalTime` | Total time column + footer totals |
+| `Flight.NightTime`, `IFRTime` | OP. COND. TIME columns + footer totals |
+| `Flight.LandingsDay`, `LandingsNight` | LANDINGS columns + footer totals |
+| `Flight.AirTime`, `Distance`, `Callsign`, `FlightNumber` | Editor (and related) |
+| `Comment`, `Remarks`, `Tags` | Table + editor |
 
 ## Data Processing
 
@@ -42,28 +55,39 @@ The main table (`#flightlog`) has a two-row header mimicking a pilot logbook lay
 | DEPARTURE       | PLACE, TIME                  |
 | ARRIVAL         | PLACE, TIME                  |
 | TOTAL TIME OF FLIGHT | *(single column, spans 2 rows)* |
-| OP. COND. TIME  | NIGHT, IFR                   |
-| LANDINGS        | DAY, NIGHT                   |
+| OP. COND. TIME  | NIGHT (`NightTime`), IFR (`IFRTime`) |
+| LANDINGS        | DAY (`LandingsDay`), NIGHT (`LandingsNight`) |
 | REMARKS         | *(single column, spans 2 rows)* |
 | COMMENTS        | *(single column, spans 2 rows)* |
 | TAGS            | *(single column, spans 2 rows)* |
 
 ### Row Rendering
 - Rows are generated dynamically on page load using a hidden `<table id="flightlogRowTemplate">` as a template.
-- Placeholder tokens (`$row$`, `$date$`, `$type$`, etc.) in the template are replaced with actual data.
+- Placeholder tokens (`$row$`, `$date$`, `$type$`, `$nightTime$`, `$ifrTime$`, `$landingsDay$`, `$landingsNight$`, etc.) in the template are replaced with actual data.
+- Numeric/time cells use `cellValue()` so a real `0` is shown (not treated as empty).
 - Rows alternate between `white` and `gray` backgrounds in a pattern: white, white, gray (repeating every 3 rows).
-- Clickable rows get a `link` class (pointer cursor). Currently `rowClicked()` only logs to console.
+- Clickable rows get a `link` class (pointer cursor). `rowClicked()` populates `#flightEditorModalMap` and opens it.
 
 ### Footer / Totals Rows
 Three summary rows appear below the data:
 
 | Row               | Description |
 |--------------------|-------------|
-| **PAGE TOTALS**    | Sum of `TotalTime` for flights on the current page |
-| **PREVIOUS TOTALS**| Sum of `TotalTime` for all flights on pages before the current one |
-| **TOTALS TO DATE** | Cumulative sum of `TotalTime` from the first flight through the current page |
+| **PAGE TOTALS**    | Sums for flights on the current page |
+| **PREVIOUS TOTALS**| Sums for all flights on pages before the current one |
+| **TOTALS TO DATE** | Cumulative sums from the first flight through the current page |
 
-Totals are computed by `addToTotals()` which parses `TotalTime` (HH:MM format) into minutes and accumulates them. The accumulated minutes are formatted back to `H:MM` via `formatMinutesAsHMM()`.
+Each footer row accumulates:
+
+| Column | Source | Display |
+|--------|--------|---------|
+| TOTAL TIME OF FLIGHT | `Flight.TotalTime` | `H:MM` via `formatMinutesAsHMM()` |
+| OP. COND. NIGHT | `Flight.NightTime` | `H:MM` |
+| OP. COND. IFR | `Flight.IFRTime` | `H:MM` |
+| LANDINGS DAY | `Flight.LandingsDay` | integer sum |
+| LANDINGS NIGHT | `Flight.LandingsNight` | integer sum |
+
+Totals are computed by `addToTotals()` and written by `refreshTotals()`.
 
 ## Pagination
 
@@ -74,39 +98,42 @@ Totals are computed by `addToTotals()` which parses `TotalTime` (HH:MM format) i
 
 ## Date Formatting
 
-Dates are converted from `YYYY-MM-DD` (storage format) to `DD/MM/YYYY` (display format) by `reformatDate()`.
+- **Table**: `YYYY-MM-DD` → `DD/MM/YYYY` via `reformatDate()`
+- **Editor**: filled with storage format `YYYY-MM-DD`
 
 ## Tags Formatting
 
-Tags can be either an array or a string. If an array, tags are joined with `", "`. Empty or missing tags render as `&nbsp;`.
+Tags can be either an array or a string. If an array, tags are joined with `", "` for display / editor. On save, comma-separated input is parsed back (single token stays a string; multiple become an array).
 
 ## Flight Editor Modal
 
-There is a single working Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)"). Clicking any populated row opens this dialog and pre-fills fields from the clicked record (no validation, no saving to server).
+Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 
-Layout overview
+### Behavior
+- Opens on row click; fields are pre-filled from the clicked record.
+- **Save** (`#fem-save-btn`): enabled only when the form is dirty; `POST`s the updated record; on success refreshes the table and closes the dialog.
+- **Close** (`#fem-close-btn`): closes without saving. If dirty, confirms: *"There are some changes, are you sure you want to discard them?"* (same confirm for header X / backdrop via `hide.bs.modal`).
+- Dirty tracking compares editable field values against a snapshot taken when the dialog opened. Airport name stub fields are excluded from dirty/save.
+- On save, `BeginningDT` / `RecordID` / `UserID` are left unchanged (same approach as `index.html` update). Local record is updated only after a successful response.
+- No field validation yet (beyond whatever the server enforces).
+
+### Layout
 - Left: a map placeholder (450×450) reserved for a future map widget.
 - Right: form grouped into sections:
   - FLIGHT and AIRCRAFT on the same horizontal line.
-    - FLIGHT: `DATE`, `CALLSIGN`, `FLIGHT #`
-    - AIRCRAFT: `TYPE`, `TAIL #`
-  - ROUTE: two halves — FROM and TO. Each half has two inline inputs: a small code (e.g., EGLL) and an adjacent airport name (e.g., London Heathrow). The name inputs have no labels (one-line with the code input).
-  - TIMES and TOTALS on one horizontal line (TIMES on the left):
-    - TIMES: `BLOCKS OFF`, `TAKEOFF`, `LANDING`, `BLOCKS ON`
-    - TOTALS: `FLIGHT TIME`, `AIR TIME`, `DISTANCE`
-  - LANDINGS and OP. COND. TIME on the next horizontal line:
-    - LANDINGS (compact): `DAY`, `NIGHT`
-    - OP. COND. TIME (narrow): `NIGHT`, `IFR`
-    - Empty spacer to the far right for visual balance
-  - OTHER: `REMARKS`
-  - TAGS: on its own line
-  - COMMENT: multiline textarea
+  - FLIGHT: `DATE`, `CALLSIGN`, `FLIGHT #`
+  - AIRCRAFT: `TYPE`, `TAIL #`
+  - ROUTE: FROM / TO — ICAO code + airport name stub (names not looked up yet)
+  - TIMES and TOTALS on one line: blocks off/takeoff/landing/blocks on; flight time / air time / distance
+  - LANDINGS (`DAY`, `NIGHT`) and OP. COND. TIME (`NIGHT`, `IFR`)
+  - OTHER: `REMARKS`; `TAGS`; `COMMENT` (textarea)
+- Footer buttons: **Save** | **Close**
 
-Styling
+### Styling
 - Section headers use a soft gray background (`.fe-section-header`).
-- Field labels inside the modal are smaller for denser layout (about 0.67em).
-- Landings inputs use a compact width utility for 2-digit values.
-- Modal width: ~70% of the viewport for a balanced, non-vertical look.
+- Field labels inside the modal are smaller (~0.67em).
+- Landings inputs use `.fe-input-2digits`.
+- Modal width: ~70% of the viewport.
 
 ## Styling
 
@@ -119,16 +146,22 @@ Styling
 
 | Function | Description |
 |----------|-------------|
-| `totalPages()` | Calculates total number of pages based on flight count and `rowsPerPage` |
-| `refreshPage()` | Re-renders the current page: computes totals, fills row templates, updates footer and page controls |
-| `nextPage()` / `prevPage()` | Navigate forward/backward through pages |
-| `canGoNext()` | Returns `true` if there are more pages after the current one |
-| `updatePageControls()` | Updates the page indicator text and enables/disables navigation buttons |
-| `refreshTotals(rowName, totals)` | Writes computed totals into the corresponding footer row |
-| `addToTotals(totals, record)` | Parses `TotalTime` from a flight record and accumulates it into a totals object |
-| `reformatDate(date)` | Converts `YYYY-MM-DD` to `DD/MM/YYYY` |
-| `formatTags(tags)` | Formats tags array/string for display |
-| `rowClicked(row)` | Click handler — populates `#flightEditorModalMap` with the clicked record's data (date, flight info, aircraft, route, times, totals, conditions, landings, remarks, comment, tags) and opens it |
+| `totalPages()` | Total pages from flight count and `rowsPerPage` |
+| `refreshPage()` | Re-renders current page: totals, row templates, footer, page controls |
+| `nextPage()` / `prevPage()` | Page navigation |
+| `canGoNext()` | Whether another page exists after the current one |
+| `updatePageControls()` | Page indicator text; enables/disables Prev/Next |
+| `refreshTotals(rowName, totals)` | Writes total time, night, IFR, landings into a footer row |
+| `addToTotals(totals, record)` | Accumulates total/night/IFR minutes and landing counts |
+| `cellValue(value)` | Table cell display helper; preserves `0` |
+| `reformatDate(date)` | `YYYY-MM-DD` → `DD/MM/YYYY` |
+| `formatTags(tags)` | Formats tags array/string for the table |
+| `rowClicked(row)` | Opens editor for the clicked flight; snapshots form for dirty tracking |
+| `populateEditorFromRecord(record)` | Fills modal inputs from a record |
+| `buildUpdatedRecord(source)` / `applyEditorValuesToRecord(record)` | Builds POST payload from form fields |
+| `saveFlightFromModal()` | POSTs update; refreshes table; closes on success |
+| `closeFlightEditor()` | Close with discard confirm when dirty |
+| `isEditorDirty()` / `updateSaveButtonState()` | Dirty detection and Save enable/disable |
 
 ## Dependencies (from common.js)
 
@@ -136,12 +169,28 @@ Styling
 |------------------|----------|
 | `parseHHMM(timeStr)` | Parsing `HH:MM` time strings into `{h, m, total}` objects |
 | `formatMinutesAsHMM(minutes)` | Formatting accumulated minutes back to `H:MM` display |
-| `showAlert(message, type)` | Displaying error alerts (used in AJAX error handler) |
+| `showAlert(message, type)` | Success/error alerts |
+| `nonEmpty` / `nonEmptyUpperCase` / `nonEmptyInt` | Normalizing values when building the save payload |
 
 ## Known Limitations / TODOs
 
-- **Flight editor read-only**: `rowClicked()` opens the `#flightEditorModalMap` dialog and populates fields from the clicked flight record. No data validation or saving to the server is implemented yet.
-- **Incomplete table columns**: OP. COND. TIME (Night, IFR) and LANDINGS (Day, Night) columns exist in the header/footer but are not populated with data in the row template.
-- **No error UI**: On data load failure, an alert is shown via `showAlert()` but only if the function is available.
-- **No search or filtering**: All flights are loaded and paginated; there is no way to filter by date range, aircraft, route, etc.
-- **Prototype modals removed**: Earlier prototype dialogs (`#flightEditorModal`, `#flightEditorModal1`, `#flightEditorModal2`, `#flightEditorModal3`, `#flightEditorModal4`) have been deleted from the page. The single active dialog is `#flightEditorModalMap`.
+- **No field validation on save**: Editor does not run the same client-side required-field checks as `flight-editor.js`.
+- **Airport names always blank**: `#fem-dep-name` / `#fem-arr-name` are stubs; names are not looked up yet.
+- **Date format mismatch**: Table shows `DD/MM/YYYY`; editor uses `YYYY-MM-DD`.
+- **Night / IFR / landings may be empty on older records**: Table and editor support `NightTime`, `IFRTime`, `LandingsDay`, `LandingsNight`, but older data (or creates from the classic `flight-editor.js` path) may not store them until saved from this dialog.
+- **No search or filtering**: All flights are loaded and paginated; no filter by date range, aircraft, route, etc.
+- **Map placeholder only**: Map area is not wired to a real map widget yet.
+- **Prototype modals removed**: Earlier prototype dialogs were deleted; the active dialog is `#flightEditorModalMap`.
+
+### Flight editor dialog — review findings (2026-08-25)
+
+Still open:
+- **Airport names always blank** (see above).
+- **Date format mismatch with the table** (see above).
+- Layout/polish: fixed `450×450` map can feel crowded; LANDINGS `col-2` is tight; modal has no Bootstrap `fade` class (optional).
+
+Resolved since review:
+- Falsy `0` on populate — fixed via `fieldDisplayValue()` / `cellValue()`.
+- Save / dirty / discard confirm — implemented (`Save` + `Close`).
+- OP. COND. / LANDINGS table columns and footer totals — implemented.
+- Docs now match `rowClicked()` populate + save behavior.

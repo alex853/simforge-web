@@ -140,6 +140,35 @@
             }
             refreshPage();
 
+            $('#flightEditorModalMap').find('input, textarea').on('input change', function () {
+                updateSaveButtonState();
+            });
+
+            $('#flightEditorModalMap').on('hide.bs.modal', function (e) {
+                if (allowEditorClose) {
+                    return;
+                }
+                if (isEditorDirty()) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const discard = window.confirm('There are some changes, are you sure you want to discard them?');
+                    if (discard) {
+                        allowEditorClose = true;
+                        $('#flightEditorModalMap').modal('hide');
+                    }
+                    return;
+                }
+                allowEditorClose = true;
+            });
+
+            $('#flightEditorModalMap').on('hidden.bs.modal', function () {
+                editingRecord = null;
+                originalEditorValues = null;
+                allowEditorClose = false;
+                editorSaveInProgress = false;
+                updateSaveButtonState();
+            });
+
             $.ajax({
                 url: gatewayUrl,
                 method: 'GET',
@@ -222,6 +251,10 @@
                     .replace("$timeOut$", flight ? flight.TimeOut || '&nbsp;' : '&nbsp;')
                     .replace("$timeIn$", flight ? flight.TimeIn || '&nbsp;' : '&nbsp;')
                     .replace("$totalTime$", flight ? flight.TotalTime || '&nbsp;' : '&nbsp;')
+                    .replace("$nightTime$", flight ? cellValue(flight.NightTime) : '&nbsp;')
+                    .replace("$ifrTime$", flight ? cellValue(flight.IFRTime) : '&nbsp;')
+                    .replace("$landingsDay$", flight ? cellValue(flight.LandingsDay) : '&nbsp;')
+                    .replace("$landingsNight$", flight ? cellValue(flight.LandingsNight) : '&nbsp;')
                     .replace("$comment$", record ? record.Comment || '&nbsp;' : '&nbsp;')
                     .replace("$remarks$", record ? record.Remarks || '&nbsp;' : '&nbsp;')
                     .replace("$tags$", record ? formatTags(record.Tags) : '&nbsp;');
@@ -234,6 +267,10 @@
             refreshTotals('previousTotals', previousTotals);
             refreshTotals('totalsToDate', totalsToDate);
             updatePageControls();
+        }
+
+        function cellValue(value) {
+            return value == null || value === '' ? '&nbsp;' : value;
         }
 
         function canGoNext() {
@@ -249,6 +286,10 @@
         function refreshTotals(rowName, totals) {
             const prefix = '#flightlogFooter_' + rowName + '_';
             $(prefix + 'totalTime').html(totals.totalTimeMinutes ? formatMinutesAsHMM(totals.totalTimeMinutes) : "");
+            $(prefix + 'nightTime').html(totals.nightTimeMinutes ? formatMinutesAsHMM(totals.nightTimeMinutes) : "");
+            $(prefix + 'ifrTime').html(totals.ifrTimeMinutes ? formatMinutesAsHMM(totals.ifrTimeMinutes) : "");
+            $(prefix + 'landingsDay').html(totals.landingsDay ? totals.landingsDay : "");
+            $(prefix + 'landingsNight').html(totals.landingsNight ? totals.landingsNight : "");
         }
 
         function nextPage() {
@@ -268,11 +309,27 @@
         }
 
         function addToTotals(totals, record) {
-            const parsed = parseHHMM(record.Flight && record.Flight.TotalTime);
-            if (!parsed) {
-                return;
+            const flight = record.Flight || {};
+            const totalTime = parseHHMM(flight.TotalTime);
+            if (totalTime) {
+                totals.totalTimeMinutes = (totals.totalTimeMinutes || 0) + totalTime.total;
             }
-            totals.totalTimeMinutes = (totals.totalTimeMinutes || 0) + parsed.total;
+            const nightTime = parseHHMM(flight.NightTime);
+            if (nightTime) {
+                totals.nightTimeMinutes = (totals.nightTimeMinutes || 0) + nightTime.total;
+            }
+            const ifrTime = parseHHMM(flight.IFRTime);
+            if (ifrTime) {
+                totals.ifrTimeMinutes = (totals.ifrTimeMinutes || 0) + ifrTime.total;
+            }
+            const landingsDay = parseInt(flight.LandingsDay, 10);
+            if (!isNaN(landingsDay)) {
+                totals.landingsDay = (totals.landingsDay || 0) + landingsDay;
+            }
+            const landingsNight = parseInt(flight.LandingsNight, 10);
+            if (!isNaN(landingsNight)) {
+                totals.landingsNight = (totals.landingsNight || 0) + landingsNight;
+            }
         }
 
         function reformatDate(date) {
@@ -293,49 +350,208 @@
             return tags;
         }
 
-        // Use only the final chosen editor modal (with map)
+        // Flight editor modal (with map)
+        const editorFieldIds = [
+            'fem-date', 'fem-callsign', 'fem-flightnumber',
+            'fem-type', 'fem-tailnumber',
+            'fem-dep-place', 'fem-arr-place',
+            'fem-blocksoff', 'fem-takeoff', 'fem-landing', 'fem-blockson',
+            'fem-flighttime', 'fem-airtime', 'fem-distance',
+            'fem-night', 'fem-ifr', 'fem-landings-day', 'fem-landings-night',
+            'fem-remarks', 'fem-comment', 'fem-tags'
+        ];
+
+        let editingRecord = null;
+        let originalEditorValues = null;
+        let allowEditorClose = false;
+        let editorSaveInProgress = false;
+
+        function fieldDisplayValue(value) {
+            return value == null ? '' : String(value);
+        }
+
+        function collectEditorValues() {
+            const values = {};
+            for (let i = 0; i < editorFieldIds.length; i++) {
+                const id = editorFieldIds[i];
+                values[id] = $('#' + id).val();
+            }
+            return values;
+        }
+
+        function isEditorDirty() {
+            if (!originalEditorValues) {
+                return false;
+            }
+            const current = collectEditorValues();
+            for (let i = 0; i < editorFieldIds.length; i++) {
+                const id = editorFieldIds[i];
+                if ((current[id] || '') !== (originalEditorValues[id] || '')) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function updateSaveButtonState() {
+            $('#fem-save-btn').prop('disabled', editorSaveInProgress || !isEditorDirty());
+        }
+
+        function parseTagsInput(tagsStr) {
+            const trimmed = (tagsStr || '').trim();
+            if (!trimmed) {
+                return undefined;
+            }
+            if (trimmed.indexOf(',') >= 0) {
+                return trimmed.split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+            }
+            return trimmed;
+        }
+
+        function populateEditorFromRecord(record) {
+            const flight = record.Flight || {};
+
+            $('#fem-date').val(fieldDisplayValue(record.Date));
+            $('#fem-callsign').val(fieldDisplayValue(flight.Callsign));
+            $('#fem-flightnumber').val(fieldDisplayValue(flight.FlightNumber));
+
+            $('#fem-type').val(fieldDisplayValue(flight.AircraftType));
+            $('#fem-tailnumber').val(fieldDisplayValue(flight.AircraftRegistration));
+
+            $('#fem-dep-place').val(fieldDisplayValue(flight.Departure));
+            // Airport names are not derived yet; leave blank for now
+            $('#fem-dep-name').val('');
+
+            $('#fem-arr-place').val(fieldDisplayValue(flight.Destination));
+            $('#fem-arr-name').val('');
+
+            $('#fem-blocksoff').val(fieldDisplayValue(flight.TimeOut));
+            $('#fem-takeoff').val(fieldDisplayValue(flight.TimeOff));
+            $('#fem-landing').val(fieldDisplayValue(flight.TimeOn));
+            $('#fem-blockson').val(fieldDisplayValue(flight.TimeIn));
+
+            $('#fem-flighttime').val(fieldDisplayValue(flight.TotalTime));
+            $('#fem-airtime').val(fieldDisplayValue(flight.AirTime));
+            $('#fem-distance').val(fieldDisplayValue(flight.Distance));
+
+            $('#fem-night').val(fieldDisplayValue(flight.NightTime));
+            $('#fem-ifr').val(fieldDisplayValue(flight.IFRTime));
+            $('#fem-landings-day').val(fieldDisplayValue(flight.LandingsDay));
+            $('#fem-landings-night').val(fieldDisplayValue(flight.LandingsNight));
+
+            $('#fem-remarks').val(fieldDisplayValue(record.Remarks));
+            $('#fem-comment').val(fieldDisplayValue(record.Comment));
+            $('#fem-tags').val(Array.isArray(record.Tags) ? record.Tags.join(', ') : fieldDisplayValue(record.Tags));
+        }
+
+        function applyEditorValuesToRecord(record) {
+            if (!record.Flight) {
+                record.Flight = {};
+            }
+            const flight = record.Flight;
+
+            // Keep BeginningDT / RecordID / UserID unchanged (same approach as index.html update)
+            record.Date = nonEmpty($('#fem-date').val()) || record.Date;
+
+            flight.Callsign = nonEmptyUpperCase($('#fem-callsign').val());
+            flight.FlightNumber = nonEmptyUpperCase($('#fem-flightnumber').val());
+            flight.AircraftType = nonEmptyUpperCase($('#fem-type').val());
+            flight.AircraftRegistration = nonEmptyUpperCase($('#fem-tailnumber').val());
+
+            flight.Departure = nonEmptyUpperCase($('#fem-dep-place').val());
+            flight.Destination = nonEmptyUpperCase($('#fem-arr-place').val());
+
+            flight.TimeOut = nonEmpty($('#fem-blocksoff').val());
+            flight.TimeOff = nonEmpty($('#fem-takeoff').val());
+            flight.TimeOn = nonEmpty($('#fem-landing').val());
+            flight.TimeIn = nonEmpty($('#fem-blockson').val());
+
+            flight.TotalTime = nonEmpty($('#fem-flighttime').val());
+            flight.AirTime = nonEmpty($('#fem-airtime').val());
+            flight.Distance = nonEmptyInt($('#fem-distance').val());
+
+            flight.NightTime = nonEmpty($('#fem-night').val());
+            flight.IFRTime = nonEmpty($('#fem-ifr').val());
+            flight.LandingsDay = nonEmptyInt($('#fem-landings-day').val());
+            flight.LandingsNight = nonEmptyInt($('#fem-landings-night').val());
+
+            record.Remarks = nonEmpty($('#fem-remarks').val());
+            record.Comment = nonEmpty($('#fem-comment').val());
+            record.Tags = parseTagsInput($('#fem-tags').val());
+        }
+
+        function buildUpdatedRecord(source) {
+            const updated = Object.assign({}, source);
+            updated.Flight = Object.assign({}, source.Flight || {});
+            applyEditorValuesToRecord(updated);
+            return updated;
+        }
 
         function rowClicked(row) {
             const record = currentFlights[row - 1];
             if (!record) {
                 return;
             }
-            const flight = record.Flight || {};
 
-            // Populate fields in the selected modal (no validation, no save)
-            $('#fem-date').val(record.Date || '');
-            $('#fem-callsign').val(flight.Callsign || '');
-            $('#fem-flightnumber').val(flight.FlightNumber || '');
-
-            $('#fem-type').val(flight.AircraftType || '');
-            $('#fem-tailnumber').val(flight.AircraftRegistration || '');
-
-            $('#fem-dep-place').val(flight.Departure || '');
-            // Airport names are not derived yet; leave blank for now
-            $('#fem-dep-name').val('');
-
-            $('#fem-arr-place').val(flight.Destination || '');
-            $('#fem-arr-name').val('');
-
-            $('#fem-blocksoff').val(flight.TimeOut || '');
-            $('#fem-takeoff').val(flight.TimeOff || '');
-            $('#fem-landing').val(flight.TimeOn || '');
-            $('#fem-blockson').val(flight.TimeIn || '');
-
-            $('#fem-flighttime').val(flight.TotalTime || '');
-            $('#fem-airtime').val(flight.AirTime || '');
-            $('#fem-distance').val(flight.Distance || '');
-
-            $('#fem-night').val(flight.NightTime || '');
-            $('#fem-ifr').val(flight.IFRTime || '');
-            $('#fem-landings-day').val(flight.LandingsDay || '');
-            $('#fem-landings-night').val(flight.LandingsNight || '');
-
-            $('#fem-remarks').val(record.Remarks || '');
-            $('#fem-comment').val(record.Comment || '');
-            $('#fem-tags').val(Array.isArray(record.Tags) ? record.Tags.join(', ') : (record.Tags || ''));
-
+            editingRecord = record;
+            allowEditorClose = false;
+            editorSaveInProgress = false;
+            populateEditorFromRecord(record);
+            originalEditorValues = collectEditorValues();
+            updateSaveButtonState();
             $('#flightEditorModalMap').modal('show');
+        }
+
+        function closeFlightEditor() {
+            if (isEditorDirty()) {
+                const discard = window.confirm('There are some changes, are you sure you want to discard them?');
+                if (!discard) {
+                    return;
+                }
+            }
+            allowEditorClose = true;
+            $('#flightEditorModalMap').modal('hide');
+        }
+
+        function saveFlightFromModal() {
+            if (!editingRecord || editorSaveInProgress || !isEditorDirty()) {
+                return;
+            }
+
+            const updated = buildUpdatedRecord(editingRecord);
+            editorSaveInProgress = true;
+            updateSaveButtonState();
+
+            // Same update mechanism as index.html / flight-editor.js updateExistingFlight()
+            $.ajax({
+                url: gatewayUrl,
+                method: 'POST',
+                headers: {
+                    'Authorization': authToken
+                },
+                dataType: 'json',
+                data: JSON.stringify(updated),
+                success: function () {
+                    Object.assign(editingRecord, updated);
+                    editingRecord.Flight = updated.Flight;
+                    if (typeof showAlert === 'function') {
+                        showAlert('Flight updated successfully', 'success', 5000);
+                    }
+                    originalEditorValues = collectEditorValues();
+                    editorSaveInProgress = false;
+                    allowEditorClose = true;
+                    $('#flightEditorModalMap').modal('hide');
+                    refreshPage();
+                },
+                error: function (e) {
+                    editorSaveInProgress = false;
+                    updateSaveButtonState();
+                    if (typeof showAlert === 'function') {
+                        showAlert('Error happened!', 'danger', 15000);
+                    }
+                    console.log(e.responseText);
+                }
+            });
         }
 
     </script>
@@ -371,27 +587,27 @@
         <td colspan="3" rowspan="3"></td>
         <td colspan="4" class="left-align">PAGE TOTALS</td>
         <td id="flightlogFooter_pageTotals_totalTime"></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
+        <td id="flightlogFooter_pageTotals_nightTime"></td>
+        <td id="flightlogFooter_pageTotals_ifrTime"></td>
+        <td id="flightlogFooter_pageTotals_landingsDay"></td>
+        <td id="flightlogFooter_pageTotals_landingsNight"></td>
         <td colspan="3" rowspan="3"></td>
     </tr>
     <tr id="flightlogFooter_previousTotals">
         <td colspan="4" class="left-align">PREVIOUS TOTALS</td>
         <td id="flightlogFooter_previousTotals_totalTime"></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
+        <td id="flightlogFooter_previousTotals_nightTime"></td>
+        <td id="flightlogFooter_previousTotals_ifrTime"></td>
+        <td id="flightlogFooter_previousTotals_landingsDay"></td>
+        <td id="flightlogFooter_previousTotals_landingsNight"></td>
     </tr>
     <tr id="flightlogFooter_totalsToDate">
         <td colspan="4" class="left-align">TOTALS TO DATE</td>
         <td id="flightlogFooter_totalsToDate_totalTime"></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
+        <td id="flightlogFooter_totalsToDate_nightTime"></td>
+        <td id="flightlogFooter_totalsToDate_ifrTime"></td>
+        <td id="flightlogFooter_totalsToDate_landingsDay"></td>
+        <td id="flightlogFooter_totalsToDate_landingsNight"></td>
     </tr>
 </table>
 
@@ -418,10 +634,10 @@
                 <td class="width50pt">$dest$</td>
                 <td class="width40pt">$timeIn$</td>
                 <td class="width60pt">$totalTime$</td>
-                <td class="width60pt"></td>
-                <td class="width60pt"></td>
-                <td></td>
-                <td></td>
+                <td class="width60pt">$nightTime$</td>
+                <td class="width60pt">$ifrTime$</td>
+                <td>$landingsDay$</td>
+                <td>$landingsNight$</td>
                 <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 100px; max-width: 100px;">$remarks$</td>
                 <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 200px; max-width: 200px;">$comment$</td>
                 <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 100px; max-width: 100px;">$tags$</td>
@@ -612,7 +828,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="fem-save-btn" disabled onclick="saveFlightFromModal();">Save</button>
+                <button type="button" class="btn btn-secondary" id="fem-close-btn" onclick="closeFlightEditor();">Close</button>
             </div>
         </div>
     </div>
