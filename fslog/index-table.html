@@ -6,6 +6,7 @@
     <script src="js/jquery-3.3.1.min.js"></script>
     <script src="js/bootstrap.bundle.min.js"></script>
     <script src="common.js"></script>
+    <script src="common-editor.js"></script>
 
     <style>
         table#flightlog {
@@ -143,6 +144,13 @@
             $('#flightEditorModalMap').find('input, textarea').on('input change', function () {
                 updateSaveButtonState();
             });
+
+            // Same HH:MM entry + duration calc as index.html / flight-editor.js
+            $('#fem-takeoff, #fem-landing, #fem-blockson')
+                .on('keypress', timeEditorKeyPress)
+                .on('input', function () {
+                    recalculateFlightTimeFields();
+                });
 
             $('#flightEditorModalMap').on('hide.bs.modal', function (e) {
                 if (allowEditorClose) {
@@ -352,12 +360,13 @@
 
         // Flight editor modal (with map)
         // fem-date / fem-blocksoff are readonly (BeginningDT = Date + 'T' + TimeOut; backend cannot change them)
+        // fem-flighttime / fem-airtime are calculated (same as flight-editor.js recalculateFlightTimeFields)
         const editorFieldIds = [
             'fem-callsign', 'fem-flightnumber',
             'fem-type', 'fem-tailnumber',
             'fem-dep-place', 'fem-arr-place',
             'fem-takeoff', 'fem-landing', 'fem-blockson',
-            'fem-flighttime', 'fem-airtime', 'fem-distance',
+            'fem-distance',
             'fem-night', 'fem-ifr', 'fem-landings-day', 'fem-landings-night',
             'fem-remarks', 'fem-comment', 'fem-tags'
         ];
@@ -409,6 +418,36 @@
             return trimmed;
         }
 
+        // Same logic as flight-editor.js recalculateFlightTimeFields():
+        // Flight time (TotalTime) = TimeIn - TimeOut; Air time = TimeOn - TimeOff;
+        // if negative (overnight), add 24h.
+        function recalculateFlightTimeFields() {
+            const timeOut = parseHHMM($('#fem-blocksoff').val());
+            const timeOff = parseHHMM($('#fem-takeoff').val());
+            const timeOn = parseHHMM($('#fem-landing').val());
+            const timeIn = parseHHMM($('#fem-blockson').val());
+
+            if (timeOut && timeIn) {
+                let minutes = timeIn.total - timeOut.total;
+                if (minutes < 0) {
+                    minutes += 24 * 60;
+                }
+                $('#fem-flighttime').val(formatMinutesAsHMM(minutes));
+            } else {
+                $('#fem-flighttime').val('');
+            }
+
+            if (timeOff && timeOn) {
+                let minutes = timeOn.total - timeOff.total;
+                if (minutes < 0) {
+                    minutes += 24 * 60;
+                }
+                $('#fem-airtime').val(formatMinutesAsHMM(minutes));
+            } else {
+                $('#fem-airtime').val('');
+            }
+        }
+
         function populateEditorFromRecord(record) {
             const flight = record.Flight || {};
 
@@ -431,8 +470,7 @@
             $('#fem-landing').val(fieldDisplayValue(flight.TimeOn));
             $('#fem-blockson').val(fieldDisplayValue(flight.TimeIn));
 
-            $('#fem-flighttime').val(fieldDisplayValue(flight.TotalTime));
-            $('#fem-airtime').val(fieldDisplayValue(flight.AirTime));
+            recalculateFlightTimeFields();
             $('#fem-distance').val(fieldDisplayValue(flight.Distance));
 
             $('#fem-night').val(fieldDisplayValue(flight.NightTime));
@@ -464,6 +502,7 @@
             flight.TimeOn = nonEmpty($('#fem-landing').val());
             flight.TimeIn = nonEmpty($('#fem-blockson').val());
 
+            recalculateFlightTimeFields();
             flight.TotalTime = nonEmpty($('#fem-flighttime').val());
             flight.AirTime = nonEmpty($('#fem-airtime').val());
             flight.Distance = nonEmptyInt($('#fem-distance').val());
@@ -751,11 +790,11 @@
                             <div class="form-row">
                                 <div class="col-4">
                                     <label for="fem-flighttime" class="form-label">FLIGHT TIME</label>
-                                    <input type="text" class="form-control" id="fem-flighttime">
+                                    <input type="text" class="form-control" id="fem-flighttime" readonly>
                                 </div>
                                 <div class="col-4">
                                     <label for="fem-airtime" class="form-label">AIR TIME</label>
-                                    <input type="text" class="form-control" id="fem-airtime">
+                                    <input type="text" class="form-control" id="fem-airtime" readonly>
                                 </div>
                                 <div class="col-4">
                                     <label for="fem-distance" class="form-label">DISTANCE</label>

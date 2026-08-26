@@ -9,6 +9,7 @@ A single-page web application that displays a pilot's flight log as a paginated 
 - **jQuery 3.3.1** — DOM manipulation, AJAX requests, event handling
 - **Bootstrap** (bundle with Popper.js) — styling, grid layout, modals, buttons
 - **common.js** — shared utility functions (`parseHHMM`, `formatMinutesAsHMM`, `showAlert`, `nonEmpty`, `nonEmptyUpperCase`, `nonEmptyInt`, etc.)
+- **common-editor.js** — shared editor helpers (`timeEditorKeyPress` for `HH:MM` input)
 
 ## Data Source
 
@@ -113,7 +114,7 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 - Opens on row click; fields are pre-filled from the clicked record.
 - **Save** (`#fem-save-btn`): enabled only when the form is dirty; `POST`s the updated record; on success refreshes the table and closes the dialog.
 - **Close** (`#fem-close-btn`): closes without saving. If dirty, confirms: *"There are some changes, are you sure you want to discard them?"* (same confirm for header X / backdrop via `hide.bs.modal`).
-- Dirty tracking compares editable field values against a snapshot taken when the dialog opened. Airport name stub fields, `DATE`, and `BLOCKS OFF` are excluded from dirty/save.
+- Dirty tracking compares editable field values against a snapshot taken when the dialog opened. Airport name stub fields, `DATE`, `BLOCKS OFF`, `FLIGHT TIME`, and `AIR TIME` are excluded from dirty/save (the latter two are recalculated from times).
 - On save, `BeginningDT` / `Date` (date of flight) / `Flight.TimeOut` / `RecordID` / `UserID` are left unchanged. Local record is updated only after a successful response.
 - **Immutable on edit (backend limitation):** `BeginningDT`, date of flight (`Date`), and blocks off (`Flight.TimeOut`) cannot be changed in this dialog. On create they are correlated as `BeginningDT = Date + 'T' + TimeOut`; the backend does not support updating that key/`Date`/`TimeOut` together, so the editor shows `DATE` and `BLOCKS OFF` as read-only and never writes them on save.
 - No field validation yet (beyond whatever the server enforces).
@@ -125,10 +126,17 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
   - FLIGHT: `DATE` (read-only), `CALLSIGN`, `FLIGHT #`
   - AIRCRAFT: `TYPE`, `TAIL #`
   - ROUTE: FROM / TO — ICAO code + airport name stub (names not looked up yet)
-  - TIMES and TOTALS on one line: blocks off (read-only) / takeoff / landing / blocks on; flight time / air time / distance
+  - TIMES and TOTALS on one line: blocks off (read-only) / takeoff / landing / blocks on; flight time / air time (both calculated, read-only) / distance
   - LANDINGS (`DAY`, `NIGHT`) and OP. COND. TIME (`NIGHT`, `IFR`)
   - OTHER: `REMARKS`; `TAGS`; `COMMENT` (textarea)
 - Footer buttons: **Save** | **Close**
+
+### Calculated times (same as `flight-editor.js` / `index.html`)
+- **Flight time** (`TotalTime`): `TimeIn − TimeOut` (blocks on − blocks off). If negative (overnight), add 24×60 minutes. Shown as `H:MM` via `formatMinutesAsHMM()`.
+- **Air time** (`AirTime`): `TimeOn − TimeOff` (landing − takeoff). Same overnight wrap.
+- Recalculated on input to takeoff / landing / blocks on (and again on save). `DATE` / blocks off stay fixed; they still feed the flight-time formula.
+- `#fem-flighttime` and `#fem-airtime` are read-only; excluded from dirty tracking (dirty comes from the editable time fields).
+- Time fields use `timeEditorKeyPress` from `common-editor.js` for `HH:MM` digit entry (auto-insert `:`).
 
 ### Styling
 - Section headers use a soft gray background (`.fe-section-header`).
@@ -158,7 +166,8 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 | `reformatDate(date)` | `YYYY-MM-DD` → `DD/MM/YYYY` |
 | `formatTags(tags)` | Formats tags array/string for the table |
 | `rowClicked(row)` | Opens editor for the clicked flight; snapshots form for dirty tracking |
-| `populateEditorFromRecord(record)` | Fills modal inputs from a record |
+| `populateEditorFromRecord(record)` | Fills modal inputs from a record; recalculates flight/air time |
+| `recalculateFlightTimeFields()` | Sets flight/air time from Out/In and Off/On (overnight-aware) |
 | `buildUpdatedRecord(source)` / `applyEditorValuesToRecord(record)` | Builds POST payload from form fields |
 | `saveFlightFromModal()` | POSTs update; refreshes table; closes on success |
 | `closeFlightEditor()` | Close with discard confirm when dirty |
@@ -172,6 +181,7 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 | `formatMinutesAsHMM(minutes)` | Formatting accumulated minutes back to `H:MM` display |
 | `showAlert(message, type)` | Success/error alerts |
 | `nonEmpty` / `nonEmptyUpperCase` / `nonEmptyInt` | Normalizing values when building the save payload |
+| `timeEditorKeyPress` (common-editor.js) | Restrict digits and auto-insert `:` for time inputs |
 
 ## Known Limitations / TODOs
 
