@@ -112,12 +112,17 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 
 ### Behavior
 - Opens on row click; fields are pre-filled from the clicked record.
-- **Save** (`#fem-save-btn`): enabled only when the form is dirty; `POST`s the updated record; on success refreshes the table and closes the dialog.
+- **Save** (`#fem-save-btn`): enabled only when the form is dirty **and** time-field validation passes; `POST`s the updated record; on success refreshes the table and closes the dialog.
 - **Close** (`#fem-close-btn`): closes without saving. If dirty, confirms: *"There are some changes, are you sure you want to discard them?"* (same confirm for header X / backdrop via `hide.bs.modal`).
 - Dirty tracking compares editable field values against a snapshot taken when the dialog opened. Airport name stub fields, `DATE`, `BLOCKS OFF`, `FLIGHT TIME`, and `AIR TIME` are excluded from dirty/save (the latter two are recalculated from times).
 - On save, `BeginningDT` / `Date` (date of flight) / `Flight.TimeOut` / `RecordID` / `UserID` are left unchanged. Local record is updated only after a successful response.
 - **Immutable on edit (backend limitation):** `BeginningDT`, date of flight (`Date`), and blocks off (`Flight.TimeOut`) cannot be changed in this dialog. On create they are correlated as `BeginningDT = Date + 'T' + TimeOut`; the backend does not support updating that key/`Date`/`TimeOut` together, so the editor shows `DATE` and `BLOCKS OFF` as read-only and never writes them on save.
-- No field validation yet (beyond whatever the server enforces).
+
+### Time-field validation (Save button)
+- **Flight time required:** Save is allowed only if `FLIGHT TIME` is populated. It is calculated only when **Blocks Off** and **Blocks On** are both valid 24-hour `HH:MM` values (`00:00`–`23:59` via `parseHHMM`). No flight time ⇒ Save disabled.
+- **Air time optional:** Save does **not** require air time.
+- **Air time calculation:** Air time is calculated when **Takeoff** and **Landing** are both valid `HH:MM`.
+- **Partial / invalid Off–On times:** If Takeoff or Landing has any non-empty text that is **not** a valid `HH:MM`, Save is disabled (even if flight time is present). Empty Takeoff/Landing is allowed.
 
 ### Layout
 - Left: a map placeholder (450×450) reserved for a future map widget.
@@ -171,7 +176,7 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 | `buildUpdatedRecord(source)` / `applyEditorValuesToRecord(record)` | Builds POST payload from form fields |
 | `saveFlightFromModal()` | POSTs update; refreshes table; closes on success |
 | `closeFlightEditor()` | Close with discard confirm when dirty |
-| `isEditorDirty()` / `updateSaveButtonState()` | Dirty detection and Save enable/disable |
+| `isEditorDirty()` / `isEditorTimeFieldsValid()` / `updateSaveButtonState()` | Dirty + time validation and Save enable/disable |
 
 ## Dependencies (from common.js)
 
@@ -186,7 +191,7 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 ## Known Limitations / TODOs
 
 - **Cannot change BeginningDT / Date / TimeOut on edit**: Backend limitation. Edit dialog keeps `#fem-date` and `#fem-blocksoff` read-only; save leaves `BeginningDT`, `Date`, and `Flight.TimeOut` as on the original record (`BeginningDT = Date + 'T' + TimeOut` at create time).
-- **No field validation on save**: Editor does not run the same client-side required-field checks as `flight-editor.js`.
+- **No full field validation on save**: Time-field rules gate the Save button; other required-field checks from `flight-editor.js` (aircraft, route, distance, etc.) are not yet mirrored.
 - **Airport names always blank**: `#fem-dep-name` / `#fem-arr-name` are stubs; names are not looked up yet.
 - **Date format mismatch**: Table shows `DD/MM/YYYY`; editor uses `YYYY-MM-DD`.
 - **Night / IFR / landings may be empty on older records**: Table and editor support `NightTime`, `IFRTime`, `LandingsDay`, `LandingsNight`, but older data (or creates from the classic `flight-editor.js` path) may not store them until saved from this dialog.

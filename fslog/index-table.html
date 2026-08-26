@@ -142,15 +142,15 @@
             refreshPage();
 
             $('#flightEditorModalMap').find('input, textarea').on('input change', function () {
+                const id = this.id;
+                if (id === 'fem-takeoff' || id === 'fem-landing' || id === 'fem-blockson') {
+                    recalculateFlightTimeFields();
+                }
                 updateSaveButtonState();
             });
 
-            // Same HH:MM entry + duration calc as index.html / flight-editor.js
-            $('#fem-takeoff, #fem-landing, #fem-blockson')
-                .on('keypress', timeEditorKeyPress)
-                .on('input', function () {
-                    recalculateFlightTimeFields();
-                });
+            // Same HH:MM digit entry as index.html / flight-editor.js
+            $('#fem-takeoff, #fem-landing, #fem-blockson').on('keypress', timeEditorKeyPress);
 
             $('#flightEditorModalMap').on('hide.bs.modal', function (e) {
                 if (allowEditorClose) {
@@ -403,8 +403,35 @@
             return false;
         }
 
+        // Empty is OK; non-empty must parse as HH:MM in 00:00–23:59 (parseHHMM).
+        function isBlankOrValidHHMM(timeStr) {
+            const trimmed = (timeStr || '').trim();
+            if (!trimmed) {
+                return true;
+            }
+            return !!parseHHMM(trimmed);
+        }
+
+        // Save rules for times:
+        // - Flight time required (needs valid Blocks Off + Blocks On).
+        // - Air time optional; if Takeoff or Landing has text, that text must be valid HH:MM.
+        function isEditorTimeFieldsValid() {
+            const flightTime = ($('#fem-flighttime').val() || '').trim();
+            if (!flightTime) {
+                return false;
+            }
+            if (!isBlankOrValidHHMM($('#fem-takeoff').val())) {
+                return false;
+            }
+            if (!isBlankOrValidHHMM($('#fem-landing').val())) {
+                return false;
+            }
+            return true;
+        }
+
         function updateSaveButtonState() {
-            $('#fem-save-btn').prop('disabled', editorSaveInProgress || !isEditorDirty());
+            const canSave = !editorSaveInProgress && isEditorDirty() && isEditorTimeFieldsValid();
+            $('#fem-save-btn').prop('disabled', !canSave);
         }
 
         function parseTagsInput(tagsStr) {
@@ -551,7 +578,7 @@
         }
 
         function saveFlightFromModal() {
-            if (!editingRecord || editorSaveInProgress || !isEditorDirty()) {
+            if (!editingRecord || editorSaveInProgress || !isEditorDirty() || !isEditorTimeFieldsValid()) {
                 return;
             }
 
