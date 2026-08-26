@@ -113,18 +113,19 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 - Opens on row click; fields are pre-filled from the clicked record.
 - **Save** (`#fem-save-btn`): enabled only when the form is dirty; `POST`s the updated record; on success refreshes the table and closes the dialog.
 - **Close** (`#fem-close-btn`): closes without saving. If dirty, confirms: *"There are some changes, are you sure you want to discard them?"* (same confirm for header X / backdrop via `hide.bs.modal`).
-- Dirty tracking compares editable field values against a snapshot taken when the dialog opened. Airport name stub fields are excluded from dirty/save.
-- On save, `BeginningDT` / `RecordID` / `UserID` are left unchanged (same approach as `index.html` update). Local record is updated only after a successful response.
+- Dirty tracking compares editable field values against a snapshot taken when the dialog opened. Airport name stub fields, `DATE`, and `BLOCKS OFF` are excluded from dirty/save.
+- On save, `BeginningDT` / `Date` (date of flight) / `Flight.TimeOut` / `RecordID` / `UserID` are left unchanged. Local record is updated only after a successful response.
+- **Immutable on edit (backend limitation):** `BeginningDT`, date of flight (`Date`), and blocks off (`Flight.TimeOut`) cannot be changed in this dialog. On create they are correlated as `BeginningDT = Date + 'T' + TimeOut`; the backend does not support updating that key/`Date`/`TimeOut` together, so the editor shows `DATE` and `BLOCKS OFF` as read-only and never writes them on save.
 - No field validation yet (beyond whatever the server enforces).
 
 ### Layout
 - Left: a map placeholder (450×450) reserved for a future map widget.
 - Right: form grouped into sections:
   - FLIGHT and AIRCRAFT on the same horizontal line.
-  - FLIGHT: `DATE`, `CALLSIGN`, `FLIGHT #`
+  - FLIGHT: `DATE` (read-only), `CALLSIGN`, `FLIGHT #`
   - AIRCRAFT: `TYPE`, `TAIL #`
   - ROUTE: FROM / TO — ICAO code + airport name stub (names not looked up yet)
-  - TIMES and TOTALS on one line: blocks off/takeoff/landing/blocks on; flight time / air time / distance
+  - TIMES and TOTALS on one line: blocks off (read-only) / takeoff / landing / blocks on; flight time / air time / distance
   - LANDINGS (`DAY`, `NIGHT`) and OP. COND. TIME (`NIGHT`, `IFR`)
   - OTHER: `REMARKS`; `TAGS`; `COMMENT` (textarea)
 - Footer buttons: **Save** | **Close**
@@ -174,6 +175,7 @@ Single Bootstrap modal: `#flightEditorModalMap` ("Flight Details (with Map)").
 
 ## Known Limitations / TODOs
 
+- **Cannot change BeginningDT / Date / TimeOut on edit**: Backend limitation. Edit dialog keeps `#fem-date` and `#fem-blocksoff` read-only; save leaves `BeginningDT`, `Date`, and `Flight.TimeOut` as on the original record (`BeginningDT = Date + 'T' + TimeOut` at create time).
 - **No field validation on save**: Editor does not run the same client-side required-field checks as `flight-editor.js`.
 - **Airport names always blank**: `#fem-dep-name` / `#fem-arr-name` are stubs; names are not looked up yet.
 - **Date format mismatch**: Table shows `DD/MM/YYYY`; editor uses `YYYY-MM-DD`.

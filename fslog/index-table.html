@@ -351,11 +351,12 @@
         }
 
         // Flight editor modal (with map)
+        // fem-date / fem-blocksoff are readonly (BeginningDT = Date + 'T' + TimeOut; backend cannot change them)
         const editorFieldIds = [
-            'fem-date', 'fem-callsign', 'fem-flightnumber',
+            'fem-callsign', 'fem-flightnumber',
             'fem-type', 'fem-tailnumber',
             'fem-dep-place', 'fem-arr-place',
-            'fem-blocksoff', 'fem-takeoff', 'fem-landing', 'fem-blockson',
+            'fem-takeoff', 'fem-landing', 'fem-blockson',
             'fem-flighttime', 'fem-airtime', 'fem-distance',
             'fem-night', 'fem-ifr', 'fem-landings-day', 'fem-landings-night',
             'fem-remarks', 'fem-comment', 'fem-tags'
@@ -450,9 +451,7 @@
             }
             const flight = record.Flight;
 
-            // Keep BeginningDT / RecordID / UserID unchanged (same approach as index.html update)
-            record.Date = nonEmpty($('#fem-date').val()) || record.Date;
-
+            // Keep BeginningDT / Date / TimeOut / RecordID / UserID unchanged (backend limitation)
             flight.Callsign = nonEmptyUpperCase($('#fem-callsign').val());
             flight.FlightNumber = nonEmptyUpperCase($('#fem-flightnumber').val());
             flight.AircraftType = nonEmptyUpperCase($('#fem-type').val());
@@ -461,7 +460,6 @@
             flight.Departure = nonEmptyUpperCase($('#fem-dep-place').val());
             flight.Destination = nonEmptyUpperCase($('#fem-arr-place').val());
 
-            flight.TimeOut = nonEmpty($('#fem-blocksoff').val());
             flight.TimeOff = nonEmpty($('#fem-takeoff').val());
             flight.TimeOn = nonEmpty($('#fem-landing').val());
             flight.TimeIn = nonEmpty($('#fem-blockson').val());
@@ -665,7 +663,7 @@
                             <div class="form-row">
                                 <div class="col-4">
                                     <label for="fem-date" class="form-label">DATE</label>
-                                    <input type="text" class="form-control" id="fem-date">
+                                    <input type="text" class="form-control" id="fem-date" readonly>
                                 </div>
                                 <div class="col-4">
                                     <label for="fem-callsign" class="form-label">CALLSIGN</label>
@@ -731,7 +729,7 @@
                             <div class="form-row">
                                 <div class="col-3">
                                     <label for="fem-blocksoff" class="form-label">BLOCKS OFF</label>
-                                    <input type="text" class="form-control" id="fem-blocksoff">
+                                    <input type="text" class="form-control" id="fem-blocksoff" readonly>
                                 </div>
                                 <div class="col-3">
                                     <label for="fem-takeoff" class="form-label">TAKEOFF</label>
