@@ -68,6 +68,7 @@ The main table (`#flightlog`) has a two-row header mimicking a pilot logbook lay
 - Numeric/time cells use `cellValue()` so a real `0` is shown (not treated as empty).
 - Rows alternate between `white` and `gray` backgrounds in a pattern: white, white, gray (repeating every 3 rows).
 - Clickable rows get a `link` class (pointer cursor). `rowClicked()` populates `#flightEditorModalMap` and opens it.
+- **Row hover menu (UI prototype):** after hovering a row for **0.5s**, a floating menu appears under the **DATE** cell with **Edit** / **Insert after**. Leaving the row cancels the timer / hides the menu. Edit opens the existing editor; Insert after is a no-op stub for now.
 
 ### Footer / Totals Rows
 Three summary rows appear below the data:
@@ -211,3 +212,8 @@ Resolved since review:
 - Save / dirty / discard confirm — implemented (`Save` + `Close`).
 - OP. COND. / LANDINGS table columns and footer totals — implemented.
 - Docs now match `rowClicked()` populate + save behavior.
+
+
+
+Ok, lets implement Insert after
+Please show the flight editor, the date column and blocksoff should be available, header should be 'New flight', validation should check that date is specified, and when Save is clicked - new flight is posted (see old index.html how to do it), after that update the in-memory array and refresh the table on the page

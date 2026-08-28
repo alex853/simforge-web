@@ -114,7 +114,50 @@
             font-size: 0.67em; /* ~1.5x smaller */
         }
 
-        /* Prototype modals removed; no extra styles needed */
+        /* Row hover menu (Edit / Insert after) — UI prototype, shown over DATE */
+        table#flightlog tr td.flight-row-date {
+            position: relative;
+            overflow: visible;
+        }
+
+        .flight-row-menu {
+            display: none;
+            position: absolute;
+            left: 0;
+            top: 100%;
+            z-index: 30;
+            flex-direction: column;
+            min-width: 110px;
+            background: #ffffff;
+            border: 1px solid #b0b0b0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            font-family: Tahoma, Verdana, Arial;
+            font-size: 11px;
+            text-align: left;
+        }
+
+        .flight-row-menu.is-visible {
+            display: flex;
+        }
+
+        .flight-row-menu button {
+            border: none;
+            background: transparent;
+            text-align: left;
+            padding: 6px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-family: inherit;
+            font-size: inherit;
+        }
+
+        .flight-row-menu button:hover {
+            background: #e8e8e8;
+        }
+
+        .flight-row-menu button + button {
+            border-top: 1px solid #ddd;
+        }
     </style>
 
     <script>
@@ -151,6 +194,15 @@
 
             // Same HH:MM digit entry as index.html / flight-editor.js
             $('#fem-takeoff, #fem-landing, #fem-blockson').on('keypress', timeEditorKeyPress);
+
+            // Row hover menu: 0.5s delay before show
+            $('#flightlog')
+                .on('mouseenter', 'tr.link', function () {
+                    scheduleFlightRowMenu($(this));
+                })
+                .on('mouseleave', 'tr.link', function () {
+                    hideFlightRowMenu();
+                });
 
             $('#flightEditorModalMap').on('hide.bs.modal', function (e) {
                 if (allowEditorClose) {
@@ -265,7 +317,13 @@
                     .replace("$landingsNight$", flight ? cellValue(flight.LandingsNight) : '&nbsp;')
                     .replace("$comment$", record ? record.Comment || '&nbsp;' : '&nbsp;')
                     .replace("$remarks$", record ? record.Remarks || '&nbsp;' : '&nbsp;')
-                    .replace("$tags$", record ? formatTags(record.Tags) : '&nbsp;');
+                    .replace("$tags$", record ? formatTags(record.Tags) : '&nbsp;')
+                    .replace("$rowMenu$", record
+                        ? '<div class="flight-row-menu">' +
+                          '<button type="button" onclick="rowMenuEditClicked(' + row + ', event)">Edit</button>' +
+                          '<button type="button" onclick="rowMenuInsertAfterClicked(' + row + ', event)">Insert after</button>' +
+                          '</div>'
+                        : '');
                 $('#' + currentRowId).closest('tr').replaceWith(html);
 
                 colorCounter = (colorCounter === 3 ? 1 : colorCounter + 1);
@@ -566,6 +624,42 @@
             $('#flightEditorModalMap').modal('show');
         }
 
+        // UI prototype: same as row click for now
+        function rowMenuEditClicked(row, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            hideFlightRowMenu();
+            rowClicked(row);
+        }
+
+        // UI prototype only — Insert after not implemented yet
+        function rowMenuInsertAfterClicked(row, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            hideFlightRowMenu();
+        }
+
+        const rowMenuShowDelayMs = 500;
+        let rowMenuShowTimer = null;
+
+        function hideFlightRowMenu() {
+            if (rowMenuShowTimer) {
+                clearTimeout(rowMenuShowTimer);
+                rowMenuShowTimer = null;
+            }
+            $('#flightlog .flight-row-menu.is-visible').removeClass('is-visible');
+        }
+
+        function scheduleFlightRowMenu($row) {
+            hideFlightRowMenu();
+            rowMenuShowTimer = setTimeout(function () {
+                rowMenuShowTimer = null;
+                $row.find('.flight-row-menu').addClass('is-visible');
+            }, rowMenuShowDelayMs);
+        }
+
         function closeFlightEditor() {
             if (isEditorDirty()) {
                 const discard = window.confirm('There are some changes, are you sure you want to discard them?');
@@ -690,7 +784,7 @@
     <div>
         <table id="flightlogRowTemplate">
             <tr id="flightlogRow_$row$" class="$colorClass$ $linkClass$" onclick="rowClicked($row$)">
-                <td class="width70pt nowrap">$date$</td>
+                <td class="width70pt nowrap flight-row-date">$date$$rowMenu$</td>
                 <td class="width40pt">$type$</td>
                 <td class="width50pt nowrap">$reg$</td>
                 <td class="width50pt">$dep$</td>
@@ -700,8 +794,8 @@
                 <td class="width60pt">$totalTime$</td>
                 <td class="width60pt">$nightTime$</td>
                 <td class="width60pt">$ifrTime$</td>
-                <td>$landingsDay$</td>
-                <td>$landingsNight$</td>
+                <td class="width40pt">$landingsDay$</td>
+                <td class="width40pt">$landingsNight$</td>
                 <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 100px; max-width: 100px;">$remarks$</td>
                 <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 200px; max-width: 200px;">$comment$</td>
                 <td style="text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 100px; max-width: 100px;">$tags$</td>
