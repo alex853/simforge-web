@@ -7,6 +7,12 @@
     <script src="js/bootstrap.bundle.min.js"></script>
     <script src="common.js"></script>
     <script src="common-editor.js"></script>
+    <script src="airport-info.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <style>
         table#flightlog {
@@ -83,17 +89,27 @@
             margin: 10px 0 8px 0;
         }
 
-        /* Map placeholder block */
-        .fe-map-placeholder {
-            width: 450px; /* 1.5x bigger */
-            height: 450px; /* 1.5x bigger */
-            border: 1px dashed #bbb;
-            background: #fafafa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #888;
-            font-size: 12px;
+        /* ICAO labels next to airport points, same idea as airways/index.html .always-shown-tooltip */
+        .fe-map-icao.leaflet-tooltip {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0 2px;
+            color: #0050c8;
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+        }
+
+        .fe-map-icao.leaflet-tooltip::before {
+            display: none;
+        }
+
+        /* Map block */
+        .fe-map {
+            width: 450px;
+            height: 450px;
+            border: 1px solid #bbb;
             margin-right: 16px;
         }
 
@@ -189,6 +205,9 @@
                 if (id === 'fem-takeoff' || id === 'fem-landing' || id === 'fem-blockson') {
                     recalculateFlightTimeFields();
                 }
+                if (id === 'fem-dep-place' || id === 'fem-arr-place') {
+                    scheduleEditorMapRouteUpdate();
+                }
                 updateSaveButtonState();
             });
 
@@ -219,6 +238,13 @@
                     return;
                 }
                 allowEditorClose = true;
+            });
+
+            // Leaflet needs a visible container to size itself correctly
+            $('#flightEditorModalMap').on('shown.bs.modal', function () {
+                initEditorMap();
+                editorMap.invalidateSize();
+                updateEditorMapRoute();
             });
 
             $('#flightEditorModalMap').on('hidden.bs.modal', function () {
@@ -544,11 +570,11 @@
             $('#fem-tailnumber').val(fieldDisplayValue(flight.AircraftRegistration));
 
             $('#fem-dep-place').val(fieldDisplayValue(flight.Departure));
-            // Airport names are not derived yet; leave blank for now
-            $('#fem-dep-name').val('');
+            // Airport names are filled by updateEditorMapRoute() once the dialog is shown
+            $('#fem-dep-name').text('').attr('title', '');
 
             $('#fem-arr-place').val(fieldDisplayValue(flight.Destination));
-            $('#fem-arr-name').val('');
+            $('#fem-arr-name').text('').attr('title', '');
 
             $('#fem-blocksoff').val(fieldDisplayValue(flight.TimeOut));
             $('#fem-takeoff').val(fieldDisplayValue(flight.TimeOff));
@@ -658,6 +684,116 @@
                 rowMenuShowTimer = null;
                 $row.find('.flight-row-menu').addClass('is-visible');
             }, rowMenuShowDelayMs);
+        }
+
+        // Editor map: departure -> destination route
+        let editorMap = null;
+        let editorMapLayer = null;
+        let editorMapRouteTimer = null;
+
+        function initEditorMap() {
+            if (editorMap) {
+                return;
+            }
+            editorMap = L.map('fem-map', {worldCopyJump: true}).setView([30, 0], 1);
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+                maxZoom: 13
+            }).addTo(editorMap);
+            editorMapLayer = L.layerGroup().addTo(editorMap);
+        }
+
+        function scheduleEditorMapRouteUpdate() {
+            if (editorMapRouteTimer) {
+                clearTimeout(editorMapRouteTimer);
+            }
+            editorMapRouteTimer = setTimeout(function () {
+                editorMapRouteTimer = null;
+                updateEditorMapRoute();
+            }, 500);
+        }
+
+        function updateEditorMapRoute() {
+            if (!editorMap) {
+                return;
+            }
+            const from = nonEmptyUpperCase(($('#fem-dep-place').val() || '').trim());
+            const to = nonEmptyUpperCase(($('#fem-arr-place').val() || '').trim());
+
+            const requestKey = from + '-' + to;
+            editorMapLayer.requestKey = requestKey;
+
+            const pending = [from, to].filter(Boolean);
+            const infos = {};
+            if (pending.length === 0) {
+                editorMapLayer.clearLayers();
+                showEditorAirportNames(from, to);
+                return;
+            }
+            let remaining = pending.length;
+            pending.forEach(function (icao) {
+                loadAirportInfo(icao, function (info) {
+                    infos[icao] = info;
+                    remaining--;
+                    if (remaining === 0 && editorMapLayer.requestKey === requestKey) {
+                        showEditorAirportNames(from, to);
+                        drawEditorMapRoute(withCoords(infos[from]), withCoords(infos[to]));
+                    }
+                });
+            });
+        }
+
+        function withCoords(info) {
+            return info && info.coords ? info : null;
+        }
+
+        // Flag + name, same as airportInfo_flagName() used by the old editor; empty while unknown
+        function showEditorAirportName($label, icao) {
+            const html = icao ? airportInfo_flagName(icao) : null;
+            $label.html(html || '');
+            $label.attr('title', html ? getAirportCityName(loadedAirportInfos[icao]) : '');
+        }
+
+        function showEditorAirportNames(from, to) {
+            showEditorAirportName($('#fem-dep-name'), from);
+            showEditorAirportName($('#fem-arr-name'), to);
+        }
+
+        function drawEditorMapRoute(fromInfo, toInfo) {
+            editorMapLayer.clearLayers();
+
+            const points = [];
+            if (fromInfo) {
+                points.push([fromInfo.coords.lat, fromInfo.coords.lon]);
+            }
+            if (toInfo) {
+                let lon = toInfo.coords.lon;
+                // Keep the line short across the antimeridian
+                if (fromInfo) {
+                    const fromLon = fromInfo.coords.lon;
+                    if (lon - fromLon > 180) {
+                        lon -= 360;
+                    } else if (fromLon - lon > 180) {
+                        lon += 360;
+                    }
+                }
+                points.push([toInfo.coords.lat, lon]);
+            }
+
+            [fromInfo, toInfo].forEach(function (info, i) {
+                if (info) {
+                    L.circleMarker(points[fromInfo ? i : 0], {radius: 2, color: '#0050c8', weight: 1, fillOpacity: 1})
+                        .bindTooltip(info.icao, {permanent: true, direction: 'right', offset: [4, 0], className: 'fe-map-icao'})
+                        .addTo(editorMapLayer);
+                }
+            });
+
+            if (points.length === 2) {
+                L.polyline(points, {color: '#0050c8', weight: 1}).addTo(editorMapLayer);
+                editorMap.fitBounds(points, {padding: [40, 40], maxZoom: 10});
+            } else if (points.length === 1) {
+                editorMap.setView(points[0], 8);
+            }
         }
 
         function closeFlightEditor() {
@@ -814,7 +950,7 @@
                 </button>
             </div>
             <div class="modal-body d-flex">
-                <div class="fe-map-placeholder flex-shrink-0">Map will be here</div>
+                <div id="fem-map" class="fe-map flex-shrink-0"></div>
                 <form class="flex-grow-1">
                     <!-- FLIGHT + AIRCRAFT on one line -->
                     <div class="form-row">
@@ -861,7 +997,7 @@
                                     <input type="text" class="form-control" id="fem-dep-place">
                                 </div>
                                 <div class="col-8">
-                                    <input type="text" class="form-control" id="fem-dep-name">
+                                    <div class="form-control-plaintext text-truncate" id="fem-dep-name"></div>
                                 </div>
                             </div>
                         </div>
@@ -873,7 +1009,7 @@
                                     <input type="text" class="form-control" id="fem-arr-place">
                                 </div>
                                 <div class="col-8">
-                                    <input type="text" class="form-control" id="fem-arr-name">
+                                    <div class="form-control-plaintext text-truncate" id="fem-arr-name"></div>
                                 </div>
                             </div>
                         </div>

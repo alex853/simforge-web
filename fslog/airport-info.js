@@ -1,4 +1,5 @@
 
+const airportServiceUrl = 'https://d1.simforge.net:7771';
 const loadedAirportInfos = {};
 
 
@@ -13,33 +14,53 @@ function loadAndShowAirportInfo(icao) {
     }
 }
 
+// Callback is called only when the info is loaded successfully
 function loadAirportInfoIfNeeded(icao, callback) {
+    loadAirportInfo(icao, function (info) {
+        if (info && callback) {
+            callback(info);
+        }
+    });
+}
+
+// Callback is always called: with the info, or with null when the airport cannot be loaded.
+// Every ICAO is requested once; callers arriving while the request is in flight are queued.
+function loadAirportInfo(icao, callback) {
     if (!icao) {
         return;
     }
     const existingInfo = loadedAirportInfos[icao];
     if (existingInfo) {
-        if (callback && !existingInfo.invalid && !existingInfo.loading) {
-            callback();
+        if (existingInfo.loading) {
+            if (callback) {
+                existingInfo.callbacks.push(callback);
+            }
+        } else if (callback) {
+            callback(existingInfo.invalid ? null : existingInfo);
         }
         return;
     }
 
-    loadedAirportInfos[icao] = { loading: true };
+    const loadingInfo = { loading: true, callbacks: callback ? [callback] : [] };
+    loadedAirportInfos[icao] = loadingInfo;
+
+    function finish(info) {
+        loadedAirportInfos[icao] = info || { invalid: true };
+        loadingInfo.callbacks.forEach(function (cb) {
+            cb(info);
+        });
+    }
 
     $.ajax({
-        url: distanceUrl + '/v1/airport/info?icao=$icao$'.replace('$icao$', icao.toUpperCase()),
+        url: airportServiceUrl + '/v1/airport/info?icao=$icao$'.replace('$icao$', icao.toUpperCase()),
         method: 'GET',
         dataType: 'json',
         success: function (response) {
-            loadedAirportInfos[icao] = response;
-            if (callback) {
-                callback(response);
-            }
+            finish(response);
         },
         error: function (e) {
             console.error("error loading airport info by '" + icao + "'");
-            loadedAirportInfos[icao] = { invalid: true };
+            finish(null);
         }
     });
 }
@@ -143,7 +164,9 @@ function airportInfo_flagGreyIcaoName(icao) {
 const loadedAirportDistances = {};
 
 function airportDistanceTimer() {
-    if (!editorRow
+    // editorRow exists only on pages with the row editor (index.html)
+    if (typeof editorRow === 'undefined'
+        || !editorRow
         || !editorRow.fields
         || !editorRow.fields.departure
         || !editorRow.fields.destination
@@ -181,7 +204,7 @@ function loadAirportDistance(from, to) {
     const key = from + '-' + to;
 
     $.ajax({
-        url: distanceUrl + '/v1/distance?from=$from$&to=$to$'.replace('$from$', from.toUpperCase()).replace('$to$', to.toUpperCase()),
+        url: airportServiceUrl + '/v1/distance?from=$from$&to=$to$'.replace('$from$', from.toUpperCase()).replace('$to$', to.toUpperCase()),
         method: 'GET',
         success: function (response) {
             loadedAirportDistances[key] = parseInt(response);
