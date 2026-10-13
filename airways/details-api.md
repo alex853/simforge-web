@@ -135,7 +135,7 @@ The stub uses `/geo/cities`, `/geo/airports` and `/map/airport/info?icao={icao}`
 
 | Field | Notes |
 |-------|-------|
-| `cities[]` | Needs `id` for linking. `/map/airport/info?icao={icao}` returns only names in `connectedCities`. |
+| `cities[]` | `{id, name, population}`, the most populated first, `id` is for linking |
 | `stats` | Same as `/map/airport/info?icao={icao}` |
 | `topConnections[]` | AirportRef plus `flights` (weekly), same as `topConnections` of `/map/airport/info` |
 | `parkedAircraft[]` | Aircraft currently parked here. `since` is the time of arrival. |
@@ -147,11 +147,11 @@ The page sorts flights itself (Flying → Scheduled → recent, newest first) an
 
 The stub uses a single call, `/map/airport/full-info?icao=`, which returns `{info, parkedAircraft, flights, facilities}`:
 
-- `info` is the same object as `/map/airport/info` (`connectedCities`, `topConnections`, counters). `/map/airport/info` returns 3 top connections, `full-info` returns 10.
+- `info` is the same object as `/map/airport/info`: `icao`, `name`, `country`, `lat`, `lon`, `cities[]`, `topConnections[]` (`{icao, name, country, flights}`) and counters. The page needs nothing else, so it makes a single call. `/map/airport/info` returns 3 top connections, `full-info` returns 10.
 - `facilities` is `[{operatorId, operatorName, type}]`, `type` is `BaseAirport` or `BusinessAviationTerminal`. The page shows `type` and `operatorName`.
 - `parkedAircraft` is **real**: `[{id, reg, type, since}]`, `since` is the time of the last update of the aircraft (world time, UTC).
 
-- `flights` are **real**: `AirportFlightDto` (`id`, `direction`, `status`, `aircraft {id, reg, type}`, `airport` = ICAO of the other end, `std`/`atd`/`sta`/`eta`/`ata` as world time without zone, UTC). There is no flight number, so the **Flight** column is not shown.
+- `flights` are **real**: `AirportFlightDto` (`id`, `direction`, `status`, `aircraft {id, reg, type}`, `airport` = `{icao, name, country}` of the other end, `std`/`atd`/`sta`/`eta`/`ata` as world time without zone, UTC). There is no flight number, so the **Flight** column is not shown.
 
 ---
 

@@ -124,7 +124,7 @@
         // 'Base airport for BusyBirds', or just 'Base airport' when the operator is unknown
         const facilityLines = airport.facilities.map(f => {
             const title = facilityTitle(f.type);
-            return `<div>${esc(f.operator ? `${title} for ${f.operator}` : title)}</div>`;
+            return `<div>${esc(title)}${f.operator ? ` for <b>${esc(f.operator)}</b>` : ''}</div>`;
         });
 
         const parkedRows = airport.parkedAircraft.map(ac => [

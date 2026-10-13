@@ -242,7 +242,7 @@
             <tr>
                 <td colspan="4">
                     <div class="text-start text-muted">CITIES CONNECTED</div>
-                    <div class="text-end fw-bold">${details?.connectedCities.join(', ') ?? ''}</div>
+                    <div class="text-end fw-bold">${details?.cities.map(c => c.name).join(', ') ?? ''}</div>
                 </td>
             </tr>
             <tr>

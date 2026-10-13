@@ -331,71 +331,50 @@ function loadAirportDetails(icao) {
         return apiGet(`/details/airport/${encodeURIComponent(icao)}`);
     }
 
-    return Promise.all([
-        geoCities(),
-        geoAirports(),
-        apiGet(`/map/airport/full-info?icao=${encodeURIComponent(icao)}`).catch(() => null)
-    ]).then(([cities, airports, fullInfo]) => {
-        const details = fullInfo?.info;
-        const airport = airports.find(a => a.icao === icao);
-        if (!airport) {
+    // world time of the backend is UTC, but it comes without a zone
+    const utc = value => value ? value + 'Z' : null;
+
+    return apiGet(`/map/airport/full-info?icao=${encodeURIComponent(icao)}`).catch(() => null).then(fullInfo => {
+        const info = fullInfo?.info;
+        if (!info) {
             return null;
         }
 
-        // ParkedAircraftDto: since is a world time without zone, it is UTC
-        const parkedAircraft = (fullInfo?.parkedAircraft ?? []).map(ac => ({
-            id: ac.id,
-            reg: ac.reg,
-            type: ac.type,
-            since: ac.since ? ac.since + 'Z' : null
-        }));
-
-        // AirportFlightDto: times are world time without zone, it is UTC
-        const utc = value => value ? value + 'Z' : null;
-        const flights = (fullInfo?.flights ?? []).map(f => ({
-            id: f.id,
-            direction: f.direction,
-            status: f.status,
-            aircraft: f.aircraft,
-            airport: {icao: f.airport},
-            std: utc(f.std),
-            atd: utc(f.atd),
-            sta: utc(f.sta),
-            eta: utc(f.eta),
-            ata: utc(f.ata)
-        }));
-
-        const result = {
-            icao: airport.icao,
-            name: airport.name,
-            country: null,
-            lat: airport.latitude,
-            lon: airport.longitude,
-            cities: (details?.connectedCities ?? []).map(name => {
-                const city = cities.find(c => c.name === name && (c.airports ?? []).includes(icao))
-                    ?? cities.find(c => c.name === name);
-                return {id: city?.id ?? null, name: name, population: city?.population ?? null};
-            }),
+        return {
+            icao: info.icao,
+            name: info.name,
+            country: info.country,
+            lat: info.lat,
+            lon: info.lon,
+            cities: info.cities.map(c => ({id: c.id, name: c.name, population: c.population, country: info.country})),
             stats: {
-                flightsOutbound: details?.flightsOutbound ?? null,
-                flightsInbound: details?.flightsInbound ?? null,
-                aircraftActive: details?.aircraftActive ?? null,
-                aircraftParked: details?.aircraftParked ?? null
+                flightsOutbound: info.flightsOutbound,
+                flightsInbound: info.flightsInbound,
+                aircraftActive: info.aircraftActive,
+                aircraftParked: info.aircraftParked
             },
-            topConnections: (details?.topConnections ?? []).map(c => ({icao: c.icao, flights: c.flights})),
-            parkedAircraft: parkedAircraft,
-            facilities: (fullInfo?.facilities ?? []).map(f => ({type: f.type, operator: f.operatorName ?? null})),
-            flights: flights,
+            topConnections: info.topConnections,
+            parkedAircraft: fullInfo.parkedAircraft.map(ac => ({
+                id: ac.id,
+                reg: ac.reg,
+                type: ac.type,
+                since: utc(ac.since)
+            })),
+            facilities: fullInfo.facilities.map(f => ({type: f.type, operator: f.operatorName ?? null})),
+            flights: fullInfo.flights.map(f => ({
+                id: f.id,
+                direction: f.direction,
+                status: f.status,
+                aircraft: f.aircraft,
+                airport: f.airport,
+                std: utc(f.std),
+                atd: utc(f.atd),
+                sta: utc(f.sta),
+                eta: utc(f.eta),
+                ata: utc(f.ata)
+            })),
             _stub: []
         };
-
-        return Promise.all([
-            airportCountry(icao).then(country => {
-                result.country = country;
-                result.cities.forEach(c => c.country = country);
-            }),
-            stubFillAirportRefs([...result.topConnections, ...result.flights.map(f => f.airport)])
-        ]).then(() => result);
     });
 }
 
