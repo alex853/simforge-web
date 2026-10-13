@@ -225,7 +225,7 @@
         updateAirportPopup(marker);
 
         const airport = marker.airport;
-        airwaysGet(`/geo/airport/${airport.icao}/details`, function (details) {
+        airwaysGet(`/map/airport/info?icao=${airport.icao}`, function (details) {
             airport.details = details;
             updateAirportPopup(marker);
         })
@@ -247,16 +247,16 @@
             </tr>
             <tr>
                 <td colspan="1" rowspan="3" class="text-start text-muted">TOP 3<br>CONNECTIONS<br>(weekly flights)</td>
-                <td colspan="2" class="text-start">${details?.top3connections[0]?.icao ?? ''}</td>
-                <td colspan="1" class="text-end">${details?.top3connections[0]?.flights ?? ''}</td>
+                <td colspan="2" class="text-start">${details?.topConnections[0]?.icao ?? ''}</td>
+                <td colspan="1" class="text-end">${details?.topConnections[0]?.flights ?? ''}</td>
             </tr>
             <tr>
-                <td colspan="2" class="text-start">${details?.top3connections[1]?.icao ?? ''}</td>
-                <td colspan="1" class="text-end">${details?.top3connections[1]?.flights ?? ''}</td>
+                <td colspan="2" class="text-start">${details?.topConnections[1]?.icao ?? ''}</td>
+                <td colspan="1" class="text-end">${details?.topConnections[1]?.flights ?? ''}</td>
             </tr>
             <tr>
-                <td colspan="2" class="text-start">${details?.top3connections[2]?.icao ?? ''}</td>
-                <td colspan="1" class="text-end">${details?.top3connections[2]?.flights ?? ''}</td>
+                <td colspan="2" class="text-start">${details?.topConnections[2]?.icao ?? ''}</td>
+                <td colspan="1" class="text-end">${details?.topConnections[2]?.flights ?? ''}</td>
             </tr>
             <tr>
                 <td colspan="1" rowspan="2" class="text-start text-muted">FLIGHTS</td>

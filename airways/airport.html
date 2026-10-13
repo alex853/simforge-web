@@ -31,23 +31,39 @@
     let airport;
     let flightsFilter = 'all';
 
-    const statusOrder = {Flying: 0, Scheduled: 1, Arrived: 2, Cancelled: 3};
-
-    // time of the flight at this airport: departure for outbound, arrival for inbound
-    function localTime(f) {
+    // the moment when the flight happens at this airport: departure for outbound, arrival for inbound.
+    // actual time if it has already happened, otherwise estimated (inbound) or planned one
+    function eventTime(f) {
         return f.direction === 'out' ? (f.atd ?? f.std) : (f.ata ?? f.eta ?? f.sta);
     }
 
-    // active flights first, then upcoming, then recent ones (latest first)
+    function plannedTime(f) {
+        return f.direction === 'out' ? f.std : f.sta;
+    }
+
+    // one chronological list, the latest event first
     function sortFlights(flights) {
-        return flights.slice().sort((a, b) => {
-            const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
-            if (byStatus !== 0) {
-                return byStatus;
-            }
-            const byTime = new Date(localTime(a)) - new Date(localTime(b));
-            return a.status === 'Arrived' || a.status === 'Cancelled' ? -byTime : byTime;
-        });
+        return flights.slice().sort((a, b) =>
+            new Date(eventTime(b)) - new Date(eventTime(a)) || (a.aircraft.reg ?? '').localeCompare(b.aircraft.reg ?? ''));
+    }
+
+    // actual time is bold, estimated is italic grey, planned is plain; the planned time goes below when it differs
+    function eventTimeCell(f) {
+        const time = eventTime(f);
+        const planned = plannedTime(f);
+        const isActual = f.direction === 'out' ? !!f.atd : !!f.ata;
+        const isEstimated = !isActual && f.direction === 'in' && !!f.eta;
+
+        const day = fmtDay(time) !== fmtDay(new Date().toISOString())
+            ? `<span class="text-secondary small me-1">${fmtDay(time)}</span>` : '';
+        const main = isActual
+            ? `<span class="time-actual" title="Actual">${fmtTime(time)}</span>`
+            : isEstimated
+                ? `<span class="time-estimated" title="Estimated">${fmtTime(time)}</span>`
+                : `<span title="Planned">${fmtTime(time)}</span>`;
+        const below = (isActual || isEstimated) && fmtTime(planned) !== fmtTime(time)
+            ? `<div class="time-planned-below" title="Planned">${fmtTime(planned)}</div>` : '';
+        return `<span class="text-nowrap">${day}${main}</span>${below}`;
     }
 
     function flightsTable() {
@@ -56,20 +72,25 @@
             f.direction === 'out'
                 ? '<span class="dir text-primary" title="Outbound">DEP</span>'
                 : '<span class="dir text-success" title="Inbound">ARR</span>',
-            esc(f.flightNo ?? ''),
             `${aircraftRef(f.aircraft)} <span class="text-secondary small">${esc(f.aircraft.type ?? '')}</span>`,
             airportRef(f.airport),
-            f.direction === 'out' ? timeCell(f.std, f.atd, null) : timeCell(f.sta, f.ata, f.eta),
+            eventTimeCell(f),
             statusBadge(f.status)
         ]);
+
+        // "now" line between the future (above) and the past (below)
+        const now = Date.now();
+        const firstPast = flights.findIndex(f => new Date(eventTime(f)).getTime() <= now);
+        const nowRow = {separator: `now &middot; ${fmtTime(new Date().toISOString())} utc`};
+        rows.splice(firstPast === -1 ? rows.length : firstPast, 0, nowRow);
+
         return dataTable([
             {title: ''},
-            {title: 'Flight'},
             {title: 'Aircraft'},
             {title: 'From / To'},
             {title: 'Time <span class="text-lowercase fw-normal">utc</span>', cls: 'text-end'},
             {title: 'Status', cls: 'text-end'}
-        ], rows, 'No flights');
+        ], flights.length ? rows : [], 'No flights');
     }
 
     function flightsFilterButtons() {
@@ -92,7 +113,7 @@
     function renderAirport() {
         document.title = `airways / ${airport.icao}`;
 
-        const cities = airport.cities.map(c => c.id ? cityRef(c) : esc(c.name)).join(', ');
+        const cities = airport.cities.map(c => c.id ? cityRef(c, false) : esc(c.name)).join(', ');
 
         const connectionRows = airport.topConnections.map(c => [airportRef(c), fmtNumber(c.flights)]);
 

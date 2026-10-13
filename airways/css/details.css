@@ -148,6 +148,26 @@ body {
     color: var(--bs-secondary-color);
 }
 
+.time-planned-below {
+    font-size: .8rem;
+    line-height: 1.1;
+    color: var(--bs-secondary-color);
+}
+
+/* "now" line in a chronological table */
+.separator-row > td {
+    padding: .15rem .75rem;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-align: center;
+    color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    border-top: 1px solid var(--bs-primary);
+    border-bottom: 1px solid var(--bs-primary);
+}
+
 .time-planned-small {
     font-size: .8rem;
     color: var(--bs-secondary-color);

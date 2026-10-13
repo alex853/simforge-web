@@ -161,8 +161,8 @@ function aircraftRef(aircraft) {
 }
 
 // city: {id, name, country?}
-function cityRef(city) {
-    return `<span class="text-nowrap">${flagImg(city.country)} <a class="entity-link" href="${cityUrl(city.id)}">${esc(city.name)}</a></span>`;
+function cityRef(city, withFlag = true) {
+    return `<span class="text-nowrap">${withFlag ? flagImg(city.country) + ' ' : ''}<a class="entity-link" href="${cityUrl(city.id)}">${esc(city.name)}</a></span>`;
 }
 
 const statusClasses = {
@@ -246,7 +246,9 @@ function dataTable(columns, rows, emptyText = 'Nothing here') {
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead><tr>${columns.map(c => `<th class="${c.cls ?? ''}">${c.title}</th>`).join('')}</tr></thead>
-            <tbody>${rows.map(r => `<tr>${r.map((cell, i) => `<td class="${columns[i].cls ?? ''}">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
+            <tbody>${rows.map(r => r.separator !== undefined
+                ? `<tr class="separator-row"><td colspan="${columns.length}">${r.separator}</td></tr>`
+                : `<tr>${r.map((cell, i) => `<td class="${columns[i].cls ?? ''}">${cell}</td>`).join('')}</tr>`).join('')}</tbody>
         </table>
     </div>`;
 }
@@ -286,7 +288,7 @@ function loadCityDetails(id) {
         const icaos = city.airports ?? [];
         return Promise.all([
             airportCountry(icaos[0]),
-            Promise.all(icaos.map(icao => apiGet(`/geo/airport/${encodeURIComponent(icao)}/details`).catch(() => null))),
+            Promise.all(icaos.map(icao => apiGet(`/map/airport/info?icao=${encodeURIComponent(icao)}`).catch(() => null))),
             Promise.all(icaos.map(icao => airportCountry(icao)))
         ]).then(([country, stats, countries]) => ({
             id: city.id,
@@ -317,51 +319,36 @@ function loadAirportDetails(icao) {
     return Promise.all([
         geoCities(),
         geoAirports(),
-        apiGet(`/geo/airport/${encodeURIComponent(icao)}/details`).catch(() => null),
-        apiGet('/map/aircraft/flying').catch(() => [])
-    ]).then(([cities, airports, details, flying]) => {
+        apiGet(`/map/airport/full-info?icao=${encodeURIComponent(icao)}`).catch(() => null)
+    ]).then(([cities, airports, fullInfo]) => {
+        const details = fullInfo?.info;
         const airport = airports.find(a => a.icao === icao);
         if (!airport) {
             return null;
         }
 
-        const rnd = seededRandom(icao + stubTimeBucket());
-        const pickAircraft = stubAircraftPicker(flying, rnd);
+        // ParkedAircraftDto: since is a world time without zone, it is UTC
+        const parkedAircraft = (fullInfo?.parkedAircraft ?? []).map(ac => ({
+            id: ac.id,
+            reg: ac.reg,
+            type: ac.type,
+            since: ac.since ? ac.since + 'Z' : null
+        }));
 
-        const parkedAircraft = [];
-        const parkedCount = Math.min(details?.aircraftParked ?? 4, 12);
-        const parkedIds = new Set();
-        for (let i = 0; i < parkedCount * 3 && parkedAircraft.length < parkedCount; i++) {
-            const ac = pickAircraft();
-            if (parkedIds.has(ac.id)) {
-                continue;
-            }
-            parkedIds.add(ac.id);
-            parkedAircraft.push({
-                id: ac.id,
-                reg: ac.reg,
-                type: ac.type,
-                operator: ac.operator,
-                since: stubIso(Date.now() - rnd() * 36 * HOUR)
-            });
-        }
-
-        const flights = [];
-        const plan = [['out', 'Flying', 4], ['in', 'Flying', 4], ['out', 'Scheduled', 3], ['in', 'Scheduled', 3], ['out', 'Arrived', 4], ['in', 'Arrived', 4]];
-        plan.forEach(([direction, status, count]) => {
-            for (let i = 0; i < count; i++) {
-                const other = stubPickNearAirport(airport, airports, rnd);
-                const times = stubFlightTimes(direction, status, flightMinutes(distanceNm(airport, other)), rnd);
-                flights.push(Object.assign({
-                    id: stubId(rnd),
-                    flightNo: stubFlightNo(rnd),
-                    direction: direction,
-                    status: status,
-                    aircraft: pickAircraft(),
-                    airport: {icao: other.icao}
-                }, times));
-            }
-        });
+        // AirportFlightDto: times are world time without zone, it is UTC
+        const utc = value => value ? value + 'Z' : null;
+        const flights = (fullInfo?.flights ?? []).map(f => ({
+            id: f.id,
+            direction: f.direction,
+            status: f.status,
+            aircraft: f.aircraft,
+            airport: {icao: f.airport},
+            std: utc(f.std),
+            atd: utc(f.atd),
+            sta: utc(f.sta),
+            eta: utc(f.eta),
+            ata: utc(f.ata)
+        }));
 
         const result = {
             icao: airport.icao,
@@ -380,10 +367,10 @@ function loadAirportDetails(icao) {
                 aircraftActive: details?.aircraftActive ?? null,
                 aircraftParked: details?.aircraftParked ?? null
             },
-            topConnections: (details?.top3connections ?? []).map(c => ({icao: c.icao, flights: c.flights})),
+            topConnections: (details?.topConnections ?? []).map(c => ({icao: c.icao, flights: c.flights})),
             parkedAircraft: parkedAircraft,
             flights: flights,
-            _stub: ['parkedAircraft', 'flights']
+            _stub: []
         };
 
         return Promise.all([
@@ -396,7 +383,7 @@ function loadAirportDetails(icao) {
     });
 }
 
-// FlightMinDto of /map/aircraft/details: date of flight + "HH:mm" times, times after midnight belong to the next day
+// FlightMinDto of /map/aircraft/full-info: date of flight + "HH:mm" times, times after midnight belong to the next day
 function recentFlightFromDto(f) {
     const base = new Date(f.dof + 'T00:00:00Z').getTime();
     const hhmmToMs = hhmm => {
@@ -436,15 +423,14 @@ function loadAircraftDetails(id) {
         return apiGet(`/details/aircraft/${encodeURIComponent(id)}`);
     }
 
-    return Promise.all([
-        apiGet(`/map/aircraft/info?id=${encodeURIComponent(id)}`).catch(() => null),
-        apiGet(`/map/aircraft/details?id=${encodeURIComponent(id)}`).catch(() => ({recentFlights: []}))
-    ]).then(([d, details]) => {
+    return apiGet(`/map/aircraft/full-info?id=${encodeURIComponent(id)}`).catch(() => null).then(fullInfo => {
+        const d = fullInfo?.info;
+        const details = fullInfo ?? {};
         if (!d) {
             return null;
         }
 
-        // times of /map/aircraft/info are "HH:mm" or "HH:mm+N" (N days after the day of planned departure)
+        // times of AircraftInfoDto are "HH:mm" or "HH:mm+N" (N days after the day of planned departure)
         const flightDay = new Date(stubHhmmToIso(d.pdep) ?? Date.now());
         flightDay.setUTCHours(0, 0, 0, 0);
         const flightTime = value => {
@@ -496,38 +482,7 @@ function loadAircraftDetails(id) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Stub data generation
-
-function seededRandom(seed) {
-    let a = 0;
-    for (let i = 0; i < seed.length; i++) {
-        a = ((a << 5) - a + seed.charCodeAt(i)) | 0;
-    }
-    return function () {
-        a = (a + 0x6D2B79F5) | 0;
-        let t = Math.imul(a ^ (a >>> 15), 1 | a);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-// generated data stays the same for 10 minutes
-function stubTimeBucket() {
-    return String(Math.floor(Date.now() / (10 * MINUTE)));
-}
-
-function stubId(rnd) {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let s = '';
-    for (let i = 0; i < 5; i++) {
-        s += chars[Math.floor(rnd() * chars.length)];
-    }
-    return s;
-}
-
-function stubFlightNo(rnd) {
-    return 'SJ' + (100 + Math.floor(rnd() * 900));
-}
+// Stub helpers
 
 function stubIso(ms) {
     return ms === null || ms === undefined ? null : new Date(ms).toISOString();
@@ -549,57 +504,6 @@ function stubHhmmToIso(hhmm) {
     return d.toISOString();
 }
 
-// real aircraft ids from the map so that links work, types are made up
-function stubAircraftPicker(flying, rnd) {
-    const types = ['A319', 'A320', 'A321', 'B737', 'B738'];
-    const pool = flying.length ? flying : [{id: 'stub0', acReg: 'SJ-AAA'}];
-    return () => {
-        const ac = pool[Math.floor(rnd() * pool.length)];
-        let h = 0;
-        for (let i = 0; i < ac.id.length; i++) {
-            h = (h * 31 + ac.id.charCodeAt(i)) | 0;
-        }
-        return {id: ac.id, reg: ac.acReg, type: types[Math.abs(h) % types.length], operator: 'ShadowJet'};
-    };
-}
-
-function stubPickNearAirport(origin, airports, rnd) {
-    const others = airports.filter(a => a.icao !== origin.icao);
-    const near = others.filter(a => {
-        const d = distanceNm(origin, a);
-        return d > 100 && d < 2000;
-    });
-    const list = near.length ? near : others;
-    return list[Math.floor(rnd() * list.length)];
-}
-
-// times of a flight seen from the airport page, direction 'out' or 'in'
-function stubFlightTimes(direction, status, minutes, rnd) {
-    const now = Date.now();
-    const duration = minutes * MINUTE;
-    let std;
-    let atd = null;
-    let ata = null;
-    if (status === 'Scheduled') {
-        std = now + (10 + rnd() * 240) * MINUTE;
-    } else {
-        if (status === 'Flying') {
-            atd = now - (0.05 + rnd() * 0.85) * duration;
-        } else {
-            atd = now - duration - rnd() * (direction === 'out' ? 10 : 12) * HOUR;
-            ata = atd + duration;
-        }
-        std = atd - Math.round(rnd() * 20) * MINUTE;
-    }
-    return {
-        std: stubIso(std),
-        atd: stubIso(atd),
-        sta: stubIso(std + duration),
-        eta: stubIso(atd !== null ? atd + duration : null),
-        ata: stubIso(ata)
-    };
-}
-
 function stubFillAirportRefs(refs) {
     return geoAirports().catch(() => []).then(airports => Promise.all(refs.filter(Boolean).map(ref => {
         if (ref.name === undefined) {
@@ -607,17 +511,4 @@ function stubFillAirportRefs(refs) {
         }
         return airportCountry(ref.icao).then(country => ref.country = country);
     })));
-}
-
-function distanceNm(a, b) {
-    const toRad = deg => deg * Math.PI / 180;
-    const dLat = toRad(b.latitude - a.latitude);
-    const dLon = toRad(b.longitude - a.longitude);
-    const h = Math.sin(dLat / 2) ** 2
-        + Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLon / 2) ** 2;
-    return 3440.065 * 2 * Math.asin(Math.sqrt(h));
-}
-
-function flightMinutes(distance) {
-    return Math.round(distance / 420 * 60 + 25);
 }
