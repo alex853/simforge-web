@@ -78,6 +78,12 @@ body {
     text-overflow: ellipsis;
 }
 
+.stat-small {
+    font-size: .95rem;
+    line-height: 1.35;
+    padding-top: .15rem;
+}
+
 .stat-value .flag {
     vertical-align: 3px;
 }

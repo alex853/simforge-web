@@ -118,6 +118,15 @@
 
         const connectionRows = airport.topConnections.map(c => [airportRef(c), fmtNumber(c.flights)]);
 
+        // 'BusinessAviationTerminal' -> 'Business aviation terminal'
+        const facilityTitle = type => (type ?? '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+            .replace(/^./, c => c.toUpperCase());
+        // 'Base airport for BusyBirds', or just 'Base airport' when the operator is unknown
+        const facilityLines = airport.facilities.map(f => {
+            const title = facilityTitle(f.type);
+            return `<div>${esc(f.operator ? `${title} for ${f.operator}` : title)}</div>`;
+        });
+
         const parkedRows = airport.parkedAircraft.map(ac => [
             aircraftRef(ac),
             esc(ac.type ?? ''),
@@ -135,8 +144,8 @@
             ${statTiles([
                 {label: 'Flights out', value: fmtNumber(airport.stats.flightsOutbound)},
                 {label: 'Flights in', value: fmtNumber(airport.stats.flightsInbound)},
-                {label: 'Aircraft active', value: fmtNumber(airport.stats.aircraftActive)},
-                {label: 'Aircraft parked', value: fmtNumber(airport.stats.aircraftParked)}
+                {label: 'Aircraft on ground', value: fmtNumber(airport.stats.aircraftParked)},
+                {label: 'Facilities', html: facilityLines.length ? facilityLines.join('') : '<span class="text-secondary">None</span>'}
             ])}
 
             <div class="row g-4">

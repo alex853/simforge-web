@@ -194,7 +194,9 @@ function statTiles(tiles) {
         <div class="col-6 col-md-3">
             <div class="stat">
                 <div class="stat-label">${esc(t.label)}</div>
-                <div class="stat-value">${t.value}</div>
+                ${t.html !== undefined
+                    ? `<div class="stat-small">${t.html}</div>`
+                    : `<div class="stat-value">${t.value}</div>`}
                 ${t.hint ? `<div class="stat-hint">${t.hint}</div>` : ''}
             </div>
         </div>`).join('')}
@@ -382,6 +384,7 @@ function loadAirportDetails(icao) {
             },
             topConnections: (details?.topConnections ?? []).map(c => ({icao: c.icao, flights: c.flights})),
             parkedAircraft: parkedAircraft,
+            facilities: (fullInfo?.facilities ?? []).map(f => ({type: f.type, operator: f.operatorName ?? null})),
             flights: flights,
             _stub: []
         };
