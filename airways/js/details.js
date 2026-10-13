@@ -36,8 +36,12 @@ function once(fn) {
 const geoCities = once(() => apiGet('/geo/cities'));
 const geoAirports = once(() => apiGet('/geo/airports'));
 
-// Country by ICAO from the airports service, every ICAO is requested once
+// Country by ICAO: from /geo/airports (country of the airport's city), then from the airports service as a fallback.
+// The airports service says "Unknown" for airports it does not know, such a country gives no flag.
 const _airportCountries = {};
+const geoAirportCountries = once(() => geoAirports()
+    .then(airports => new Map(airports.filter(a => a.country).map(a => [a.icao, a.country])))
+    .catch(() => new Map()));
 
 function airportCountry(icao) {
     if (!icao) {
@@ -45,10 +49,15 @@ function airportCountry(icao) {
     }
     const key = icao.toUpperCase();
     if (!_airportCountries[key]) {
-        _airportCountries[key] = fetch(`${detailsAirportServiceUrl}/v1/airport/info?icao=${encodeURIComponent(key)}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(info => info?.country ?? null)
-            .catch(() => null);
+        _airportCountries[key] = geoAirportCountries().then(countries => {
+            if (countries.has(key)) {
+                return countries.get(key);
+            }
+            return fetch(`${detailsAirportServiceUrl}/v1/airport/info?icao=${encodeURIComponent(key)}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(info => info?.country && info.country !== 'Unknown' ? info.country : null)
+                .catch(() => null);
+        });
     }
     return _airportCountries[key];
 }

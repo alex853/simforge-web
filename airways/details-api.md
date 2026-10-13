@@ -22,7 +22,7 @@ The endpoints are **not implemented yet**. While `DETAILS_STUBS = true` (in `js/
 - **Public**: no authentication. The pages are for public use, so they must not depend on `/admin/*` endpoints.
 - **Unknown id → `404`**. The pages show "not found" for any error. Note that the existing `/map/aircraft/info`, `/map/aircraft/full-info` and `/map/airport/info?icao={icao}` currently return `500` for unknown ids.
 - **Times**: ISO 8601 in UTC with `Z`, e.g. `"2026-10-09T14:31:00Z"`. Missing times are `null`.
-- **Airport references** (`{icao, name, country}`) appear in many places. Please always include `name` and `country`: the pages show a country flag next to every airport. The stubs currently get `country` from the airports service (`https://d1.simforge.net:7771/v1/airport/info`), one call per ICAO.
+- **Airport references** (`{icao, name, country}`) appear in many places. Please always include `name` and `country`: the pages show a country flag next to every airport. The pages take `country` from `/geo/airports` (`country` is the country of the most populated city the airport is linked to) and fall back to the airports service (`https://d1.simforge.net:7771/v1/airport/info`), which returns `Unknown` for many airports.
 - **Country**: the full country name as returned by the airports service (e.g. `"United Kingdom"`, `"Bahamas, The"`). The pages map it to a FatCow flag icon (`countryFlagUrl` in `js/details.js`).
 
 ## Common objects
