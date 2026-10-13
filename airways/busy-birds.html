@@ -2,29 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>airways / busyBirds mission booking</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / busyBirds</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/details.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/requests.js"></script>
     <style>
-        .table-missions { table-layout: fixed; width: 100%; }
-        .table-missions th,
-        .table-missions td {
-            vertical-align: middle;
-            padding: 0.35rem 0.45rem;
-        }
-        .table-missions .col-radio { width: 5%; min-width: 2.25rem; text-align: center; }
-        .table-missions .col-from,
-        .table-missions .col-to {
-            width: 25%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .table-missions .col-pax { width: 15%; text-align: center; white-space: nowrap; }
-        .table-missions .col-dist { width: 15%; text-align: right; white-space: nowrap; }
-        .table-missions .col-pay { width: 15%; text-align: right; white-space: nowrap; }
+        .mission-row { cursor: pointer; }
+        .mission-row.picked > td { background: var(--bs-primary-bg-subtle); }
+        .mission-row .form-check-input { cursor: pointer; }
         .plan-options-row .plan-turnaround-select { width: 6.25rem; max-width: 100%; }
         .plan-options-row > .col:last-child { min-width: 0; }
         .plan-options-row .ferry-check { padding-bottom: 0.15rem; }
@@ -32,50 +25,91 @@
     </style>
 </head>
 <body>
-<div class="container my-5">
-    <div class="row justify-content-center">
-        <div class="col-12 col-lg-8">
-            <h2 class="mb-3">busyBirds mission booking</h2>
-            <p class="text-muted mb-4">Select aircraft and mission, preview legs, then book or go back.</p>
 
-            <div id="alertHost"></div>
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
 
-            <!-- Step 1: mission + aircraft -->
-            <div id="panelSelect">
-                <div class="mb-3">
-                    <label class="form-label mb-1" for="aircraftSelect">Aircraft</label>
-                    <select id="aircraftSelect" class="form-select form-select" disabled>
+<main class="container-lg py-4">
+    <header class="entity-header">
+        <div class="flex-grow-1">
+            <div class="entity-kind">busyBirds</div>
+            <h1 class="entity-title">Mission booking</h1>
+            <div class="entity-sub">Select an aircraft and a mission, preview the legs, then book.</div>
+        </div>
+    </header>
+
+    <div id="alertHost"></div>
+
+    <div class="row g-4">
+        <!-- sidebar goes first on narrow screens -->
+        <div class="col-lg-4 order-first order-lg-last">
+            <section class="card section mb-4">
+                <div class="card-header">
+                    <span class="section-title">Route</span>
+                    <button type="button" id="btnResetFilters" class="btn btn-sm btn-link ms-auto p-0" style="display: none;">Reset</button>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label mb-1" for="cityFrom">City from</label>
+                        <select id="cityFrom" class="form-select" disabled>
+                            <option value="">Loading…</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label mb-1" for="cityTo">City to</label>
+                        <select id="cityTo" class="form-select" disabled>
+                            <option value="">Loading…</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card section mb-4">
+                <div class="card-header">
+                    <span class="section-title">Aircraft</span>
+                </div>
+                <div class="card-body">
+                    <select id="aircraftSelect" class="form-select" disabled>
                         <option value="">Loading…</option>
                     </select>
                     <div class="form-text" id="aircraftHelp"></div>
+                    <div class="mt-3">
+                        <button type="button" id="btnShowLegs" class="btn btn-primary w-100">Show legs</button>
+                    </div>
                 </div>
+            </section>
+        </div>
 
-                <h6 class="mb-2 text-secondary">Missions</h6>
+        <div class="col-lg-8">
+            <section class="card section mb-4">
+                <div class="card-header">
+                    <span class="section-title">Missions</span>
+                    <span class="badge rounded-pill text-bg-light border" id="missionsCount">0</span>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover table table-missions">
-                        <thead class="table-light">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
                         <tr>
-                            <th class="col-radio"></th>
-                            <th class="col-from">From</th>
-                            <th class="col-to">To</th>
-                            <th class="col-pax">PAX</th>
-                            <th class="col-dist">Distance</th>
-                            <th class="col-pay">Pay</th>
+                            <th style="width: 2.5rem;"></th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th class="text-end">PAX</th>
+                            <th class="text-end">Distance</th>
+                            <th class="text-end">Pay</th>
                         </tr>
                         </thead>
                         <tbody id="missionsBody">
-                        <tr><td colspan="6" class="text-muted text-center">Loading…</td></tr>
+                        <tr><td colspan="6" class="text-secondary text-center">Loading…</td></tr>
                         </tbody>
                     </table>
                 </div>
-
-                <div class="mt-3">
-                    <button type="button" id="btnShowLegs" class="btn btn-primary btn">Show legs</button>
-                </div>
-            </div>
+            </section>
         </div>
     </div>
-</div>
+</main>
 
 <!-- Plan modal (messages or legs) -->
 <div class="modal fade" id="planModal" tabindex="-1" aria-hidden="true">
@@ -162,6 +196,9 @@
     let aircraft = [];
     let selectedMissionId = null;
     let selectedAircraftId = null;
+    let pickedMissionId = null;
+    let filterFrom = '';
+    let filterTo = '';
     let legsPayload = [];
     let buildPlans = [];
     let planModal;
@@ -188,32 +225,88 @@
         return num.toLocaleString();
     }
 
-    function renderMissions(data) {
-        missions = Array.isArray(data) ? data : [];
+    // ---- missions, filtered by the 'from' and 'to' cities
+
+    function missionMatches(m) {
+        return (!filterFrom || m.fromCityName === filterFrom) && (!filterTo || m.toCityName === filterTo);
+    }
+
+    // the options of a dropdown are the cities which are possible together with the choice made in the other one
+    function fillCitySelect($sel, list, key, current) {
+        const counts = new Map();
+        list.forEach(function (m) {
+            const city = m[key] ?? '';
+            if (city) {
+                counts.set(city, (counts.get(city) ?? 0) + 1);
+            }
+        });
+        $sel.empty();
+        $sel.append($('<option></option>').attr('value', '').text('All cities'));
+        Array.from(counts.keys()).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (city) {
+            $sel.append($('<option></option>').attr('value', city).text(city + ' · ' + counts.get(city)));
+        });
+        $sel.prop('disabled', counts.size === 0);
+        const value = counts.has(current) ? current : '';
+        $sel.val(value);
+        return value;
+    }
+
+    function renderCityFilters() {
+        filterFrom = fillCitySelect($('#cityFrom'),
+            missions.filter(function (m) { return !filterTo || m.toCityName === filterTo; }),
+            'fromCityName', filterFrom);
+        filterTo = fillCitySelect($('#cityTo'),
+            missions.filter(function (m) { return !filterFrom || m.fromCityName === filterFrom; }),
+            'toCityName', filterTo);
+        $('#btnResetFilters').toggle(!!(filterFrom || filterTo));
+    }
+
+    function renderMissions() {
+        const visible = missions.filter(missionMatches);
         const $tb = $('#missionsBody');
         $tb.empty();
+
+        $('#missionsCount').text(visible.length === missions.length ? String(missions.length) : (visible.length + ' / ' + missions.length));
+
+        if (pickedMissionId !== null && !visible.some(function (m) { return sameId(m.id, pickedMissionId); })) {
+            pickedMissionId = null;
+        }
+
         if (missions.length === 0) {
-            $tb.append('<tr><td colspan="6" class="text-muted text-center">No missions</td></tr>');
+            $tb.append('<tr><td colspan="6" class="text-secondary text-center">No missions</td></tr>');
             return;
         }
-        missions.forEach(function (m) {
+        if (visible.length === 0) {
+            $tb.append('<tr><td colspan="6" class="text-secondary text-center">No missions for this route</td></tr>');
+            return;
+        }
+        visible.forEach(function (m) {
             const id = m.id;
             const dist = m.distance ?? m.distanceNm ?? '';
-            const pay = formatPay(m.pay ?? m.payment);
-            const row = $('<tr></tr>');
-            row.append($('<td class="col-radio"></td>').append(
-                $('<input type="radio" class="form-check-input mission-radio" name="missionId">').attr('value', id)
+            const picked = sameId(id, pickedMissionId);
+            const $row = $('<tr class="mission-row"></tr>').toggleClass('picked', picked);
+            $row.append($('<td></td>').append(
+                $('<input type="radio" class="form-check-input mission-radio" name="missionId">')
+                    .attr('value', id)
+                    .prop('checked', picked)
             ));
-            const $from = $('<td class="col-from"></td>').text(m.fromCityName ?? '');
-            $from.attr('title', m.fromCityName ?? '');
-            const $to = $('<td class="col-to"></td>').text(m.toCityName ?? '');
-            $to.attr('title', m.toCityName ?? '');
-            row.append($from, $to);
-            row.append($('<td class="col-pax"></td>').text(m.pax ?? ''));
-            row.append($('<td class="col-dist"></td>').text(dist !== '' && dist !== null ? String(dist) : '—'));
-            row.append($('<td class="col-pay"></td>').text(pay));
-            $tb.append(row);
+            $row.append($('<td></td>').text(m.fromCityName ?? '').attr('title', m.fromCityName ?? ''));
+            $row.append($('<td></td>').text(m.toCityName ?? '').attr('title', m.toCityName ?? ''));
+            $row.append($('<td class="text-end"></td>').text(m.pax ?? ''));
+            $row.append($('<td class="text-end text-nowrap"></td>').text(dist !== '' && dist !== null ? String(dist) : '—'));
+            $row.append($('<td class="text-end text-nowrap"></td>').text(formatPay(m.pay ?? m.payment)));
+            $tb.append($row);
         });
+    }
+
+    function renderMissionsAndFilters() {
+        renderCityFilters();
+        renderMissions();
+    }
+
+    function setMissions(data) {
+        missions = Array.isArray(data) ? data : [];
+        renderMissionsAndFilters();
     }
 
     function renderAircraftList(list) {
@@ -513,9 +606,10 @@
         planModal = new bootstrap.Modal(document.getElementById('planModal'));
 
         airwaysAuth('GET', '/busy-birds/mission/to-book', {}, function (data) {
-            renderMissions(data);
+            setMissions(data);
         }, function () {
             $('#missionsBody').html('<tr><td colspan="6" class="text-danger text-center">Failed to load missions</td></tr>');
+            $('#cityFrom, #cityTo').empty().append('<option value="">Unavailable</option>');
         });
 
         airwaysAuth('GET', '/busy-birds/aircraft/available', {}, function (list) {
@@ -526,6 +620,32 @@
             $sel.append('<option value="">Unavailable</option>');
             $sel.prop('disabled', true);
             $('#aircraftHelp').text('Aircraft list not available yet.');
+        });
+
+        // route filter
+        $('#cityFrom').on('change', function () {
+            filterFrom = $(this).val() || '';
+            renderMissionsAndFilters();
+        });
+        $('#cityTo').on('change', function () {
+            filterTo = $(this).val() || '';
+            renderMissionsAndFilters();
+        });
+        $('#btnResetFilters').on('click', function () {
+            filterFrom = '';
+            filterTo = '';
+            renderMissionsAndFilters();
+        });
+
+        // a click on a row picks the mission
+        $('#missionsBody').on('click', 'tr.mission-row', function (e) {
+            const $radio = $(this).find('input.mission-radio');
+            if (!$(e.target).is('input')) {
+                $radio.prop('checked', true);
+            }
+            pickedMissionId = String($radio.val());
+            $('#missionsBody tr.mission-row').removeClass('picked');
+            $(this).addClass('picked');
         });
 
         $('#btnShowLegs').on('click', function () {
