@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / Airport</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="css/details.css" rel="stylesheet">
+
+    <script src="js/requests.js"></script>
+    <script src="js/details.js"></script>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
+
+<main class="container-lg py-4" id="page"></main>
+
+<script>
+    let airport;
+    let flightsFilter = 'all';
+
+    const statusOrder = {Flying: 0, Scheduled: 1, Arrived: 2, Cancelled: 3};
+
+    // time of the flight at this airport: departure for outbound, arrival for inbound
+    function localTime(f) {
+        return f.direction === 'out' ? (f.atd ?? f.std) : (f.ata ?? f.eta ?? f.sta);
+    }
+
+    // active flights first, then upcoming, then recent ones (latest first)
+    function sortFlights(flights) {
+        return flights.slice().sort((a, b) => {
+            const byStatus = (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9);
+            if (byStatus !== 0) {
+                return byStatus;
+            }
+            const byTime = new Date(localTime(a)) - new Date(localTime(b));
+            return a.status === 'Arrived' || a.status === 'Cancelled' ? -byTime : byTime;
+        });
+    }
+
+    function flightsTable() {
+        const flights = sortFlights(airport.flights.filter(f => flightsFilter === 'all' || f.direction === flightsFilter));
+        const rows = flights.map(f => [
+            f.direction === 'out'
+                ? '<span class="dir text-primary" title="Outbound">DEP</span>'
+                : '<span class="dir text-success" title="Inbound">ARR</span>',
+            esc(f.flightNo ?? ''),
+            `${aircraftRef(f.aircraft)} <span class="text-secondary small">${esc(f.aircraft.type ?? '')}</span>`,
+            airportRef(f.airport),
+            f.direction === 'out' ? timeCell(f.std, f.atd, null) : timeCell(f.sta, f.ata, f.eta),
+            statusBadge(f.status)
+        ]);
+        return dataTable([
+            {title: ''},
+            {title: 'Flight'},
+            {title: 'Aircraft'},
+            {title: 'From / To'},
+            {title: 'Time <span class="text-lowercase fw-normal">utc</span>', cls: 'text-end'},
+            {title: 'Status', cls: 'text-end'}
+        ], rows, 'No flights');
+    }
+
+    function flightsFilterButtons() {
+        const button = (filter, title) =>
+            `<button type="button" class="btn btn-outline-secondary ${flightsFilter === filter ? 'active' : ''}" data-filter="${filter}">${title}</button>`;
+        return `<div class="btn-group btn-group-sm" id="flights-filter">
+            ${button('all', 'All')}${button('out', 'Outbound')}${button('in', 'Inbound')}
+        </div>`;
+    }
+
+    function renderFlights() {
+        $('#flights').replaceWith(section('Flights', flightsTable(), {
+            id: 'flights',
+            count: airport.flights.filter(f => flightsFilter === 'all' || f.direction === flightsFilter).length,
+            stub: isStub(airport, 'flights'),
+            tools: flightsFilterButtons()
+        }));
+    }
+
+    function renderAirport() {
+        document.title = `airways / ${airport.icao}`;
+
+        const cities = airport.cities.map(c => c.id ? cityRef(c) : esc(c.name)).join(', ');
+
+        const connectionRows = airport.topConnections.map(c => [airportRef(c), fmtNumber(c.flights)]);
+
+        const parkedRows = airport.parkedAircraft.map(ac => [
+            aircraftRef(ac),
+            esc(ac.type ?? ''),
+            `<span class="text-secondary" title="Parked since">${fmtDay(ac.since)} ${fmtTime(ac.since)}</span>`
+        ]);
+
+        $('#page').html(`
+            ${entityHeader({
+                kind: 'Airport',
+                title: `${esc(airport.icao)} <span class="fw-normal text-secondary">${esc(airport.name)}</span>`,
+                subtitle: [cities, esc(airport.country ?? '')].filter(Boolean).join(' &middot; '),
+                flagCountry: airport.country
+            })}
+
+            ${statTiles([
+                {label: 'Flights out', value: fmtNumber(airport.stats.flightsOutbound)},
+                {label: 'Flights in', value: fmtNumber(airport.stats.flightsInbound)},
+                {label: 'Aircraft active', value: fmtNumber(airport.stats.aircraftActive)},
+                {label: 'Aircraft parked', value: fmtNumber(airport.stats.aircraftParked)}
+            ])}
+
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div id="flights"></div>
+                </div>
+                <div class="col-lg-4">
+                    ${section('Top connections', dataTable([
+                        {title: 'Airport'},
+                        {title: 'Weekly', cls: 'text-end'}
+                    ], connectionRows, 'No connections'), {stub: isStub(airport, 'topConnections')})}
+
+                    ${section('Parked aircraft', dataTable([
+                        {title: 'Aircraft'},
+                        {title: 'Type'},
+                        {title: 'Since', cls: 'text-end'}
+                    ], parkedRows, 'No aircraft parked'), {count: airport.parkedAircraft.length, stub: isStub(airport, 'parkedAircraft')})}
+                </div>
+            </div>
+
+            ${stubNote(airport)}
+        `);
+
+        renderFlights();
+    }
+
+    $(document).ready(function () {
+        $('#page').on('click', '#flights-filter button', function () {
+            flightsFilter = $(this).data('filter');
+            renderFlights();
+        });
+
+        const icao = (queryParam('icao') ?? '').trim().toUpperCase();
+        if (!icao) {
+            showError('Airport ICAO is not specified');
+            return;
+        }
+        showLoading();
+        loadAirportDetails(icao)
+            .then(response => {
+                if (!response) {
+                    showError(`Airport '${icao}' not found`);
+                    return;
+                }
+                airport = response;
+                renderAirport();
+            })
+            .catch(e => showError(e.message));
+    });
+</script>
+
+</body>
+</html>
