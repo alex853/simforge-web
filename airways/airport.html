@@ -158,11 +158,11 @@
                         {title: 'Weekly', cls: 'text-end'}
                     ], connectionRows, 'No connections'), {stub: isStub(airport, 'topConnections')})}
 
-                    ${section('Parked aircraft', dataTable([
+                    ${section('Aircraft on ground', dataTable([
                         {title: 'Aircraft'},
                         {title: 'Type'},
                         {title: 'Since', cls: 'text-end'}
-                    ], parkedRows, 'No aircraft parked'), {count: airport.parkedAircraft.length, stub: isStub(airport, 'parkedAircraft')})}
+                    ], parkedRows, 'No aircraft on ground'), {count: airport.parkedAircraft.length, stub: isStub(airport, 'parkedAircraft')})}
                 </div>
             </div>
 
