@@ -1,0 +1,171 @@
+/* Shared style of the city / airport / aircraft details pages */
+
+html {
+    font-size: 17px;
+}
+
+body {
+    background: var(--bs-tertiary-bg);
+    font-variant-numeric: tabular-nums;
+}
+
+.navbar-brand {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 1.25rem;
+    color: #7d7de0;
+}
+
+[data-bs-theme="dark"] .navbar-brand {
+    color: #a8a8ff;
+}
+
+.entity-header {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.entity-kind,
+.stat-label {
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.entity-title {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.entity-sub {
+    font-size: 1.2rem;
+    color: var(--bs-secondary-color);
+}
+
+.entity-aside .badge {
+    font-size: .95rem;
+}
+
+.flag {
+    vertical-align: -2px;
+}
+
+.flag-32 {
+    width: 32px;
+    height: 32px;
+    vertical-align: -4px;
+}
+
+.stat {
+    height: 100%;
+    padding: .9rem 1.1rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: .75rem;
+}
+
+.stat-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stat-value .flag {
+    vertical-align: 3px;
+}
+
+.stat-hint {
+    font-size: .85rem;
+    color: var(--bs-secondary-color);
+}
+
+.section {
+    border-color: var(--bs-border-color-translucent);
+    border-radius: .75rem;
+    overflow: hidden;
+}
+
+.section .card-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    background: transparent;
+    padding: .75rem 1rem;
+}
+
+.section-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+
+.section .table th {
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.section .table > :not(caption) > * > * {
+    padding: .55rem 1rem;
+}
+
+.section .table tr:last-child td {
+    border-bottom: 0;
+}
+
+.entity-link {
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.entity-link:hover {
+    text-decoration: underline;
+}
+
+.stub-badge {
+    font-size: .65rem;
+    letter-spacing: .08em;
+    color: #8a5a00;
+    background: #fff1c2;
+    border: 1px solid #e6c65c;
+}
+
+.time-actual {
+    font-weight: 600;
+}
+
+.time-estimated {
+    font-style: italic;
+    color: var(--bs-secondary-color);
+}
+
+.time-planned-small {
+    font-size: .8rem;
+    color: var(--bs-secondary-color);
+    text-decoration: line-through;
+}
+
+.dir {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+}
+
+.route-airport .icao {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.route-progress {
+    height: .5rem;
+}
