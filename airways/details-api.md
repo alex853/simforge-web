@@ -20,7 +20,7 @@ The endpoints are **not implemented yet**. While `DETAILS_STUBS = true` (in `js/
 
 - **Base URL**: `airwaysServiceUrl` from `js/requests.js` (`https://d1.simforge.net:7776`), called via `airwaysGet`.
 - **Public**: no authentication. The pages are for public use, so they must not depend on `/admin/*` endpoints.
-- **Unknown id → `404`**. The pages show "not found" for any error. Note that the existing `/map/aircraft/details` and `/geo/airport/{icao}/details` currently return `500` for unknown ids.
+- **Unknown id → `404`**. The pages show "not found" for any error. Note that the existing `/map/aircraft/info`, `/map/aircraft/details` and `/geo/airport/{icao}/details` currently return `500` for unknown ids.
 - **Times**: ISO 8601 in UTC with `Z`, e.g. `"2026-10-09T14:31:00Z"`. Missing times are `null`.
 - **Airport references** (`{icao, name, country}`) appear in many places. Please always include `name` and `country`: the pages show a country flag next to every airport. The stubs currently get `country` from the airports service (`https://d1.simforge.net:7771/v1/airport/info`), one call per ICAO.
 - **Country**: the full country name as returned by the airports service (e.g. `"United Kingdom"`, `"Bahamas, The"`). The pages map it to a FatCow flag icon (`countryFlagUrl` in `js/details.js`).
@@ -196,7 +196,7 @@ The page sorts flights itself (Flying → Scheduled → recent, newest first) an
 
 | Field | Notes |
 |-------|-------|
-| `opStatus`, `locationStatus` | Same values as `opSt`, `lcSt` in `/map/aircraft/details` |
+| `opStatus`, `locationStatus` | Same values as `opSt`, `lcSt` in `/map/aircraft/info` |
 | `operator.country` | Optional. A flag is shown when present. |
 | `airport` | AirportRef where the aircraft is parked (`lcApt`), `null` when it is in flight |
 | `position` | Last known position, can be `null` |
@@ -204,6 +204,6 @@ The page sorts flights itself (Flying → Scheduled → recent, newest first) an
 | `totals.flightTime` | Airframe time `H:MM` (`fsT`). `totals.cycles` is `fsC`. |
 | `recentFlights[]` | Last ~10 completed flights, newest first. `minutes` is the flight duration. |
 
-The stub maps everything except `recentFlights` from `/map/aircraft/details?id=` (`pdep`/`atkf`/`parr`/`eldg` are `HH:mm`, assumed to be UTC).
+The stub maps everything except `recentFlights` from `/map/aircraft/info?id=` (`pdep`/`atkf`/`parr`/`eldg` are `HH:mm`, assumed to be UTC).
 
-**Stubbed** (`_stub`): `recentFlights`. This is a generated chain of flights that ends where the aircraft is now.
+`recentFlights` are **real** in the stub: they come from `/map/aircraft/details?id=` (finished flights, newest first, up to 10; `FlightMinDto` with `dof` and `HH:mm` times). The page rebuilds full timestamps from `dof` and rolls times after midnight to the next day. `FlightMinDto` has no flight number and no pax, so the **Flight** and **PAX** columns are not shown for now. The `/details/aircraft/{id}` endpoint is expected to add them.

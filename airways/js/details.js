@@ -396,15 +396,50 @@ function loadAirportDetails(icao) {
     });
 }
 
+// FlightMinDto of /map/aircraft/details: date of flight + "HH:mm" times, times after midnight belong to the next day
+function recentFlightFromDto(f) {
+    const base = new Date(f.dof + 'T00:00:00Z').getTime();
+    const hhmmToMs = hhmm => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return base + (h * 60 + m) * MINUTE;
+    };
+    const reference = f.adep ?? f.pdep;
+    const referenceMs = reference ? hhmmToMs(reference) : base;
+    const at = hhmm => {
+        if (!hhmm) {
+            return null;
+        }
+        let t = hhmmToMs(hhmm);
+        if (t < referenceMs - 12 * HOUR) {
+            t += 24 * HOUR;
+        }
+        return t;
+    };
+    const std = at(f.pdep);
+    const atd = at(f.adep);
+    const sta = at(f.parr);
+    const ata = at(f.aarr);
+    return {
+        id: f.fmId,
+        from: {icao: f.dep},
+        to: {icao: f.dest},
+        std: stubIso(std),
+        atd: stubIso(atd),
+        sta: stubIso(sta),
+        ata: stubIso(ata),
+        minutes: atd !== null && ata !== null ? Math.round((ata - atd) / MINUTE) : null
+    };
+}
+
 function loadAircraftDetails(id) {
     if (!DETAILS_STUBS) {
         return apiGet(`/details/aircraft/${encodeURIComponent(id)}`);
     }
 
     return Promise.all([
-        apiGet(`/map/aircraft/details?id=${encodeURIComponent(id)}`).catch(() => null),
-        geoAirports()
-    ]).then(([d, airports]) => {
+        apiGet(`/map/aircraft/info?id=${encodeURIComponent(id)}`).catch(() => null),
+        apiGet(`/map/aircraft/details?id=${encodeURIComponent(id)}`).catch(() => ({recentFlights: []}))
+    ]).then(([d, details]) => {
         if (!d) {
             return null;
         }
@@ -421,35 +456,7 @@ function loadAircraftDetails(id) {
             pax: d.pax
         } : null;
 
-        // recent flights are generated backwards in time, ending where the aircraft is now
-        const rnd = seededRandom(id + stubTimeBucket());
-        let cursor = airports.find(a => a.icao === (hasFlight ? d.dep : d.lcApt))
-            ?? airports[Math.floor(rnd() * airports.length)];
-        let cursorTime = hasFlight && currentFlight.atd
-            ? new Date(currentFlight.atd).getTime()
-            : Date.now() - rnd() * 6 * HOUR;
-        const recentFlights = [];
-        for (let i = 0; i < 10; i++) {
-            const from = stubPickNearAirport(cursor, airports, rnd);
-            const minutes = flightMinutes(distanceNm(from, cursor));
-            const ata = cursorTime - (40 + rnd() * 80) * MINUTE;
-            const atd = ata - minutes * MINUTE;
-            const std = atd - Math.round(rnd() * 20) * MINUTE;
-            recentFlights.push({
-                id: stubId(rnd),
-                flightNo: stubFlightNo(rnd),
-                from: {icao: from.icao},
-                to: {icao: cursor.icao},
-                std: stubIso(std),
-                atd: stubIso(atd),
-                sta: stubIso(std + minutes * MINUTE),
-                ata: stubIso(ata),
-                minutes: minutes,
-                pax: 60 + Math.round(rnd() * 120)
-            });
-            cursor = from;
-            cursorTime = atd;
-        }
+        const recentFlights = (details.recentFlights ?? []).map(recentFlightFromDto);
 
         const result = {
             id: d.id,
@@ -464,7 +471,7 @@ function loadAircraftDetails(id) {
             totals: {flightTime: d.fsT, cycles: d.fsC},
             recentFlights: recentFlights,
             lastUpdate: d.lu,
-            _stub: ['recentFlights']
+            _stub: []
         };
 
         return stubFillAirportRefs([

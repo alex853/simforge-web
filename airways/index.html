@@ -333,7 +333,7 @@
         updateAircraftPopup(marker);
 
         const aircraftId = marker.aircraftId;
-        airwaysGet(`/map/aircraft/details?id=${aircraftId}`, function (details) {
+        airwaysGet(`/map/aircraft/info?id=${aircraftId}`, function (details) {
             marker.details = details;
             updateAircraftPopup(marker);
         })

@@ -83,13 +83,11 @@
 
         const flightRows = ac.recentFlights.map(f => [
             `<span class="text-secondary">${fmtDay(f.atd ?? f.std)}</span>`,
-            esc(f.flightNo ?? ''),
             airportRef(f.from, false),
             airportRef(f.to, false),
             timeCell(f.std, f.atd, null),
             timeCell(f.sta, f.ata, null),
-            fmtDuration(f.minutes),
-            fmtNumber(f.pax)
+            fmtDuration(f.minutes)
         ]);
 
         $('#page').html(`
@@ -112,13 +110,11 @@
 
             ${section('Recent flights', dataTable([
                 {title: 'Date'},
-                {title: 'Flight'},
                 {title: 'From'},
                 {title: 'To'},
                 {title: 'Dep', cls: 'text-end'},
                 {title: 'Arr', cls: 'text-end'},
-                {title: 'Time', cls: 'text-end'},
-                {title: 'PAX', cls: 'text-end'}
+                {title: 'Time', cls: 'text-end'}
             ], flightRows, 'No flights yet'), {count: ac.recentFlights.length, stub: isStub(ac, 'recentFlights')})}
 
             ${ac.lastUpdate ? `<div class="text-secondary small mb-1">Updated ${esc(ac.lastUpdate.replace('T', ' '))}</div>` : ''}
