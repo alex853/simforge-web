@@ -444,15 +444,27 @@ function loadAircraftDetails(id) {
             return null;
         }
 
+        // times of /map/aircraft/info are "HH:mm" or "HH:mm+N" (N days after the day of planned departure)
+        const flightDay = new Date(stubHhmmToIso(d.pdep) ?? Date.now());
+        flightDay.setUTCHours(0, 0, 0, 0);
+        const flightTime = value => {
+            if (!value) {
+                return null;
+            }
+            const [hhmm, days] = value.split('+');
+            const [h, m] = hhmm.split(':').map(Number);
+            return stubIso(flightDay.getTime() + ((Number(days ?? 0) * 24 + h) * 60 + m) * MINUTE);
+        };
+
         const hasFlight = d.fmId && d.fmId !== '0' && d.dep;
         const currentFlight = hasFlight ? {
             id: d.fmId,
             from: {icao: d.dep},
             to: {icao: d.dest},
-            std: stubHhmmToIso(d.pdep),
-            atd: stubHhmmToIso(d.atkf),
-            sta: stubHhmmToIso(d.parr),
-            eta: stubHhmmToIso(d.eldg),
+            std: flightTime(d.pdep),
+            atd: flightTime(d.atkf),
+            sta: flightTime(d.parr),
+            eta: flightTime(d.eldg),
             pax: d.pax
         } : null;
 
