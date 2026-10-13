@@ -65,42 +65,6 @@ function loadAirportInfo(icao, callback) {
     });
 }
 
-function getCountryFlagUrl(country, grey) {
-    const baseUrl = !grey
-        ? "../fatcow/FatCow_Icons16x16/flag_$s$.png"
-        : "../fatcow/FatCow_Icons16x16_Grey/flag_$s$.png";
-
-    let flagName = country.toLowerCase().replaceAll(' ', '_');
-
-    if (country === "Ascension Island") {
-        flagName = "saint_helena";
-    } else if (country === "Cote d'Ivoire") {
-        flagName = "cote_divoire";
-    } else if (country === "Bahamas, The") {
-        flagName = "bahamas";
-    } else if (country === "Bosnia and Herzegovina") {
-        flagName = "bosnia";
-    } else if (country === "Timor-Leste") {
-        flagName = "east_timor";
-    } else if (country === "Fiji Islands") {
-        flagName = "fiji";
-    } else if (country === "Gambia, The") {
-        flagName = "gambia";
-    } else if (country === "Maldives") {
-        flagName = "maledives";
-    } else if (country === "Netherlands, The") {
-        flagName = "netherlands";
-    } else if (country === "Serbia and Montenegro") {
-        flagName = "serbia_montenegro";
-    } else if (country === "United Kingdom") {
-        flagName = "great_britain";
-    } else if (country === "United States") {
-        flagName = "usa";
-    }
-
-    return baseUrl.replace("$s$", flagName);
-}
-
 function getAirportCityName(info) {
     const name = info.name;
     const city = info.city;

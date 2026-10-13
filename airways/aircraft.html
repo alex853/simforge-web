@@ -15,6 +15,7 @@
     <link href="css/details.css" rel="stylesheet">
 
     <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
     <script src="js/details.js"></script>
 </head>
 <body>
@@ -128,10 +129,28 @@
             showError('Aircraft id is not specified');
             return;
         }
+
+        // the first load shows the loading/error states, the following ones silently replace the data
+        const load = initial => loadAircraftDetails(id)
+            .then(ac => {
+                if (!ac) {
+                    if (initial) {
+                        showError(`Aircraft '${id}' not found`);
+                    }
+                    return;
+                }
+                preserveScroll(() => renderAircraft(ac));
+            })
+            .catch(e => {
+                if (initial) {
+                    showError(e.message);
+                } else {
+                    console.warn('refresh failed', e);
+                }
+            });
+
         showLoading();
-        loadAircraftDetails(id)
-            .then(ac => ac ? renderAircraft(ac) : showError(`Aircraft '${id}' not found`))
-            .catch(e => showError(e.message));
+        load(true).then(() => startAutoRefresh(() => load(false)));
     });
 </script>
 

@@ -104,43 +104,11 @@ function fmtCompact(n) {
 // ---------------------------------------------------------------------------------------------------------------
 // Flags, links, badges
 
-function countryFlagUrl(country, size) {
-    let flagName = country.toLowerCase().replaceAll(' ', '_');
-
-    if (country === "Ascension Island") {
-        flagName = "saint_helena";
-    } else if (country === "Cote d'Ivoire") {
-        flagName = "cote_divoire";
-    } else if (country === "Bahamas, The") {
-        flagName = "bahamas";
-    } else if (country === "Bosnia and Herzegovina") {
-        flagName = "bosnia";
-    } else if (country === "Timor-Leste") {
-        flagName = "east_timor";
-    } else if (country === "Fiji Islands") {
-        flagName = "fiji";
-    } else if (country === "Gambia, The") {
-        flagName = "gambia";
-    } else if (country === "Maldives") {
-        flagName = "maledives";
-    } else if (country === "Netherlands, The") {
-        flagName = "netherlands";
-    } else if (country === "Serbia and Montenegro") {
-        flagName = "serbia_montenegro";
-    } else if (country === "United Kingdom") {
-        flagName = "great_britain";
-    } else if (country === "United States") {
-        flagName = "usa";
-    }
-
-    return `../fatcow/FatCow_Icons${size}x${size}/flag_${flagName}.png`;
-}
-
 function flagImg(country, size = 16) {
     if (!country) {
         return '';
     }
-    return `<img class="flag flag-${size}" src="${countryFlagUrl(country, size)}" alt="" title="${esc(country)}" onerror="this.remove()">`;
+    return `<img class="flag flag-${size}" src="${getCountryFlagUrl(country, false, size)}" alt="" title="${esc(country)}" onerror="this.remove()">`;
 }
 
 function cityUrl(id) {
@@ -271,6 +239,42 @@ function stubNote(response) {
         return '';
     }
     return `<div class="text-secondary small">Sections marked <span class="badge stub-badge">STUB</span> show generated data (DETAILS_STUBS in js/details.js).</div>`;
+}
+
+// Re-render a page keeping the scroll position
+function preserveScroll(render) {
+    const y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
+}
+
+// Calls refresh() every minute while the tab is visible, and when the tab becomes visible after being stale.
+// A refresh is skipped while the previous one is still in progress.
+function startAutoRefresh(refresh, intervalMs = 60 * 1000) {
+    let lastRefresh = Date.now();
+    let inProgress = false;
+
+    const tick = () => {
+        if (inProgress) {
+            return;
+        }
+        inProgress = true;
+        lastRefresh = Date.now();
+        Promise.resolve(refresh())
+            .catch(e => console.warn('refresh failed', e))
+            .finally(() => inProgress = false);
+    };
+
+    setInterval(() => {
+        if (!document.hidden) {
+            tick();
+        }
+    }, intervalMs);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && Date.now() - lastRefresh >= intervalMs) {
+            tick();
+        }
+    });
 }
 
 function showLoading() {

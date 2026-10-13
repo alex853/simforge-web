@@ -15,6 +15,7 @@
     <link href="css/details.css" rel="stylesheet">
 
     <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
     <script src="js/details.js"></script>
 </head>
 <body>
@@ -173,17 +174,29 @@
             showError('Airport ICAO is not specified');
             return;
         }
-        showLoading();
-        loadAirportDetails(icao)
+
+        // the first load shows the loading/error states, the following ones silently replace the data
+        const load = initial => loadAirportDetails(icao)
             .then(response => {
                 if (!response) {
-                    showError(`Airport '${icao}' not found`);
+                    if (initial) {
+                        showError(`Airport '${icao}' not found`);
+                    }
                     return;
                 }
                 airport = response;
-                renderAirport();
+                preserveScroll(renderAirport);
             })
-            .catch(e => showError(e.message));
+            .catch(e => {
+                if (initial) {
+                    showError(e.message);
+                } else {
+                    console.warn('refresh failed', e);
+                }
+            });
+
+        showLoading();
+        load(true).then(() => startAutoRefresh(() => load(false)));
     });
 </script>
 
