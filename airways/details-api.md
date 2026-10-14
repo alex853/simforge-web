@@ -212,4 +212,5 @@ The stub uses a single call, `/map/airport/full-info?icao=`, which returns `{inf
 The stub uses a single call, `/map/aircraft/full-info?id=`, which returns `{info, recentFlights}`:
 
 - `info` is the same object as `/map/aircraft/info` (used by the map popup); the stub maps everything except `recentFlights` from it (`pdep`/`atkf`/`parr`/`eldg` are `HH:mm` or `HH:mm+N`, N days after the day of planned departure).
+- `airports` is a map by ICAO, `{icao, name, country}`, of every airport mentioned in `info` and `recentFlights`. The page takes names and flags from it and does not load `/geo/airports`.
 - `recentFlights` are **real** in the stub: finished flights, newest first, up to 10, as `FlightMinDto` with `dof` and `HH:mm` times. The page rebuilds full timestamps from `dof` and rolls times after midnight to the next day. `FlightMinDto` has no flight number and no pax, so the **Flight** and **PAX** columns are not shown. Adding them is not planned.

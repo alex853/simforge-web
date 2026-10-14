@@ -480,12 +480,12 @@ function loadAircraftDetails(id) {
             _stub: []
         };
 
-        return stubFillAirportRefs([
-            result.airport,
-            currentFlight?.from,
-            currentFlight?.to,
-            ...recentFlights.flatMap(f => [f.from, f.to])
-        ]).then(() => result);
+        // names and countries of the airports come with the response
+        [result.airport, currentFlight?.from, currentFlight?.to, ...recentFlights.flatMap(f => [f.from, f.to])]
+            .filter(Boolean)
+            .forEach(ref => Object.assign(ref, fullInfo.airports?.[ref.icao] ?? {}));
+
+        return result;
     });
 }
 
@@ -510,13 +510,4 @@ function stubHhmmToIso(hhmm) {
         d.setUTCDate(d.getUTCDate() + 1);
     }
     return d.toISOString();
-}
-
-function stubFillAirportRefs(refs) {
-    return geoAirports().catch(() => []).then(airports => Promise.all(refs.filter(Boolean).map(ref => {
-        if (ref.name === undefined) {
-            ref.name = airports.find(a => a.icao === ref.icao)?.name ?? null;
-        }
-        return airportCountry(ref.icao).then(country => ref.country = country);
-    })));
 }
