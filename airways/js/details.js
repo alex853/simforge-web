@@ -88,6 +88,9 @@ function fmtDuration(minutes) {
     if (minutes === null || minutes === undefined) {
         return '—';
     }
+    if (minutes < 0) {
+        return '—';
+    }
     return Math.floor(minutes / 60) + ':' + pad2(Math.round(minutes % 60));
 }
 
@@ -378,29 +381,39 @@ function loadAirportDetails(icao) {
     });
 }
 
-// FlightMinDto of /map/aircraft/full-info: date of flight + "HH:mm" times, times after midnight belong to the next day
+// FlightMinDto of /map/aircraft/full-info: date of flight + "HH:mm" times.
+// Arrival is never earlier than departure of the same kind (planned or actual), so it rolls over to the next day(s);
+// actual departure is placed within +-12h of the planned one, as it can be shifted over midnight.
 function recentFlightFromDto(f) {
     const base = new Date(f.dof + 'T00:00:00Z').getTime();
+    const DAY = 24 * HOUR;
     const hhmmToMs = hhmm => {
         const [h, m] = hhmm.split(':').map(Number);
         return base + (h * 60 + m) * MINUTE;
     };
-    const reference = f.adep ?? f.pdep;
-    const referenceMs = reference ? hhmmToMs(reference) : base;
-    const at = hhmm => {
+    const after = (hhmm, from) => {
         if (!hhmm) {
             return null;
         }
         let t = hhmmToMs(hhmm);
-        if (t < referenceMs - 12 * HOUR) {
-            t += 24 * HOUR;
+        while (from !== null && t < from) {
+            t += DAY;
         }
         return t;
     };
-    const std = at(f.pdep);
-    const atd = at(f.adep);
-    const sta = at(f.parr);
-    const ata = at(f.aarr);
+
+    const std = f.pdep ? hhmmToMs(f.pdep) : null;
+    let atd = f.adep ? hhmmToMs(f.adep) : null;
+    if (atd !== null && std !== null) {
+        if (atd < std - 12 * HOUR) {
+            atd += DAY;
+        } else if (atd > std + 12 * HOUR) {
+            atd -= DAY;
+        }
+    }
+    const sta = after(f.parr, std ?? atd);
+    const ata = after(f.aarr, atd ?? std);
+
     return {
         id: f.fmId,
         from: {icao: f.dep},
