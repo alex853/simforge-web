@@ -349,6 +349,7 @@
                         ? '<div class="flight-row-menu">' +
                           '<button type="button" onclick="rowMenuEditClicked(' + row + ', event)">Edit</button>' +
                           '<button type="button" onclick="rowMenuInsertAfterClicked(' + row + ', event)">Insert after</button>' +
+                          '<button type="button" onclick="rowMenuDeleteClicked(' + row + ', event)">Delete</button>' +
                           '</div>'
                         : '');
                 $('#' + currentRowId).closest('tr').replaceWith(html);
@@ -666,6 +667,60 @@
                 event.stopPropagation();
             }
             hideFlightRowMenu();
+        }
+
+        let deletingRecord = null;
+
+        function rowMenuDeleteClicked(row, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            hideFlightRowMenu();
+            const record = currentFlights[row - 1];
+            if (!record) {
+                return;
+            }
+            deletingRecord = record;
+            $('#flightDeleteModal').modal('show');
+        }
+
+        function confirmDeleteFlight() {
+            if (!deletingRecord) {
+                return;
+            }
+            const record = deletingRecord;
+            deletingRecord = null;
+            $('#flightDeleteModal').modal('hide');
+
+            // Same delete mechanism as discontinuity-editor.js
+            $.ajax({
+                url: gatewayUrl,
+                method: 'DELETE',
+                headers: {
+                    'Authorization': authToken
+                },
+                dataType: 'json',
+                data: JSON.stringify({
+                    "UserID": record["UserID"],
+                    "BeginningDT": record["BeginningDT"]
+                }),
+                success: function () {
+                    const index = flights.indexOf(record);
+                    if (index >= 0) {
+                        flights.splice(index, 1);
+                    }
+                    if (typeof showAlert === 'function') {
+                        showAlert('Flight deleted successfully', 'success', 5000);
+                    }
+                    refreshPage();
+                },
+                error: function (e) {
+                    if (typeof showAlert === 'function') {
+                        showAlert('Error happened!', 'danger', 15000);
+                    }
+                    console.log(e.responseText);
+                }
+            });
         }
 
         const rowMenuShowDelayMs = 500;
@@ -1130,5 +1185,20 @@
     </div>
 </div>
 
+<div class="modal" id="flightDeleteModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete flight</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">Please confirm that the flight record should be deleted.</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteFlight()">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
