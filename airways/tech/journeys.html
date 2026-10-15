@@ -72,12 +72,12 @@
                 <td id="total" class="align-middle" style="font-weight: bold;"></td>
                 <td></td>
                 <td></td>
-                <td></td>
-                <td></td>
-                <td>Itineraries done</td>
-                <td id="statsItinerariesDone" class="align-middle"></td>
                 <td>Too late to board</td>
                 <td id="statsTooLateToBoard" class="align-middle"></td>
+                <td>Itineraries done</td>
+                <td id="statsItinerariesDone" class="align-middle"></td>
+                <td>Orphaned</td>
+                <td id="statsOrphaned" class="align-middle"></td>
             </tr>
         </table>
 
@@ -183,6 +183,7 @@
         $('#statsFinished').text(data.Finished || '');
         $('#statsCouldNotFindTickets').text(data.CouldNotFindTickets || '');
         $('#statsTooLateToBoard').text(data.TooLateToBoard || '');
+        $('#statsOrphaned').text(data.Orphaned || '');
 
         $('#total').text((data.LookingForTickets || 0)
             + (data.SpendingTheirTime || 0)
@@ -194,7 +195,8 @@
             + (data.ItinerariesDone || 0)
             + (data.Finished || 0)
             + (data.CouldNotFindTickets || 0)
-            + (data.TooLateToBoard || 0));
+            + (data.TooLateToBoard || 0)
+            + (data.Orphaned || 0));
     }
 
     function reloadData() {
