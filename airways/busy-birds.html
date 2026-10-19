@@ -22,6 +22,8 @@
         .plan-options-row > .col:last-child { min-width: 0; }
         .plan-options-row .ferry-check { padding-bottom: 0.15rem; }
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
+        .pay-mark { display: inline-block; width: 1.15em; height: 1.15em; line-height: 1.05em; border: 1px solid currentColor; border-radius: 50%; font-size: 0.7em; text-align: center; margin-left: 0.35em; opacity: 0.65; cursor: help; vertical-align: middle; }
+        .pay-line { white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -176,9 +178,7 @@
                                 <th style="width: 6rem;" class="text-center">Type</th>
                                 <th style="width: 3rem;" class="text-center">PAX</th>
                                 <th style="width: 6rem;" class="text-center">Distance</th>
-                                <th style="width: 6rem;" class="text-center" title="Base hourly rate of the aircraft type * planned duration">Flight pay</th>
-                                <th style="width: 6rem;" class="text-center" title="3% of the income of the mission, revenue leg only">Income share</th>
-                                <th style="width: 6rem;" class="text-center" title="What the pilot gets for the leg: flight pay + income share">Pilot pay</th>
+                                <th style="width: 8rem;" class="text-center" title="What the pilot gets for the leg: flight pay and, for a revenue leg, the income share">Pilot pay</th>
                             </tr>
                             </thead>
                             <tbody id="planLegsBody"></tbody>
@@ -431,7 +431,7 @@
             const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
             arr.forEach(function (m) {
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
-                $tb.append('<tr><td colspan="10" class="text-muted text-center">' + text + '</td></tr>');
+                $tb.append('<tr><td colspan="8" class="text-muted text-center">' + text + '</td></tr>');
             });
             return;
         }
@@ -470,7 +470,24 @@
     }
 
     function money(value) {
-        return (value === undefined || value === null) ? "—" : String(value);
+        return formatPay(value);
+    }
+
+    // One number of the pay of a leg with a small circled letter, the title of the letter tells what the number is.
+    function payLine(value, letter, title) {
+        return '<div class="pay-line">' + money(value) + '<span class="pay-mark" title="' + title + '">' + letter + '</span></div>';
+    }
+
+    // The pay of a leg: the flight pay, and the income share if there is one (a revenue leg only), each on its own line.
+    function legPayCell(salary) {
+        if (!salary) {
+            return '—';
+        }
+        let html = payLine(salary.flightPay, 'F', 'Flight pay: hourly rate of the aircraft type * planned duration');
+        if (salary.incomeShare > 0) {
+            html += payLine(salary.incomeShare, 'I', 'Income share: 3% of the income of the mission');
+        }
+        return html;
     }
 
     function renderLegs(legs, planSalary) {
@@ -478,7 +495,7 @@
         const $tb = $('#planLegsBody');
         $tb.empty();
         if (!legs || legs.length === 0) {
-            $tb.append('<tr><td colspan="10" class="text-muted text-center">No legs in response</td></tr>');
+            $tb.append('<tr><td colspan="8" class="text-muted text-center">No legs in response</td></tr>');
             $('#planPilotPay').hide();
             return;
         }
@@ -500,18 +517,14 @@
                 '<td class="text-center">' + type + '</td>' +
                 '<td class="text-center">' + pax + '</td>' +
                 '<td class="text-center">' + distance + '</td>' +
-                '<td class="text-center">' + money(leg.salary ? leg.salary.flightPay : null) + '</td>' +
-                '<td class="text-center">' + money(leg.salary ? leg.salary.incomeShare : null) + '</td>' +
-                '<td class="text-center fw-bold">' + money(leg.salary ? leg.salary.total : null) + '</td>' +
+                '<td class="text-end">' + legPayCell(leg.salary) + '</td>' +
                 '</tr>';
             $tb.append(row);
         });
         if (planSalary) {
             $tb.append('<tr class="table-light fw-bold">' +
                 '<td colspan="7" class="text-end">Total for the whole plan</td>' +
-                '<td class="text-center">' + money(planSalary.flightPay) + '</td>' +
-                '<td class="text-center">' + money(planSalary.incomeShare) + '</td>' +
-                '<td class="text-center">' + money(planSalary.total) + '</td>' +
+                '<td class="text-end">' + money(planSalary.total) + '</td>' +
                 '</tr>');
             $('#planPilotPay').html('You will get <strong>' + money(planSalary.total) + '</strong> for the mission: flight pay ' +
                 money(planSalary.flightPay) + ' + income share ' + money(planSalary.incomeShare)).show();
