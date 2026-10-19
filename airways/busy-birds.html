@@ -98,7 +98,7 @@
                             <th>To</th>
                             <th class="text-end">PAX</th>
                             <th class="text-end">Distance</th>
-                            <th class="text-end">Pay</th>
+                            <th class="text-end" title="Income of the mission (what the passengers pay), the pilot gets a part of it">Income</th>
                         </tr>
                         </thead>
                         <tbody id="missionsBody">
@@ -130,7 +130,7 @@
                     <div class="text-muted">Mission</div>
                     <div class="mb-0">
                         <span class="fw-bold" id="planMetaMissionRoute"></span>
-                        <span class="text-muted">Pay:</span> <span class="fw-bold" id="planMetaMissionPay"></span>
+                        <span class="text-muted">Mission income:</span> <span class="fw-bold" id="planMetaMissionPay"></span>
                     </div>
                     <hr class="my-2">
                 </div>
@@ -164,6 +164,7 @@
                             </div>
                         </div>
                     </div>
+                    <div id="planPilotPay" class="alert alert-success py-2 mb-3" style="display: none;"></div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped table mb-0">
                             <thead class="table-light">
@@ -177,6 +178,7 @@
                                 <th style="width: 6rem;" class="text-center">Distance</th>
                                 <th style="width: 6rem;" class="text-center" title="Base hourly rate of the aircraft type * planned duration">Flight pay</th>
                                 <th style="width: 6rem;" class="text-center" title="3% of the income of the mission, revenue leg only">Income share</th>
+                                <th style="width: 6rem;" class="text-center" title="What the pilot gets for the leg: flight pay + income share">Pilot pay</th>
                             </tr>
                             </thead>
                             <tbody id="planLegsBody"></tbody>
@@ -425,10 +427,11 @@
             const $tb = $('#planLegsBody');
             $tb.empty();
             legsPayload = [];
+            $('#planPilotPay').hide();
             const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
             arr.forEach(function (m) {
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
-                $tb.append('<tr><td colspan="9" class="text-muted text-center">' + text + '</td></tr>');
+                $tb.append('<tr><td colspan="10" class="text-muted text-center">' + text + '</td></tr>');
             });
             return;
         }
@@ -475,7 +478,8 @@
         const $tb = $('#planLegsBody');
         $tb.empty();
         if (!legs || legs.length === 0) {
-            $tb.append('<tr><td colspan="9" class="text-muted text-center">No legs in response</td></tr>');
+            $tb.append('<tr><td colspan="10" class="text-muted text-center">No legs in response</td></tr>');
+            $('#planPilotPay').hide();
             return;
         }
         legs.forEach(function (leg, idx) {
@@ -498,15 +502,21 @@
                 '<td class="text-center">' + distance + '</td>' +
                 '<td class="text-center">' + money(leg.salary ? leg.salary.flightPay : null) + '</td>' +
                 '<td class="text-center">' + money(leg.salary ? leg.salary.incomeShare : null) + '</td>' +
+                '<td class="text-center fw-bold">' + money(leg.salary ? leg.salary.total : null) + '</td>' +
                 '</tr>';
             $tb.append(row);
         });
         if (planSalary) {
             $tb.append('<tr class="table-light fw-bold">' +
-                '<td colspan="7" class="text-end">Pilot pay for the whole plan: ' + money(planSalary.total) + '</td>' +
+                '<td colspan="7" class="text-end">Total for the whole plan</td>' +
                 '<td class="text-center">' + money(planSalary.flightPay) + '</td>' +
                 '<td class="text-center">' + money(planSalary.incomeShare) + '</td>' +
+                '<td class="text-center">' + money(planSalary.total) + '</td>' +
                 '</tr>');
+            $('#planPilotPay').html('You will get <strong>' + money(planSalary.total) + '</strong> for the mission: flight pay ' +
+                money(planSalary.flightPay) + ' + income share ' + money(planSalary.incomeShare)).show();
+        } else {
+            $('#planPilotPay').hide();
         }
     }
 
