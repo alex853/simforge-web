@@ -175,6 +175,8 @@
                                 <th style="width: 6rem;" class="text-center">Type</th>
                                 <th style="width: 3rem;" class="text-center">PAX</th>
                                 <th style="width: 6rem;" class="text-center">Distance</th>
+                                <th style="width: 6rem;" class="text-center" title="Base hourly rate of the aircraft type * planned duration">Flight pay</th>
+                                <th style="width: 6rem;" class="text-center" title="3% of the income of the mission, revenue leg only">Income share</th>
                             </tr>
                             </thead>
                             <tbody id="planLegsBody"></tbody>
@@ -392,6 +394,7 @@
                     id: p.id != null ? p.id : idx,
                     description: p.description ?? ('Plan ' + (idx + 1)),
                     legs: norm.legs,
+                    salary: p.salary,
                     messages: norm.messages
                 };
             }),
@@ -425,11 +428,11 @@
             const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
             arr.forEach(function (m) {
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
-                $tb.append('<tr><td colspan="7" class="text-muted text-center">' + text + '</td></tr>');
+                $tb.append('<tr><td colspan="9" class="text-muted text-center">' + text + '</td></tr>');
             });
             return;
         }
-        renderLegs(plan.legs);
+        renderLegs(plan.legs, plan.salary);
     }
 
     function showMessagesModal(messages) {
@@ -463,12 +466,16 @@
         return fallback;
     }
 
-    function renderLegs(legs) {
+    function money(value) {
+        return (value === undefined || value === null) ? "—" : String(value);
+    }
+
+    function renderLegs(legs, planSalary) {
         legsPayload = legs;
         const $tb = $('#planLegsBody');
         $tb.empty();
         if (!legs || legs.length === 0) {
-            $tb.append('<tr><td colspan="7" class="text-muted text-center">No legs in response</td></tr>');
+            $tb.append('<tr><td colspan="9" class="text-muted text-center">No legs in response</td></tr>');
             return;
         }
         legs.forEach(function (leg, idx) {
@@ -489,9 +496,18 @@
                 '<td class="text-center">' + type + '</td>' +
                 '<td class="text-center">' + pax + '</td>' +
                 '<td class="text-center">' + distance + '</td>' +
+                '<td class="text-center">' + money(leg.salary ? leg.salary.flightPay : null) + '</td>' +
+                '<td class="text-center">' + money(leg.salary ? leg.salary.incomeShare : null) + '</td>' +
                 '</tr>';
             $tb.append(row);
         });
+        if (planSalary) {
+            $tb.append('<tr class="table-light fw-bold">' +
+                '<td colspan="7" class="text-end">Pilot pay for the whole plan: ' + money(planSalary.total) + '</td>' +
+                '<td class="text-center">' + money(planSalary.flightPay) + '</td>' +
+                '<td class="text-center">' + money(planSalary.incomeShare) + '</td>' +
+                '</tr>');
+        }
     }
 
     function getPlanOptionParams() {
