@@ -336,8 +336,9 @@
         $(id).addClass('hidden');
     }
 
-    function userStateMessage(user) {
-        const state = user?.location?.state;
+    // status2.pilot: { state, expectedAirport, currentAirport } - the verdict about the pilot
+    function userStateMessage(pilot) {
+        const state = pilot?.state;
         switch (state) {
             case 'NO_PERSON':
                 return 'You have no pilot (person), flying is not available.';
@@ -346,21 +347,21 @@
             case 'PERSON_NOT_AT_AIRPORT':
                 return 'Your pilot is not at an airport, flying is not available.';
             case 'WRONG_AIRPORT':
-                return 'Your pilot is expected at ' + escapeHtml(user.location.expectedAirport ?? '?')
-                    + ' but the simulator puts the aircraft at ' + escapeHtml(user.location.currentAirport ?? '?') + '.';
+                return 'Your pilot is expected at ' + escapeHtml(pilot.expectedAirport ?? '?')
+                    + ' but the simulator puts the aircraft at ' + escapeHtml(pilot.currentAirport ?? '?') + '.';
             default:
                 return null;
         }
     }
 
     function isBlocked(status) {
-        return BLOCKING_USER_STATES.includes(status?.user?.location?.state);
+        return BLOCKING_USER_STATES.includes(status?.pilot?.state);
     }
 
     // One line which mirrors what the other dashboard (G7) sees: pilot, flight and transport flight statuses, when the status was loaded
     function renderStatusLine(status) {
         const parts = [];
-        const location = status.user?.location;
+        const location = status.pilot;
         if (location) {
             parts.push("Pilot: " + location.state + (location.expectedAirport ? " at " + location.expectedAirport : ""));
         }
@@ -395,7 +396,7 @@
 
         renderStatusLine(status);
 
-        const warning = userStateMessage(status.user);
+        const warning = userStateMessage(status.pilot);
         if (warning) {
             $('#user-state-warning').html(warning);
             show('#user-state-warning');

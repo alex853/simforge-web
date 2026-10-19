@@ -39,11 +39,39 @@
         <div class="flex-grow-1">
             <div class="entity-kind">busyBirds</div>
             <h1 class="entity-title">Mission booking</h1>
-            <div class="entity-sub">Select an aircraft and a mission, preview the legs, then book.</div>
+            <div class="entity-sub">Check your pilot, select an aircraft and a mission, get a quotation, then book.</div>
         </div>
     </header>
 
     <div id="alertHost"></div>
+
+    <section class="card section mb-4" id="pilotCard">
+        <div class="card-header">
+            <span class="section-title">Pilot</span>
+        </div>
+        <div class="card-body" id="pilotBody">
+            <span class="text-secondary">Loading…</span>
+        </div>
+    </section>
+
+    <section class="card section mb-4">
+        <div class="card-header">
+            <span class="section-title">Aircraft</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col">
+                    <select id="aircraftSelect" class="form-select" disabled>
+                        <option value="">Loading…</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="button" id="btnQuote" class="btn btn-primary">Get quote</button>
+                </div>
+            </div>
+            <div class="form-text" id="aircraftHelp"></div>
+        </div>
+    </section>
 
     <div class="row g-4">
         <!-- sidebar goes first on narrow screens -->
@@ -65,21 +93,6 @@
                         <select id="cityTo" class="form-select" disabled>
                             <option value="">Loading…</option>
                         </select>
-                    </div>
-                </div>
-            </section>
-
-            <section class="card section mb-4">
-                <div class="card-header">
-                    <span class="section-title">Aircraft</span>
-                </div>
-                <div class="card-body">
-                    <select id="aircraftSelect" class="form-select" disabled>
-                        <option value="">Loading…</option>
-                    </select>
-                    <div class="form-text" id="aircraftHelp"></div>
-                    <div class="mt-3">
-                        <button type="button" id="btnShowLegs" class="btn btn-primary w-100">Show legs</button>
                     </div>
                 </div>
             </section>
@@ -118,7 +131,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="planModalTitle">Proposed Mission Plan</h5>
+                <h5 class="modal-title" id="planModalTitle">Mission quotation</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -313,25 +326,43 @@
         renderMissionsAndFilters();
     }
 
+    // All free aircraft of busyBirds as the server gave them; the dropdown shows only the ones at the airport of the pilot
+    let allAircraft = null;
+
     function renderAircraftList(list) {
-        aircraft = Array.isArray(list) ? list : [];
-        const $sel = $('#aircraftSelect');
-        $sel.empty();
-        if (!aircraft || aircraft.length === 0) {
-            $sel.append('<option value="">No aircraft</option>');
-            $sel.prop('disabled', true);
-            $('#aircraftHelp').text('No aircraft returned (check ' + '/busy-birds/aircraft/available' + ').');
+        allAircraft = Array.isArray(list) ? list : [];
+        updateAircraftDropdown();
+    }
+
+    // The dropdown needs both the aircraft and the pilot (pilotInfo is loaded in parallel, see renderPilotBlock)
+    function updateAircraftDropdown() {
+        if (allAircraft === null || pilotInfo === undefined) {
             return;
         }
-        $sel.append('<option value="">Choose aircraft…</option>');
+
+        const $sel = $('#aircraftSelect');
+        $sel.empty();
+
+        const airport = pilotInfo ? pilotInfo.airportIcao : null;
+        aircraft = airport
+            ? allAircraft.filter(function (a) { return String(a.locationAirportIcao ?? '').toUpperCase() === airport.toUpperCase(); })
+            : [];
+
+        if (aircraft.length === 0) {
+            $sel.append('<option value="">No aircraft</option>');
+            $sel.prop('disabled', true);
+            $('#aircraftHelp').text(!pilotInfo ? 'Your pilot is not known, so there is no aircraft to choose.'
+                : !airport ? 'Your pilot is not at an airport.'
+                : 'No aircraft at ' + airport + '.');
+            return;
+        }
+        $sel.append('<option value="">Choose aircraft at ' + escapeHtml(airport) + '…</option>');
         aircraft.forEach(function (a) {
             const id = a.id;
             const reg = a.regNo ?? '';
             const type = a.typeCode ?? a.type ?? '';
-            const loc = a.locationAirportIcao ?? a.locationAirportName ?? a.locationAirportId ?? '';
-            const parts = [reg || ('#' + id), type, loc].filter(function (p) { return p; });
-            const label = parts.join(' · ');
-            $sel.append($('<option></option>').attr('value', id).text(label));
+            const parts = [reg || ('#' + id), type].filter(function (p) { return p; });
+            $sel.append($('<option></option>').attr('value', id).text(parts.join(' · ')));
         });
         $sel.prop('disabled', false);
         $('#aircraftHelp').text('');
@@ -550,7 +581,7 @@
     function showLegsModal(plans, options) {
         options = options || {};
         buildPlans = plans;
-        $('#planModalTitle').text('Proposed Mission Plan');
+        $('#planModalTitle').text('Mission quotation');
         $('#planMessagesWrap').hide();
         $('#planLegsWrap').show();
         $('#btnPlanBook').show();
@@ -641,8 +672,66 @@
         return (v != null && v !== '') ? String(v) : null;
     }
 
+    // The pilot block is built from two calls: GET /pilot (who and where: facts) and GET /busy-birds/booking-status (may a flight be booked at all).
+    // undefined - not loaded yet, null - failed or there is no pilot.
+    let pilotInfo;
+    let bookingStatus;
+
+    function renderPilotBlock() {
+        if (pilotInfo === undefined || bookingStatus === undefined) {
+            return;
+        }
+
+        let html = '';
+        if (pilotInfo) {
+            const p = pilotInfo;
+            const location = p.airportIcao
+                ? '<span class="fw-semibold">' + escapeHtml(p.airportIcao) + '</span>' + (p.airportName ? ' <span class="text-secondary">' + escapeHtml(p.airportName) + '</span>' : '')
+                : '<span class="text-secondary">' + escapeHtml(p.cityName || 'not at an airport') + '</span>';
+            const stateClass = p.state === 'Idle' ? 'text-bg-success' : 'text-bg-secondary';
+            html +=
+                '<div class="row g-3">' +
+                '<div class="col-6 col-md-3"><div class="stat-label">Pilot</div><div class="fs-5 fw-semibold">' + escapeHtml(p.initials || '—') + '</div></div>' +
+                '<div class="col-6 col-md-3"><div class="stat-label">State</div><div class="fs-5"><span class="badge ' + stateClass + '">' + escapeHtml(p.state || '') + '</span></div></div>' +
+                '<div class="col-12 col-md-6"><div class="stat-label">Location</div><div class="fs-5">' + location + '</div></div>' +
+                '</div>';
+        } else {
+            html += '<span class="text-secondary">Pilot information is not available.</span>';
+        }
+
+        if (bookingStatus && !bookingStatus.canBook) {
+            html += '<div class="alert alert-warning mt-3 mb-0">' + escapeHtml(bookingStatus.problem || 'Flights cannot be booked now.') + '</div>';
+        }
+        $('#pilotBody').html(html);
+    }
+
+    function escapeHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
     $(document).ready(function () {
         planModal = new bootstrap.Modal(document.getElementById('planModal'));
+
+        airwaysAuth('GET', '/pilot', {}, function (p) {
+            pilotInfo = p;
+            renderPilotBlock();
+            updateAircraftDropdown();
+        }, function () {
+            pilotInfo = null;
+            renderPilotBlock();
+            updateAircraftDropdown();
+        });
+        airwaysAuth('GET', '/busy-birds/booking-status', {}, function (s) {
+            bookingStatus = s;
+            renderPilotBlock();
+        }, function () {
+            bookingStatus = null;
+            renderPilotBlock();
+        });
 
         airwaysAuth('GET', '/busy-birds/mission/to-book', {}, function (data) {
             setMissions(data);
@@ -687,7 +776,7 @@
             $(this).addClass('picked');
         });
 
-        $('#btnShowLegs').on('click', function () {
+        $('#btnQuote').on('click', function () {
             clearAlert();
             const missionId = getSelectedMissionId();
             const aircraftId = getSelectedAircraftId();
@@ -737,6 +826,11 @@
                 aircraftId: aircraftId,
                 planId: plan.id
             }, getPlanOptionParams()), function (response) {
+                // a refusal (no pilot, the pilot is elsewhere, no plan) is a normal 200 response with status "failure" and the reasons
+                if (response && response.status === 'failure') {
+                    showMessagesModal(response.messages || ['Booking failed.']);
+                    return;
+                }
                 window.location.href = 'flight-dashboard.html';
             }, function (xhr) {
                 const j = xhr.responseJSON;

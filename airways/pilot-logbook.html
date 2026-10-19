@@ -34,6 +34,11 @@
         return value > 0 ? value.toFixed(1) : '<span class="text-secondary">—</span>';
     }
 
+    // the error of the page without the "Back to map" link of the common showError
+    function showPageError(message) {
+        $('#page').html(`<div class="alert alert-warning fs-5">${esc(message)}</div>`);
+    }
+
     function airportLink(icao) {
         return icao ? `<a class="entity-link" href="${airportUrl(icao)}">${esc(icao)}</a>` : '—';
     }
@@ -87,11 +92,11 @@
         showLoading();
         airwaysAuth('GET', '/pilot/logbook', {}, renderLogbook, function (e) {
             if (e && e.status === 401) {
-                showError('Not signed in: check the token in localStorage (airwaysToken)');
+                showPageError('Not signed in: check the token in localStorage (airwaysToken)');
             } else if (e && e.status === 404) {
-                showError('You have no pilot yet, so there is no logbook');
+                showPageError('You have no pilot yet, so there is no logbook');
             } else {
-                showError('Failed to load the logbook');
+                showPageError('Failed to load the logbook');
             }
         });
     });
