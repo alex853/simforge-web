@@ -200,6 +200,7 @@
                     <div style="flex: 0 0 9rem; font-size: 0.75em; text-align: center;">Tracking<br><span id="tracking-mode" class="fw-bold">---</span></div>
                 </div>
 
+                <div id="status-line" class="small text-muted text-center py-1"></div>
                 <div id="user-state-warning" class="alert alert-danger m-2 py-2 hidden"></div>
                 <div id="action-message" class="alert alert-secondary m-2 py-2 hidden"></div>
 
@@ -316,6 +317,7 @@
     let refreshTimerId = null;
     let actionInProgress = false;
     let lastStatus = null;
+    let loadErrorShown = false;
 
     function escapeHtml(s) {
         return String(s ?? '')
@@ -355,6 +357,20 @@
         return BLOCKING_USER_STATES.includes(status?.user?.location?.state);
     }
 
+    // One line which mirrors what the other dashboard (G7) sees: pilot, flight and transport flight statuses, when the status was loaded
+    function renderStatusLine(status) {
+        const parts = [];
+        const location = status.user?.location;
+        if (location) {
+            parts.push("Pilot: " + location.state + (location.expectedAirport ? " at " + location.expectedAirport : ""));
+        }
+        if (status.flight) {
+            parts.push("Flight: " + status.flight.fmSt + (status.flight.tfSt ? " / T/F: " + status.flight.tfSt : ""));
+        }
+        parts.push("updated " + new Date().toISOString().slice(11, 19) + "Z");
+        $("#status-line").text(parts.join("  |  "));
+    }
+
     function restartRefreshTimer() {
         if (refreshTimerId) {
             clearInterval(refreshTimerId);
@@ -376,6 +392,8 @@
         $('#sim-status-engine-running').text(status.sim.engineRunning === null ? '' : status.sim.engineRunning ? 'RUN' : 'OFF');
         $('#sim-status-measured-gs').text(status.sim.measuredGs ?? '');
         $('#tracking-mode').text(status.mode === 'SIM_TRACKER' ? 'Sim tracker' : 'Manual');
+
+        renderStatusLine(status);
 
         const warning = userStateMessage(status.user);
         if (warning) {
@@ -530,8 +548,13 @@
 
     function loadStatus2() {
         airwaysAuth('GET', '/flight-dashboard/status2', {}, function (response) {
+            if (loadErrorShown) {
+                loadErrorShown = false;
+                showActionMessage(null);
+            }
             renderStatus2(response);
         }, function (e) {
+            loadErrorShown = true;
             showActionMessage('Failed to load the status (check token in localStorage: airwaysToken)', true);
         });
     }
