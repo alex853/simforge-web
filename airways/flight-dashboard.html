@@ -201,6 +201,7 @@
                 </div>
 
                 <div id="status-line" class="small text-muted text-center py-1"></div>
+                <div id="sim-warning" class="alert alert-warning m-2 py-2 hidden"></div>
                 <div id="user-state-warning" class="alert alert-danger m-2 py-2 hidden"></div>
                 <div id="action-message" class="alert alert-secondary m-2 py-2 hidden"></div>
 
@@ -280,16 +281,18 @@
 </div>
 
 <script>
-    // The dashboard works in two modes, the server tells which one in status2.mode:
+    // A flight goes in one of two modes, the pilot chooses it when he starts the flight and it does not change after that (status2.mode, null before the start):
     //   SIM_TRACKER - the sim tracker (G7 FlightBag etc.) does Blocks Off, Takeoff, Landing and Blocks On itself, here they are only shown as tracked automatically;
     //   MANUAL      - nothing tracks the flight, the pilot presses a button for every step.
+    // Before the start both ways are offered while the sim reports come in (Start tracked flight / Start manual flight), without them only the manual one.
     // What is offered now is in status2.actions (name + allowed + checks), the same list for both modes.
 
     // The steps which are done by the tracker in the SIM_TRACKER mode. In MANUAL mode they are buttons.
     const TRACKED_ACTIONS = ['blocks-off', 'takeoff', 'landing', 'blocks-on'];
 
     const ACTION_LABELS = {
-        'start-flight': 'Start Flight',
+        'start-flight': 'Start tracked flight',
+        'start-flight-manual': 'Start manual flight',
         'start-boarding': 'Start Boarding',
         'blocks-off': 'Blocks Off',
         'takeoff': 'Takeoff',
@@ -310,8 +313,15 @@
         'Finished': 'finished'
     };
 
-    // The server refuses the actions in these states of the pilot of the user (403), the buttons are disabled
+    // The server refuses the actions in these states of the pilot of the user (403), the buttons are disabled. The position of the sim means nothing
+    // for a manual flight, so WRONG_AIRPORT does not block the manual start.
     const BLOCKING_USER_STATES = ['NO_PERSON', 'PERSON_NOT_IDLE', 'PERSON_NOT_AT_AIRPORT', 'WRONG_AIRPORT'];
+
+    // An action is sent to this request: the manual start is the same start with mode=manual, the tracked one with mode=tracker.
+    const ACTION_REQUESTS = {
+        'start-flight': {url: 'start-flight', params: {mode: 'tracker'}},
+        'start-flight-manual': {url: 'start-flight', params: {mode: 'manual'}}
+    };
 
     let flightId = null;
     let refreshTimerId = null;
@@ -354,8 +364,12 @@
         }
     }
 
-    function isBlocked(status) {
-        return BLOCKING_USER_STATES.includes(status?.pilot?.state);
+    function isBlocked(status, actionName) {
+        const state = status?.pilot?.state;
+        if (actionName === 'start-flight-manual' && state === 'WRONG_AIRPORT') {
+            return false;
+        }
+        return BLOCKING_USER_STATES.includes(state);
     }
 
     // One line which mirrors what the other dashboard (G7) sees: pilot, flight and transport flight statuses, when the status was loaded
@@ -383,6 +397,20 @@
         }, 10000);
     }
 
+    // The mode of the flight; before the start the sim reports tell what can be chosen
+    function trackingModeText(status) {
+        if (status.mode === 'SIM_TRACKER') {
+            return 'Sim tracker';
+        }
+        if (status.mode === 'MANUAL') {
+            return 'Manual';
+        }
+        if (status.flight === null) {
+            return '---';
+        }
+        return status.sim.status === 'Connected' ? 'Choose at start' : 'Manual only';
+    }
+
     function renderStatus2(status) {
         lastStatus = status;
 
@@ -392,9 +420,17 @@
         $('#sim-status-parking-brake').text(status.sim.parkingBrake === null ? '' : status.sim.parkingBrake ? 'SET' : 'OFF');
         $('#sim-status-engine-running').text(status.sim.engineRunning === null ? '' : status.sim.engineRunning ? 'RUN' : 'OFF');
         $('#sim-status-measured-gs').text(status.sim.measuredGs ?? '');
-        $('#tracking-mode').text(status.mode === 'SIM_TRACKER' ? 'Sim tracker' : 'Manual');
+        $('#tracking-mode').text(trackingModeText(status));
 
         renderStatusLine(status);
+
+        // a tracked flight without the reports of the sim: nothing happens by itself until they come back
+        if (status.mode === 'SIM_TRACKER' && status.sim.status !== 'Connected') {
+            $('#sim-warning').text('The sim tracker is not connected: there were no reports from the sim for a while.');
+            show('#sim-warning');
+        } else {
+            hide('#sim-warning');
+        }
 
         const warning = userStateMessage(status.pilot);
         if (warning) {
@@ -477,10 +513,11 @@
         const $stage = $('#flight-stage-' + stage);
         const $buttons = $stage.find('.stage-actions').empty();
         const $checks = $stage.find('.stage-checks').empty();
-        const blocked = isBlocked(status);
         const manual = status.mode === 'MANUAL';
+        const actions = status.actions ?? [];
+        const bothStarts = actions.some(a => a.name === 'start-flight') && actions.some(a => a.name === 'start-flight-manual');
 
-        (status.actions ?? []).forEach(action => {
+        actions.forEach(action => {
             if (action.name === 'reschedule') {
                 return; // no dashboard button for it yet
             }
@@ -491,8 +528,10 @@
             }
 
             const label = ACTION_LABELS[action.name] ?? action.name;
-            if (action.allowed && !blocked) {
-                const $button = $('<button class="btn btn-success m-2"></button>').text(label);
+            if (action.allowed && !isBlocked(status, action.name)) {
+                // when the pilot may choose, the manual start is the quiet one
+                const style = action.name === 'start-flight-manual' && bothStarts ? 'btn-outline-success' : 'btn-success';
+                const $button = $('<button class="btn m-2 ' + style + '"></button>').text(label);
                 $button.on('click', function () {
                     sendAction(action.name);
                 });
@@ -505,9 +544,13 @@
             }
         });
 
+        if (bothStarts) {
+            $checks.append('<div class="text-secondary small">Tracked: Blocks Off, Takeoff, Landing and Blocks On follow the sim. Manual: you press the buttons.</div>');
+        }
+
         // In the sim tracker mode the steps done by the tracker are not in the list of actions before their time, but the pilot has to know that
         // they are not done by a button: the stage says it.
-        if (!manual && $buttons.children().length === 0) {
+        if (status.mode === 'SIM_TRACKER' && $buttons.children().length === 0) {
             const note = {
                 'departure': 'Takeoff will be tracked automatically',
                 'flying': 'Landing will be tracked automatically',
@@ -569,9 +612,10 @@
         $('.stage-actions button').addClass('disabled');
         showActionMessage((ACTION_LABELS[actionName] ?? actionName) + '...', false);
 
-        airwaysAuth('POST', `/flight-dashboard/${actionName}`, {
+        const request = ACTION_REQUESTS[actionName] ?? {url: actionName, params: {}};
+        airwaysAuth('POST', `/flight-dashboard/${request.url}`, Object.assign({
             flightId: flightId,
-        }, function (response) {
+        }, request.params), function (response) {
             actionInProgress = false;
             showActionMessage(null);
             renderStatus2(response);
