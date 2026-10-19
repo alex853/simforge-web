@@ -96,7 +96,7 @@ function _airwaysAuth(authType, method, url, data, callback, errorCallback) {
         error: function (e) {
             console.error("error loading " + url + " data");
             if (errorCallback) {
-                errorCallback();
+                errorCallback(e);
             }
         }
     });
