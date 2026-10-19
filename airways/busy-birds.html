@@ -87,12 +87,13 @@
                             <option value="">Loading…</option>
                         </select>
                     </div>
-                    <div class="mt-3">
-                        <button type="button" id="btnQuote" class="btn btn-primary w-100" disabled>Get quote</button>
-                        <div class="form-text">Select a mission and an aircraft.</div>
-                    </div>
                 </div>
             </section>
+
+            <div class="mb-4">
+                <button type="button" id="btnQuote" class="btn btn-primary w-100" disabled>Get quote</button>
+                <div class="form-text">Select a mission and an aircraft.</div>
+            </div>
         </div>
 
         <div class="col-lg-8">
@@ -176,19 +177,18 @@
                             </div>
                         </div>
                     </div>
-                    <div id="planPilotPay" class="alert alert-success py-2 mb-3" style="display: none;"></div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped table mb-0">
                             <thead class="table-light">
                             <tr>
                                 <th style="width: 2rem;" class="text-center">#</th>
-                                <th style="width: 6rem;" class="text-center">DOF</th>
+                                <th style="width: 7.5rem;" class="text-center">DOF</th>
                                 <th style="width: 5rem;" class="text-center">From</th>
                                 <th style="width: 5rem;" class="text-center">To</th>
                                 <th style="width: 6rem;" class="text-center">Type</th>
                                 <th style="width: 3rem;" class="text-center">PAX</th>
                                 <th style="width: 6rem;" class="text-center">Distance</th>
-                                <th style="width: 8rem;" class="text-center" title="What the pilot gets for the leg: flight pay and, for a revenue leg, the income share">Pilot pay</th>
+                                <th style="width: 6rem;" class="text-center" title="What the pilot gets for the leg: flight pay and, for a revenue leg, the income share">Pilot pay</th>
                             </tr>
                             </thead>
                             <tbody id="planLegsBody"></tbody>
@@ -327,6 +327,41 @@
     function setMissions(data) {
         missions = Array.isArray(data) ? data : [];
         renderMissionsAndFilters();
+        applyDefaultFromCity();
+    }
+
+    // "City from" starts at the biggest city of the airport of the pilot which has missions, as long as the user has not picked a city
+    // (the same as the tab of G7 does). The cities of an airport come from the public /map/airport/info, biggest first, matched by id.
+    let fromCityChosen = false;
+    let airportCityIds = null; // city ids of the airport of the pilot, biggest first; null until loaded
+
+    function loadAirportCities(icao) {
+        fetch(airwaysServiceUrl + '/map/airport/info?icao=' + encodeURIComponent(icao))
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (info) {
+                const cities = info && Array.isArray(info.cities) ? info.cities.slice() : [];
+                cities.sort(function (a, b) { return (b.population || 0) - (a.population || 0); });
+                airportCityIds = cities.map(function (c) { return c.id; });
+                applyDefaultFromCity();
+            })
+            .catch(function (e) {
+                console.warn('could not load the cities of ' + icao, e);
+                airportCityIds = [];
+            });
+    }
+
+    function applyDefaultFromCity() {
+        if (fromCityChosen || !airportCityIds || missions.length === 0) {
+            return;
+        }
+        for (let i = 0; i < airportCityIds.length; i++) {
+            const mission = missions.find(function (m) { return sameId(m.fromCityId, airportCityIds[i]); });
+            if (mission) {
+                filterFrom = mission.fromCityName;
+                renderMissionsAndFilters();
+                return;
+            }
+        }
     }
 
     // All free aircraft of busyBirds as the server gave them; the dropdown shows only the ones at the airport of the pilot
@@ -463,7 +498,6 @@
             const $tb = $('#planLegsBody');
             $tb.empty();
             legsPayload = [];
-            $('#planPilotPay').hide();
             const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
             arr.forEach(function (m) {
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
@@ -532,7 +566,6 @@
         $tb.empty();
         if (!legs || legs.length === 0) {
             $tb.append('<tr><td colspan="8" class="text-muted text-center">No legs in response</td></tr>');
-            $('#planPilotPay').hide();
             return;
         }
         legs.forEach(function (leg, idx) {
@@ -547,7 +580,7 @@
 
             const row = '<tr>' +
                 '<td class="text-center">' + (idx + 1) + '</td>' +
-                '<td class="text-center">' + dof + '</td>' +
+                '<td class="text-center text-nowrap">' + dof + '</td>' +
                 '<td class="text-center">' + from + '<br><span style="font-size: 0.8em;">' + depTime + '</span></td>' +
                 '<td class="text-center">' + to + '<br><span style="font-size: 0.8em;">' + arrTime + '</span></td>' +
                 '<td class="text-center">' + type + '</td>' +
@@ -560,12 +593,8 @@
         if (planSalary) {
             $tb.append('<tr class="table-light fw-bold">' +
                 '<td colspan="7" class="text-end">Total for the whole plan</td>' +
-                '<td class="text-end">' + money(planSalary.total) + '</td>' +
+                '<td class="text-end"><div class="pay-line">' + money(planSalary.total) + '<span class="pay-mark" style="visibility: hidden;">F</span></div></td>' +
                 '</tr>');
-            $('#planPilotPay').html('You will get <strong>' + money(planSalary.total) + '</strong> for the mission: flight pay ' +
-                money(planSalary.flightPay) + ' + income share ' + money(planSalary.incomeShare)).show();
-        } else {
-            $('#planPilotPay').hide();
         }
     }
 
@@ -725,6 +754,9 @@
             pilotInfo = p;
             renderPilotBlock();
             updateAircraftDropdown();
+            if (p.airportIcao) {
+                loadAirportCities(p.airportIcao);
+            }
         }, function () {
             pilotInfo = null;
             renderPilotBlock();
@@ -759,6 +791,7 @@
 
         // route filter
         $('#cityFrom').on('change', function () {
+            fromCityChosen = true;
             filterFrom = $(this).val() || '';
             renderMissionsAndFilters();
         });
@@ -767,6 +800,7 @@
             renderMissionsAndFilters();
         });
         $('#btnResetFilters').on('click', function () {
+            fromCityChosen = true;
             filterFrom = '';
             filterTo = '';
             renderMissionsAndFilters();
