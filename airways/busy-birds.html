@@ -59,16 +59,9 @@
             <span class="section-title">Aircraft</span>
         </div>
         <div class="card-body">
-            <div class="row g-2">
-                <div class="col">
-                    <select id="aircraftSelect" class="form-select" disabled>
-                        <option value="">Loading…</option>
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <button type="button" id="btnQuote" class="btn btn-primary">Get quote</button>
-                </div>
-            </div>
+            <select id="aircraftSelect" class="form-select" disabled>
+                <option value="">Loading…</option>
+            </select>
             <div class="form-text" id="aircraftHelp"></div>
         </div>
     </section>
@@ -93,6 +86,10 @@
                         <select id="cityTo" class="form-select" disabled>
                             <option value="">Loading…</option>
                         </select>
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" id="btnQuote" class="btn btn-primary w-100" disabled>Get quote</button>
+                        <div class="form-text">Select a mission and an aircraft.</div>
                     </div>
                 </div>
             </section>
@@ -319,6 +316,12 @@
     function renderMissionsAndFilters() {
         renderCityFilters();
         renderMissions();
+        updateQuoteButton();
+    }
+
+    // Get quote needs a picked mission and a chosen aircraft
+    function updateQuoteButton() {
+        $('#btnQuote').prop('disabled', !(getSelectedMissionId() && getSelectedAircraftId()));
     }
 
     function setMissions(data) {
@@ -351,6 +354,7 @@
         if (aircraft.length === 0) {
             $sel.append('<option value="">No aircraft</option>');
             $sel.prop('disabled', true);
+            updateQuoteButton();
             $('#aircraftHelp').text(!pilotInfo ? 'Your pilot is not known, so there is no aircraft to choose.'
                 : !airport ? 'Your pilot is not at an airport.'
                 : 'No aircraft at ' + airport + '.');
@@ -366,6 +370,7 @@
         });
         $sel.prop('disabled', false);
         $('#aircraftHelp').text('');
+        updateQuoteButton();
     }
 
     function sameId(a, b) {
@@ -750,6 +755,8 @@
             $('#aircraftHelp').text('Aircraft list not available yet.');
         });
 
+        $('#aircraftSelect').on('change', updateQuoteButton);
+
         // route filter
         $('#cityFrom').on('change', function () {
             filterFrom = $(this).val() || '';
@@ -772,6 +779,7 @@
                 $radio.prop('checked', true);
             }
             pickedMissionId = String($radio.val());
+            updateQuoteButton();
             $('#missionsBody tr.mission-row').removeClass('picked');
             $(this).addClass('picked');
         });
