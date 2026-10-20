@@ -61,7 +61,7 @@
         ]);
 
         $('#page').html(`
-            ${entityHeader({kind: 'Pilot', title: 'Logbook'})}
+            ${entityHeader({kind: 'Pilot', title: 'Logbook', aside: '<a class="entity-link" href="pilot-qualifications.html">Qualifications</a>'})}
 
             ${statTiles([
                 {label: 'Flights', value: fmtNumber(t.flights)},

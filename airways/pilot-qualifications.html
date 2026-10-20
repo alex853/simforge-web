@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / Qualifications</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="css/details.css" rel="stylesheet">
+
+    <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
+
+<main class="container-lg py-4" id="page"></main>
+
+<script>
+    // GET /pilot/qualifications (token of the user): the totals of the logbook and the currency of the pilot on every type of aircraft of the logbook
+
+    // the error of the page without the "Back to map" link of the common showError
+    function showPageError(message) {
+        $('#page').html(`<div class="alert alert-warning fs-5">${esc(message)}</div>`);
+    }
+
+    // 24 -> '24 h', 48 -> '2 d', 2160 -> '90 d'
+    function windowText(hours) {
+        return hours >= 48 && hours % 24 === 0 ? (hours / 24) + ' d' : hours + ' h';
+    }
+
+    // a column title with a small second line
+    function title(main, hint) {
+        return main + '<br><span class="text-secondary fw-normal">' + hint + '</span>';
+    }
+
+    function renderQualifications(q) {
+        const t = q.totals;
+        const recentLandings = windowText(q.recentLandingsWindowHours);
+        const recentFlights = q.recentFlightsWindowDays >= 360 ? '12 months' : q.recentFlightsWindowDays + ' d';
+
+        const rows = q.types.map(a => [
+            '<span class="fw-semibold">' + esc(a.aircraftType) + '</span>',
+            fmtNumber(a.recentLandings),
+            fmtNumber(a.landings),
+            fmtNumber(a.nightTakeoffs),
+            fmtNumber(a.nightLandings),
+            fmtNumber(a.recentFlights),
+            fmtNumber(a.flights),
+            a.flightTime.toFixed(1)
+        ]);
+
+        $('#page').html(`
+            ${entityHeader({kind: 'Pilot', title: 'Qualifications', aside: '<a class="entity-link" href="pilot-logbook.html">Logbook</a>'})}
+
+            ${statTiles([
+                {label: 'Flights', value: fmtNumber(t.flights)},
+                {label: 'Flight time', value: t.flightTime.toFixed(1), hint: 'hours'},
+                {label: 'Night', value: t.nightTime.toFixed(1), hint: 'hours'},
+                {label: 'IFR', value: t.ifrTime.toFixed(1), hint: 'hours'},
+                {label: 'Takeoffs', value: `${t.dayTakeoffs} / ${t.nightTakeoffs}`, hint: 'day / night'},
+                {label: 'Landings', value: `${t.dayLandings} / ${t.nightLandings}`, hint: 'day / night'}
+            ])}
+
+            ${section('Aircraft type currency', dataTable([
+                {title: 'Type'},
+                {title: title('Landings', 'last ' + recentLandings), cls: 'text-end'},
+                {title: title('Landings', 'total'), cls: 'text-end'},
+                {title: title('Night T/O', 'total'), cls: 'text-end'},
+                {title: title('Night ldg', 'total'), cls: 'text-end'},
+                {title: title('Flights', recentFlights), cls: 'text-end'},
+                {title: title('Flights', 'total'), cls: 'text-end'},
+                {title: title('Hours', 'total'), cls: 'text-end'}
+            ], rows, 'No flights yet'), {count: q.types.length})}
+        `);
+    }
+
+    $(document).ready(function () {
+        showLoading();
+        airwaysAuth('GET', '/pilot/qualifications', {}, renderQualifications, function (e) {
+            if (e && e.status === 401) {
+                showPageError('Not signed in: check the token in localStorage (airwaysToken)');
+            } else if (e && e.status === 404) {
+                showPageError('You have no pilot yet, so there are no qualifications');
+            } else {
+                showPageError('Failed to load the qualifications');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
