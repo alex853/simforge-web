@@ -21,7 +21,10 @@
     <style>
         .criterion-ok { color: var(--bs-success); font-weight: 700; }
         .criterion-no { color: #fd7e14; font-weight: 700; }
-        .totals-col { color: var(--bs-secondary-color); }
+        .vtitle { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-weight: 600; margin: 0 auto; }
+        .info { color: var(--bs-secondary-color); cursor: help; font-size: .8em; border: 1px solid currentColor; border-radius: 50%; display: inline-block; width: 1.4em; height: 1.4em; line-height: 1.3em; text-align: center; font-style: italic; }
+        .group-start { border-left: 1px solid var(--bs-border-color); }
+        th.sub { font-weight: 400; color: var(--bs-secondary); font-size: .85em; }
     </style>
 </head>
 <body>
@@ -44,16 +47,6 @@
         $('#page').html(`<div class="alert alert-warning fs-5">${esc(message)}</div>`);
     }
 
-    // 24 -> '24 h', 48 -> '2 d', 2160 -> '90 d'
-    function windowText(hours) {
-        return hours >= 48 && hours % 24 === 0 ? (hours / 24) + ' d' : hours + ' h';
-    }
-
-    // a column title with a small second line
-    function title(main, hint) {
-        return main + '<br><span class="text-secondary fw-normal">' + hint + '</span>';
-    }
-
     // the mark of a criterion: a green tick or an orange cross, the tooltip tells what the criterion is
     function mark(ok, tooltip) {
         return ok
@@ -66,35 +59,73 @@
         return ['0', 'I', 'II', 'III', 'IV', 'V'][level] ?? String(level);
     }
 
-    // the cell of the experience level: the roman number and a mark (a tick from the level I, a cross at 0); the tooltip tells what the next level needs
-    function experienceCell(a, levels) {
+    // the tooltip of the experience level: what the next level needs
+    function experienceTooltip(a, levels) {
         const next = levels.find(l => l.level === a.experienceLevel + 1);
-        const tooltip = 'Experience level ' + roman(a.experienceLevel) + ' (flights and hours on the type, both needed)'
+        return 'Experience level ' + roman(a.experienceLevel) + ' of 0 to V, counted on the total flights and total hours on the type (both needed)'
             + (next ? '. Next, ' + roman(next.level) + ': ' + next.flights + ' flights and ' + next.hours + ' hours.' : '. The highest level.');
-        return '<span class="fw-semibold">' + roman(a.experienceLevel) + '</span> ' + mark(a.experienceLevel >= 1, tooltip);
+    }
+
+    // the small "i" with the explanation
+    function info(text) {
+        return ' <span class="info" title="' + esc(text) + '">i</span>';
+    }
+
+    // a rotated column title (rowspan 2) with the "i"
+    function vth(label, hint, cls) {
+        return '<th rowspan="2" class="text-center align-bottom ' + (cls ?? '') + '"><div class="vtitle">' + label + '</div>' + info(hint) + '</th>';
     }
 
     function renderQualifications(q) {
         const t = q.totals;
         const c = q.criteria;
-        const recentLandings = windowText(q.recentLandingsWindowHours);
+        // the page says 90 days; the real window of the recent landings is in the settings of the server (24 hours for now, for the test)
+        const recentLandings = '90 d';
         const recentFlights = q.recentFlightsWindowDays >= 360 ? '12 months' : q.recentFlightsWindowDays + ' d';
 
-        const rows = q.types.map(a => [
-            '<span class="fw-semibold">' + esc(a.aircraftType) + '</span>',
-            experienceCell(a, q.experienceLevels),
-            fmtNumber(a.recentLandings) + ' ' + mark(a.canCarryPassengers,
-                'Can carry passengers: ' + c.recentLandings + ' or more landings in the last ' + recentLandings),
-            a.recentNightTakeoffs + ' / ' + a.recentNightLandings + ' ' + mark(a.nightFlying,
-                'Night flying: at least ' + c.nightTakeoffs + ' night takeoff and ' + c.nightLandings + ' night landing in the last ' + recentLandings),
-            fmtNumber(a.recentFlights),
-            a.recentFlightTime.toFixed(1) + ' ' + mark(a.typeCurrent,
-                'Type currency: ' + c.recentFlights + ' or more flights and ' + c.recentFlightHours + ' or more hours in the last ' + recentFlights),
-            '<span class="totals-col">' + fmtNumber(a.landings) + '</span>',
-            '<span class="totals-col">' + a.nightTakeoffs + ' / ' + a.nightLandings + '</span>',
-            '<span class="totals-col">' + fmtNumber(a.flights) + '</span>',
-            '<span class="totals-col">' + a.flightTime.toFixed(1) + '</span>'
-        ]);
+        const rows = q.types.map(a => '<tr>'
+            + '<td><span class="fw-semibold">' + esc(a.aircraftType) + '</span></td>'
+            + '<td class="text-end group-start">' + a.flightTime.toFixed(1) + '</td>'
+            + '<td class="text-end">' + fmtNumber(a.flights) + '</td>'
+            + '<td class="text-end">' + fmtNumber(a.landings) + '</td>'
+            + '<td class="text-center group-start fw-semibold" title="' + esc(experienceTooltip(a, q.experienceLevels)) + '">' + roman(a.experienceLevel) + '</td>'
+            + '<td class="text-end group-start">' + fmtNumber(a.recentFlights) + '</td>'
+            + '<td class="text-end">' + a.recentFlightTime.toFixed(1) + '</td>'
+            + '<td class="text-center">' + mark(a.typeCurrent,
+                'Current on type: ' + c.recentFlights + ' or more flights and ' + c.recentFlightHours + ' or more hours in the last ' + recentFlights) + '</td>'
+            + '<td class="text-end group-start">' + fmtNumber(a.recentLandings) + '</td>'
+            + '<td class="text-center">' + mark(a.canCarryPassengers,
+                'Can carry passengers: ' + c.recentLandings + ' or more landings in the last ' + recentLandings) + '</td>'
+            + '<td class="text-end group-start">' + a.recentNightTakeoffs + '</td>'
+            + '<td class="text-end">' + a.recentNightLandings + '</td>'
+            + '<td class="text-center">' + mark(a.nightFlying,
+                'Night flying: at least ' + c.nightTakeoffs + ' night takeoff and ' + c.nightLandings + ' night landing in the last ' + recentLandings) + '</td>'
+            + '</tr>').join('');
+
+        const table = q.types.length ? `
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="align-bottom">Type</th>
+                            <th colspan="3" class="text-center group-start">Total</th>
+                            ${vth('Experience level', 'Counted on the total flights and total hours on the type, levels 0 to V', 'group-start')}
+                            <th colspan="2" class="text-center group-start">Last ${recentFlights}</th>
+                            ${vth('Current on type', 'Counted on the flights and hours of the last ' + recentFlights + ': ' + c.recentFlights + ' flights and ' + c.recentFlightHours + ' hours')}
+                            <th rowspan="2" class="text-end align-bottom group-start">Landings<br><span class="text-secondary fw-normal">last ${recentLandings}</span></th>
+                            ${vth('Can carry passengers', 'Counted on the landings of the last ' + recentLandings + ': ' + c.recentLandings + ' or more')}
+                            <th colspan="2" class="text-center group-start">Night<br><span class="text-secondary fw-normal">last ${recentLandings}</span></th>
+                            ${vth('Night flying', 'Counted on the night takeoffs and landings of the last ' + recentLandings + ': ' + c.nightTakeoffs + ' takeoff and ' + c.nightLandings + ' landing')}
+                        </tr>
+                        <tr>
+                            <th class="sub text-end group-start">hours</th><th class="sub text-end">flights</th><th class="sub text-end">landings</th>
+                            <th class="sub text-end group-start">flights</th><th class="sub text-end">hours</th>
+                            <th class="sub text-end group-start">takeoffs</th><th class="sub text-end">landings</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>` : '<div class="card-body text-secondary">No flights yet</div>';
 
         $('#page').html(`
             ${entityHeader({kind: 'Pilot', title: 'Qualifications', aside: '<a class="entity-link" href="pilot-logbook.html">Logbook</a>'})}
@@ -108,18 +139,7 @@
                 {label: 'Landings', value: `${t.dayLandings} / ${t.nightLandings}`, hint: 'day / night'}
             ])}
 
-            ${section('Aircraft type currency', dataTable([
-                {title: 'Type'},
-                {title: title('Experience', 'level'), cls: 'text-end'},
-                {title: title('Landings', 'last ' + recentLandings + ' &middot; can carry passengers'), cls: 'text-end'},
-                {title: title('Night T/O / ldg', 'last ' + recentLandings + ' &middot; night flying'), cls: 'text-end'},
-                {title: title('Flights', recentFlights), cls: 'text-end'},
-                {title: title('Hours', recentFlights + ' &middot; type currency'), cls: 'text-end'},
-                {title: title('Landings', 'total'), cls: 'text-end'},
-                {title: title('Night T/O / ldg', 'total'), cls: 'text-end'},
-                {title: title('Flights', 'total'), cls: 'text-end'},
-                {title: title('Hours', 'total'), cls: 'text-end'}
-            ], rows, 'No flights yet'), {count: q.types.length})}
+            ${section('Aircraft type currency', table, {count: q.types.length})}
         `);
     }
 
