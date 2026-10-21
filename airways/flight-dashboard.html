@@ -77,6 +77,11 @@
             z-index: 1000;
         }
 
+        /* the overlay has its own display, so "hidden" has to be said for it again, otherwise the dialog is always on the screen */
+        .dialog-overlay.hidden {
+            display: none;
+        }
+
         .dialog-card {
             width: 36rem;
             max-width: 95%;
