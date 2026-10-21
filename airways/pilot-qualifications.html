@@ -79,8 +79,8 @@
     function renderQualifications(q) {
         const t = q.totals;
         const c = q.criteria;
-        // the page says 90 days; the real window of the recent landings is in the settings of the server (24 hours for now, for the test)
-        const recentLandings = '90 d';
+        // the window of the recent landings in days, it comes from the server (90 days)
+        const recentLandings = Math.round(q.recentLandingsWindowHours / 24) + ' d';
         const recentFlights = q.recentFlightsWindowDays >= 360 ? '12 months' : q.recentFlightsWindowDays + ' d';
 
         const rows = q.types.map(a => '<tr>'
