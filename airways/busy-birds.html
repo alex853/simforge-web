@@ -24,6 +24,13 @@
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
         .pay-mark { display: inline-block; width: 1.15em; height: 1.15em; line-height: 1.05em; border: 1px solid currentColor; border-radius: 50%; font-size: 0.7em; text-align: center; margin-left: 0.35em; opacity: 0.65; cursor: help; vertical-align: middle; }
         .pay-line { white-space: nowrap; }
+        .terms-quals { flex: 0 0 20%; min-width: 12rem; }
+        .terms-part { flex: 1 1 0; min-width: 14rem; }
+        .terms-sub { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color); margin-bottom: 0.5rem; }
+        .terms-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
+        .terms-result { border-top: 1px solid var(--bs-border-color); margin-top: 0.5rem; padding-top: 0.5rem; }
+        .terms-ok { color: var(--bs-success); font-weight: 700; }
+        .terms-no { color: #fd7e14; font-weight: 700; }
     </style>
 </head>
 <body>
@@ -64,6 +71,14 @@
             </select>
             <div class="form-text" id="aircraftHelp"></div>
         </div>
+    </section>
+
+    <section class="card section mb-4" id="termsCard" style="display: none;">
+        <div class="card-header">
+            <span class="section-title">Your terms on this aircraft</span>
+            <span class="text-secondary ms-2" id="termsType"></span>
+        </div>
+        <div class="card-body" id="termsBody"></div>
     </section>
 
     <div class="row g-4">
@@ -412,6 +427,7 @@
             $sel.append('<option value="">No aircraft</option>');
             $sel.prop('disabled', true);
             updateQuoteButton();
+            loadTerms();
             $('#aircraftHelp').text(!pilotInfo ? 'Your pilot is not known, so there is no aircraft to choose.'
                 : !airport ? 'Your pilot is not at an airport.'
                 : 'No aircraft at ' + airport + '.');
@@ -428,6 +444,109 @@
         $sel.prop('disabled', false);
         $('#aircraftHelp').text('');
         updateQuoteButton();
+        loadTerms();
+    }
+
+    // ---- The terms of the pilot on the chosen aircraft: the qualifications on the type, the pay for the flown hours and the share of the income.
+    // GET /busy-birds/pilot-terms?aircraftId=...; the server calculates everything, the page shows it. It is loaded when an aircraft is chosen and then
+    // once a minute, so a change of the qualifications of the pilot shows up.
+
+    // 0, I, II, III, IV, V
+    function roman(level) {
+        return ['0', 'I', 'II', 'III', 'IV', 'V'][level] ?? String(level);
+    }
+
+    // 375 -> '375', 0.375 -> '0.375', 12.5 -> '12.5': no more than 3 decimals, no trailing zeros
+    function formatNumber(n) {
+        return String(Math.round(n * 1000) / 1000);
+    }
+
+    const DEDUCTION_TEXT = {
+        NoTypeCurrency: 'No type currency',
+        NoNightCurrency: 'No night currency',
+        CannotCarryPassengers: 'Cannot carry passengers',
+        Manual: 'Manual flight'
+    };
+
+    function termsMark(ok) {
+        return ok ? '<span class="terms-ok">&#10003;</span>' : '<span class="terms-no">&#10007;</span>';
+    }
+
+    function termsQualLine(label, valueHtml, tooltip) {
+        return '<div class="terms-line" title="' + escapeHtml(tooltip) + '"><span>' + escapeHtml(label) + '</span><span>' + valueHtml + '</span></div>';
+    }
+
+    // the lines of the deductions, or a line that there are none
+    function deductionLines(deductions) {
+        if (!deductions.length) {
+            return '<div class="terms-line text-secondary"><span>No deductions</span><span>0%</span></div>';
+        }
+        return deductions.map(function (d) {
+            return '<div class="terms-line"><span>' + escapeHtml(DEDUCTION_TEXT[d.code] ?? d.code) + '</span><span class="text-danger">&minus;' + d.percent + '%</span></div>';
+        }).join('');
+    }
+
+    // the pay is never less than 10% of the base: say it when the deductions have gone below that
+    function floorNote(deductions, coefficient) {
+        const total = deductions.reduce(function (sum, d) { return sum + d.percent; }, 0);
+        return total > 100 - coefficient ? '<div class="text-secondary small">The deductions are more than 90%, the pay is not less than ' + coefficient + '% of the base.</div>' : '';
+    }
+
+    function renderTerms(t) {
+        $('#termsType').text(t.aircraftType);
+
+        const qualifications =
+            '<div class="terms-sub">Qualifications</div>' +
+            termsQualLine('Experience level', '<span class="fw-semibold">' + roman(t.experienceLevel) + '</span>',
+                'Experience level on this type, 0 to V, by all the flights and hours on the type') +
+            termsQualLine('Type currency', termsMark(t.typeCurrent), 'Enough flights and hours on this type in the last 12 months') +
+            termsQualLine('Night flying', termsMark(t.nightFlying), 'A night takeoff and a night landing on this type in the last 90 days') +
+            termsQualLine('Can carry passengers', termsMark(t.canCarryPassengers), 'Enough landings on this type in the last 90 days');
+
+        const flightPay =
+            '<div class="terms-sub">Pay for flown hours</div>' +
+            '<div class="terms-line"><span>Base hourly rate, ' + escapeHtml(t.aircraftType) + '</span><span class="fw-semibold">' + t.hourlyRate + '</span></div>' +
+            deductionLines(t.flightPayDeductions) +
+            floorNote(t.flightPayDeductions, t.flightPayCoefficientPercent) +
+            '<div class="terms-result">You get <span class="fw-semibold">' + t.hourlyRate + ' &times; ' + t.flightPayCoefficientPercent + '% = ' +
+            formatNumber(t.effectiveHourlyRate) + '</span> for each hour of the flight.</div>';
+
+        const incomeShare =
+            '<div class="terms-sub">Income share</div>' +
+            '<div class="terms-line"><span>Base share, experience level ' + roman(t.experienceLevel) + '</span><span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '%</span></div>' +
+            deductionLines(t.incomeShareDeductions) +
+            floorNote(t.incomeShareDeductions, t.incomeShareCoefficientPercent) +
+            '<div class="terms-result">You get <span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '% &times; ' + t.incomeShareCoefficientPercent + '% = ' +
+            formatNumber(t.effectiveIncomeSharePercent) + '%</span> of the income of the mission.</div>';
+
+        $('#termsBody').html(
+            '<div class="d-flex flex-wrap gap-4">' +
+            '<div class="terms-quals">' + qualifications + '</div>' +
+            '<div class="terms-part">' + flightPay + '</div>' +
+            '<div class="terms-part">' + incomeShare + '</div>' +
+            '</div>');
+        $('#termsCard').show();
+    }
+
+    // the answer of an old request must not replace the terms of the aircraft which is chosen now
+    let termsRequestedFor = null;
+
+    function loadTerms() {
+        const aircraftId = getSelectedAircraftId();
+        termsRequestedFor = aircraftId;
+        if (!aircraftId) {
+            $('#termsCard').hide();
+            return;
+        }
+        airwaysAuth('GET', '/busy-birds/pilot-terms', {aircraftId: aircraftId}, function (t) {
+            if (termsRequestedFor === aircraftId) {
+                renderTerms(t);
+            }
+        }, function () {
+            if (termsRequestedFor === aircraftId) {
+                $('#termsCard').hide();
+            }
+        });
     }
 
     function sameId(a, b) {
@@ -810,7 +929,15 @@
             $('#aircraftHelp').text('Aircraft list not available yet.');
         });
 
-        $('#aircraftSelect').on('change', updateQuoteButton);
+        $('#aircraftSelect').on('change', function () {
+            updateQuoteButton();
+            loadTerms();
+        });
+        setInterval(function () {
+            if (!document.hidden && getSelectedAircraftId()) {
+                loadTerms();
+            }
+        }, 60 * 1000);
 
         // route filter
         $('#cityFrom').on('change', function () {
