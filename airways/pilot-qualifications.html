@@ -34,8 +34,11 @@
         .qual-mark { font-size: 1.5em; line-height: 1; }
         .qual-level { font-size: 1.5em; font-weight: 700; line-height: 1; }
         table.qualifications tbody { border-top: 1px solid var(--bs-border-color); }
-        tr.qual-numbers > td { border-bottom: 0; padding-bottom: 0.1rem; }
-        tr.qual-criteria > td { padding-top: 0.1rem; }
+        /* The numbers and the criteria of a type are close to each other and have more room from the top and the bottom of the block. The four paddings
+           are 0.8 + 0.3 + 0.3 + 0.8 = 2.2 rem, as the four of 0.55 rem were (css/details.css), so the block is as high as it was. The selectors are as strong as they have to be
+           to win against the padding of the tables in css/details.css. */
+        .section table.qualifications > tbody > tr.qual-numbers > td { border-bottom: 0; padding-top: 0.8rem; padding-bottom: 0.3rem; }
+        .section table.qualifications > tbody > tr.qual-criteria > td { padding-top: 0.3rem; padding-bottom: 0.8rem; }
     </style>
 </head>
 <body>
