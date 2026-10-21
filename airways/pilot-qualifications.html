@@ -21,10 +21,21 @@
     <style>
         .criterion-ok { color: var(--bs-success); font-weight: 700; }
         .criterion-no { color: #fd7e14; font-weight: 700; }
-        .vtitle { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-weight: 600; margin: 0 auto; }
-        .info { color: var(--bs-secondary-color); cursor: help; font-size: .8em; border: 1px solid currentColor; border-radius: 50%; display: inline-block; width: 1.4em; height: 1.4em; line-height: 1.3em; text-align: center; font-style: italic; }
         .group-start { border-left: 1px solid var(--bs-border-color); }
         th.sub { font-weight: 400; color: var(--bs-secondary); font-size: .85em; }
+        table.qualifications { table-layout: fixed; }
+        table.qualifications td, table.qualifications th { text-align: center; vertical-align: middle; }
+        .qual-line { display: flex; justify-content: center; align-items: center; gap: .7rem; white-space: nowrap; }
+        .qual-small { font-size: .7em; font-weight: 600; color: var(--bs-success); cursor: help; }
+        .qual-penalty { font-size: .75em; font-weight: 600; color: #fd7e14; cursor: help; }
+        .qual-help { cursor: help; }
+        #sortToggle { text-decoration: none; padding: 0; }
+        .qual-label { font-weight: 600; font-size: 1em; }
+        .qual-mark { font-size: 1.5em; line-height: 1; }
+        .qual-level { font-size: 1.5em; font-weight: 700; line-height: 1; }
+        table.qualifications tbody { border-top: 1px solid var(--bs-border-color); }
+        tr.qual-numbers > td { border-bottom: 0; padding-bottom: 0.1rem; }
+        tr.qual-criteria > td { padding-top: 0.1rem; }
     </style>
 </head>
 <body>
@@ -66,64 +77,138 @@
             + (next ? '. Next, ' + roman(next.level) + ': ' + next.flights + ' flights and ' + next.hours + ' hours.' : '. The highest level.');
     }
 
-    // the small "i" with the explanation
-    function info(text) {
-        return ' <span class="info" title="' + esc(text) + '">i</span>';
+    // 0.5 -> '0.5%', 3 -> '3%'
+    function formatPercent(percent) {
+        return (Math.round(percent * 1000) / 1000) + '%';
     }
 
-    // a rotated column title (rowspan 2) with the "i"
-    function vth(label, hint, cls) {
-        return '<th rowspan="2" class="text-center align-bottom ' + (cls ?? '') + '"><div class="vtitle">' + label + '</div>' + info(hint) + '</th>';
+    // One criterion in one line: the title with the tooltip of the criterion, the mark and, if it is not met, what is taken off the pay with its own tooltip.
+    // A criterion which is met has no penalty to show.
+    function criterion(title, ok, tooltip, penaltyPercent, penaltyTooltip) {
+        return '<div class="qual-line"><span class="qual-label qual-help" title="' + esc(tooltip) + '">' + title + '</span>'
+            + '<span class="qual-mark">' + mark(ok, '') + '</span>'
+            + (ok ? '' : '<span class="qual-penalty" title="' + esc(penaltyTooltip) + '">&minus;' + penaltyPercent + '%</span>')
+            + '</div>';
+    }
+
+    // The types of the table are sorted in one of three ways, the pilot switches them by the button of the header (the choice is remembered in the browser):
+    // recent (the type of the last flight goes first), by the type (alphabetical) and by the total hours (the biggest goes first).
+    const SORT_MODES = [
+        {key: 'recent', label: 'Recent'},
+        {key: 'type', label: 'Type'},
+        {key: 'hours', label: 'Total hours'}
+    ];
+
+    function savedSortKey() {
+        try {
+            const key = localStorage.getItem('airwaysQualificationsSort');
+            return SORT_MODES.some(m => m.key === key) ? key : 'recent';
+        } catch (e) {
+            return 'recent';
+        }
+    }
+
+    let sortKey = savedSortKey();
+    let lastResponse = null;
+
+    function sortedTypes(types) {
+        const byType = (x, y) => x.aircraftType.localeCompare(y.aircraftType);
+        const list = types.slice();
+        if (sortKey === 'type') {
+            list.sort(byType);
+        } else if (sortKey === 'hours') {
+            list.sort((x, y) => (y.flightTime - x.flightTime) || byType(x, y));
+        } else {
+            list.sort((x, y) => (y.lastFlightTime - x.lastFlightTime) || byType(x, y));
+        }
+        return list;
+    }
+
+    function nextSortMode() {
+        const i = SORT_MODES.findIndex(m => m.key === sortKey);
+        sortKey = SORT_MODES[(i + 1) % SORT_MODES.length].key;
+        try {
+            localStorage.setItem('airwaysQualificationsSort', sortKey);
+        } catch (e) {
+            // the choice is just not remembered
+        }
+        renderQualifications(lastResponse);
+    }
+
+    function sortToggle() {
+        const mode = SORT_MODES.find(m => m.key === sortKey);
+        return '<button type="button" id="sortToggle" class="btn btn-link section-title" title="Sorting of the types: recent (the last flight first), by the type, by the total hours. Click to switch.">'
+            + 'Sort: ' + mode.label + '</button>';
     }
 
     function renderQualifications(q) {
+        lastResponse = q;
         const t = q.totals;
         const c = q.criteria;
         // the window of the recent landings in days, it comes from the server (90 days)
         const recentLandings = Math.round(q.recentLandingsWindowHours / 24) + ' d';
         const recentFlights = q.recentFlightsWindowDays >= 360 ? '12 months' : q.recentFlightsWindowDays + ' d';
 
-        const rows = q.types.map(a => '<tr>'
-            + '<td><span class="fw-semibold">' + esc(a.aircraftType) + '</span></td>'
-            + '<td class="text-end group-start">' + a.flightTime.toFixed(1) + '</td>'
-            + '<td class="text-end">' + fmtNumber(a.flights) + '</td>'
-            + '<td class="text-end">' + fmtNumber(a.landings) + '</td>'
-            + '<td class="text-center group-start fw-semibold" title="' + esc(experienceTooltip(a, q.experienceLevels)) + '">' + roman(a.experienceLevel) + '</td>'
-            + '<td class="text-end group-start">' + fmtNumber(a.recentFlights) + '</td>'
-            + '<td class="text-end">' + a.recentFlightTime.toFixed(1) + '</td>'
-            + '<td class="text-center">' + mark(a.typeCurrent,
-                'Current on type: ' + c.recentFlights + ' or more flights and ' + c.recentFlightHours + ' or more hours in the last ' + recentFlights) + '</td>'
-            + '<td class="text-end group-start">' + fmtNumber(a.recentLandings) + '</td>'
-            + '<td class="text-center">' + mark(a.canCarryPassengers,
-                'Can carry passengers: ' + c.recentLandings + ' or more landings in the last ' + recentLandings) + '</td>'
-            + '<td class="text-end group-start">' + a.recentNightTakeoffs + '</td>'
-            + '<td class="text-end">' + a.recentNightLandings + '</td>'
-            + '<td class="text-center">' + mark(a.nightFlying,
-                'Night flying: at least ' + c.nightTakeoffs + ' night takeoff and ' + c.nightLandings + ' night landing in the last ' + recentLandings) + '</td>'
-            + '</tr>').join('');
+        // The first line of a type has the numbers, the second line has what the numbers say, in one cell over the numbers they come from: the experience level
+        // over the totals, the currency on the type over the flights and hours of the year, the passengers over the landings, the night flying over the night ones.
+        const rows = sortedTypes(q.types).map(a => '<tbody>'
+            + '<tr class="qual-numbers">'
+            + '<td rowspan="2" class="fw-semibold">' + esc(a.aircraftType) + '</td>'
+            + '<td class="group-start">' + a.flightTime.toFixed(1) + '</td>'
+            + '<td>' + fmtNumber(a.flights) + '</td>'
+            + '<td>' + fmtNumber(a.landings) + '</td>'
+            + '<td class="group-start">' + fmtNumber(a.recentFlights) + '</td>'
+            + '<td>' + a.recentFlightTime.toFixed(1) + '</td>'
+            + '<td class="group-start">' + fmtNumber(a.recentLandings) + '</td>'
+            + '<td class="group-start">' + a.recentNightTakeoffs + '</td>'
+            + '<td>' + a.recentNightLandings + '</td>'
+            + '</tr>'
+            + '<tr class="qual-criteria">'
+            // Each criterion is one cell over the whole group of the numbers it comes from, in one line: the title (its tooltip tells what the criterion is), the value
+            // and, for the experience level, the base share of the level; for a criterion which is not met, what is taken off the pay.
+            + '<td colspan="3" class="group-start"><div class="qual-line"><span class="qual-label qual-help" title="' + esc(experienceTooltip(a, q.experienceLevels)) + '">Experience level</span>'
+            + '<span class="qual-level">' + roman(a.experienceLevel) + '</span>'
+            + '<span class="qual-small" title="' + esc('You will get ' + formatPercent(a.baseIncomeSharePercent) + ': your base income share rate is ' + formatPercent(a.baseIncomeSharePercent)
+                + ' of the mission payment (the price of the mission)') + '">' + formatPercent(a.baseIncomeSharePercent) + '</span></div></td>'
+            + '<td colspan="2" class="group-start">' + criterion('Current on type', a.typeCurrent,
+                'Current on type: ' + c.recentFlights + ' or more flights and ' + c.recentFlightHours + ' or more hours on this type in the last ' + recentFlights,
+                c.typeCurrencyPenaltyPercent, 'Your base penalty for the missing current on type is ' + c.typeCurrencyPenaltyPercent + '% (of the flight pay and of the income share)') + '</td>'
+            + '<td class="group-start">' + criterion('Can carry passengers', a.canCarryPassengers,
+                'Can carry passengers: ' + c.recentLandings + ' or more landings on this type in the last ' + recentLandings,
+                c.canCarryPassengersPenaltyPercent, 'Your base penalty for not being able to carry passengers is ' + c.canCarryPassengersPenaltyPercent + '% (of the flight pay)') + '</td>'
+            + '<td colspan="2" class="group-start">' + criterion('Night flying', a.nightFlying,
+                'Night flying: at least ' + c.nightTakeoffs + ' night takeoff and ' + c.nightLandings + ' night landing on this type in the last ' + recentLandings,
+                c.nightFlyingPenaltyPercent, 'Your base penalty for the missing night flying is ' + c.nightFlyingPenaltyPercent + '% (of the flight pay)') + '</td>'
+            + '</tr>'
+            + '</tbody>').join('');
 
+        // the widths are fixed, so the centers of the columns are the same in the numbers and in the criteria; the landings of 90 days get the room which
+        // the night columns do not need
         const table = q.types.length ? `
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table qualifications mb-0">
+                    <colgroup>
+                        <col style="width: 8%">
+                        <col style="width: 9%"><col style="width: 9%"><col style="width: 9%">
+                        <col style="width: 12%"><col style="width: 12%">
+                        <col style="width: 21%">
+                        <col style="width: 10%"><col style="width: 10%">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th rowspan="2" class="align-bottom">Type</th>
-                            <th colspan="3" class="text-center group-start">Total</th>
-                            ${vth('Experience level', 'Counted on the total flights and total hours on the type, levels 0 to V', 'group-start')}
-                            <th colspan="2" class="text-center group-start">Last ${recentFlights}</th>
-                            ${vth('Current on type', 'Counted on the flights and hours of the last ' + recentFlights + ': ' + c.recentFlights + ' flights and ' + c.recentFlightHours + ' hours')}
-                            <th rowspan="2" class="text-end align-bottom group-start">Landings<br><span class="text-secondary fw-normal">last ${recentLandings}</span></th>
-                            ${vth('Can carry passengers', 'Counted on the landings of the last ' + recentLandings + ': ' + c.recentLandings + ' or more')}
-                            <th colspan="2" class="text-center group-start">Night<br><span class="text-secondary fw-normal">last ${recentLandings}</span></th>
-                            ${vth('Night flying', 'Counted on the night takeoffs and landings of the last ' + recentLandings + ': ' + c.nightTakeoffs + ' takeoff and ' + c.nightLandings + ' landing')}
+                            <th colspan="3" class="group-start">Total</th>
+                            <th colspan="2" class="group-start">Last ${recentFlights}</th>
+                            <th rowspan="2" class="align-bottom group-start">Landings<br><span class="text-secondary fw-normal">last ${recentLandings}</span></th>
+                            <th colspan="2" class="group-start">Night<br><span class="text-secondary fw-normal">last ${recentLandings}</span></th>
                         </tr>
                         <tr>
-                            <th class="sub text-end group-start">hours</th><th class="sub text-end">flights</th><th class="sub text-end">landings</th>
-                            <th class="sub text-end group-start">flights</th><th class="sub text-end">hours</th>
-                            <th class="sub text-end group-start">takeoffs</th><th class="sub text-end">landings</th>
+                            <th class="sub group-start">hours</th><th class="sub">flights</th><th class="sub">landings</th>
+                            <th class="sub group-start">flights</th><th class="sub">hours</th>
+                            <th class="sub group-start">takeoffs</th><th class="sub">landings</th>
                         </tr>
                     </thead>
-                    <tbody>${rows}</tbody>
+                    ${rows}
                 </table>
             </div>` : '<div class="card-body text-secondary">No flights yet</div>';
 
@@ -139,8 +224,9 @@
                 {label: 'Landings', value: `${t.dayLandings} / ${t.nightLandings}`, hint: 'day / night'}
             ])}
 
-            ${section('Aircraft type currency', table, {count: q.types.length})}
+            ${section('Aircraft type currency', table, {count: q.types.length, tools: q.types.length > 1 ? sortToggle() : ''})}
         `);
+        $('#sortToggle').on('click', nextSortMode);
     }
 
     $(document).ready(function () {
