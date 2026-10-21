@@ -64,6 +64,28 @@
             display: none;
         }
 
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .dialog-card {
+            width: 36rem;
+            max-width: 95%;
+            background: #fff;
+            border-radius: 12px;
+            padding: 1.25rem;
+            box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.3);
+        }
+
         .section-top {
             /*flex: 1;*/
             height: 3rem;
@@ -533,7 +555,11 @@
                 const style = action.name === 'start-flight-manual' && bothStarts ? 'btn-outline-success' : 'btn-success';
                 const $button = $('<button class="btn m-2 ' + style + '"></button>').text(label);
                 $button.on('click', function () {
-                    sendAction(action.name);
+                    if (action.name === 'start-flight-manual') {
+                        startManualFlightAfterTheQuestion();
+                    } else {
+                        sendAction(action.name);
+                    }
                 });
                 $buttons.append($button);
             } else {
@@ -603,6 +629,39 @@
         });
     }
 
+    // 123456 -> '123,456'
+    function pay(n) {
+        return Number(n).toLocaleString('en-US');
+    }
+
+    // A manual flight pays less than the contract says (the pay is reduced, see PilotPay). Before the manual start the pilot sees both numbers and decides.
+    // A flight without a contract has nothing to show, it is just started. If the numbers are not available (the server does not answer), it is started too:
+    // the question is not a reason to block the start.
+    function startManualFlightAfterTheQuestion() {
+        if (actionInProgress || flightId === null) {
+            return;
+        }
+        airwaysAuth('GET', '/flight-dashboard/manual-pay', {flightId: flightId}, function (response) {
+            if (!response || !response.hasContract) {
+                sendAction('start-flight-manual');
+                return;
+            }
+            showManualPayDialog(response);
+        }, function () {
+            sendAction('start-flight-manual');
+        });
+    }
+
+    function showManualPayDialog(response) {
+        $('#manual-pay-flight-contract').text(pay(response.byContract.flightPay));
+        $('#manual-pay-flight-manual').text(pay(response.ifManual.flightPay));
+        $('#manual-pay-share-contract').text(pay(response.byContract.incomeShare));
+        $('#manual-pay-share-manual').text(pay(response.ifManual.incomeShare));
+        $('#manual-pay-total-contract').text(pay(response.byContract.total));
+        $('#manual-pay-total-manual').text(pay(response.ifManual.total));
+        show('#manual-pay-dialog');
+    }
+
     // POST /flight-dashboard/<action>, the response is the whole new status2
     function sendAction(actionName) {
         if (actionInProgress || flightId === null) {
@@ -630,11 +689,57 @@
     }
 
     $(document).ready(function () {
+        $('#manual-pay-cancel').on('click', function () {
+            hide('#manual-pay-dialog');
+        });
+        $('#manual-pay-confirm').on('click', function () {
+            hide('#manual-pay-dialog');
+            sendAction('start-flight-manual');
+        });
+
         loadStatus2();
         restartRefreshTimer();
     });
 
 </script>
+
+
+<div id="manual-pay-dialog" class="dialog-overlay hidden">
+    <div class="dialog-card">
+        <h5 class="mb-2">Start the flight in the manual mode?</h5>
+        <p class="mb-3">The contract promises you more than a manual flight pays. If you start this flight manually, nothing tracks it and the pay is reduced:</p>
+        <table class="table table-sm mb-3">
+            <thead>
+            <tr>
+                <th></th>
+                <th class="text-end">Promised by the contract</th>
+                <th class="text-end">If started manually</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>Pilot pay</td>
+                <td class="text-end" id="manual-pay-flight-contract"></td>
+                <td class="text-end text-danger" id="manual-pay-flight-manual"></td>
+            </tr>
+            <tr>
+                <td>Income share</td>
+                <td class="text-end" id="manual-pay-share-contract"></td>
+                <td class="text-end text-danger" id="manual-pay-share-manual"></td>
+            </tr>
+            <tr class="fw-bold">
+                <td>Total</td>
+                <td class="text-end" id="manual-pay-total-contract"></td>
+                <td class="text-end text-danger" id="manual-pay-total-manual"></td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="text-end">
+            <button type="button" id="manual-pay-cancel" class="btn btn-outline-secondary m-1">Cancel</button>
+            <button type="button" id="manual-pay-confirm" class="btn btn-success m-1">Start manual flight</button>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
