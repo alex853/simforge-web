@@ -24,7 +24,6 @@
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
         .pay-mark { display: inline-block; width: 1.15em; height: 1.15em; line-height: 1.05em; border: 1px solid currentColor; border-radius: 50%; font-size: 0.7em; text-align: center; margin-left: 0.35em; opacity: 0.65; cursor: help; vertical-align: middle; }
         .pay-line { white-space: nowrap; }
-        .pay-explain { font-size: 0.8em; color: var(--bs-secondary-color); white-space: nowrap; margin-bottom: 0.25rem; }
         .terms-quals { flex: 0 0 20%; min-width: 12rem; }
         .terms-part { flex: 1 1 0; min-width: 14rem; }
         .terms-sub { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color); margin-bottom: 0.5rem; }
@@ -719,8 +718,8 @@
     }
 
     // The pay of a leg: the flight pay, and the income share if there is one (a revenue leg only), each on its own line.
-    // Every number says what it is made of: the flight pay is your hourly rate (with the deductions for the currency) by the hours of the leg, the income
-    // share is your percent (by the experience level, with the deductions) of the income of the mission.
+    // Every number says what it is made of in the tooltip of its letter: the flight pay is your hourly rate (with the deductions for the currency) by the hours
+    // of the leg, the income share is your percent (by the experience level, with the deductions) of the income of the mission. The table has the numbers only.
     function legPayCell(salary) {
         if (!salary) {
             return '—';
@@ -728,14 +727,12 @@
         let html;
         if (salary.hourlyRate != null && salary.durationHours != null) {
             const hours = Number(salary.durationHours).toFixed(2);
-            html = payLine(salary.flightPay, 'F', 'Flight pay: your hourly rate ' + formatNumber(salary.hourlyRate) + ' * the duration of the flight ' + hours + ' h')
-                + '<div class="pay-explain">' + formatNumber(salary.hourlyRate) + '/h &times; ' + hours + ' h</div>';
+            html = payLine(salary.flightPay, 'F', 'Flight pay: your hourly rate ' + formatNumber(salary.hourlyRate) + ' * the duration of the flight ' + hours + ' h');
         } else {
             html = payLine(salary.flightPay, 'F', 'Flight pay');
         }
         if (salary.baseIncome != null && salary.incomeSharePercent != null) {
-            html += payLine(salary.incomeShare, 'I', 'Income share: your share ' + formatNumber(salary.incomeSharePercent) + '% of the income of the mission ' + money(salary.baseIncome))
-                + '<div class="pay-explain">' + formatNumber(salary.incomeSharePercent) + '% of ' + money(salary.baseIncome) + '</div>';
+            html += payLine(salary.incomeShare, 'I', 'Income share: your share ' + formatNumber(salary.incomeSharePercent) + '% of the income of the mission ' + money(salary.baseIncome));
         } else if (salary.incomeShare > 0) {
             html += payLine(salary.incomeShare, 'I', 'Income share of the mission');
         }
