@@ -266,10 +266,13 @@
         return pay >= 1000 ? '~' + Math.floor(pay / 1000) + 'k' : '~' + pay;
     }
 
-    // the same pay with the money symbol before it (the rough number ~123k too)
+    // the same pay with the money symbol before it; a rough number has the tilde first: ~v123k
     function missionPayHtml(m) {
         const text = formatMissionPay(m);
-        return text === '\u2014' ? text : moneySymbolHtml() + text;
+        if (text === '\u2014') {
+            return text;
+        }
+        return text.charAt(0) === '~' ? '~' + moneySymbolHtml() + text.slice(1) : moneySymbolHtml() + text;
     }
 
     // The quote has set the exact price of the journey: the list and the plan show it
