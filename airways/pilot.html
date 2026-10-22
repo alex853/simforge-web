@@ -34,7 +34,15 @@
         .avatar-edit { position: absolute; right: -9px; bottom: -9px; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
             color: var(--bs-secondary-color); background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 50%; cursor: pointer; }
         .avatar-edit:hover { color: var(--bs-primary); border-color: var(--bs-primary); }
-        .avatar-edit svg { width: 14px; height: 14px; }
+        .avatar-edit svg, .initials-edit svg { width: 14px; height: 14px; }
+        /* the pencil next to the initials opens the dialog of the initials */
+        .initials-edit { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: .6rem; padding: 0; vertical-align: middle;
+            color: var(--bs-secondary-color); background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 50%; cursor: pointer; }
+        .initials-edit:hover { color: var(--bs-primary); border-color: var(--bs-primary); }
+        /* the pilot has no initials: two quiet underscores */
+        .initials-empty { color: var(--bs-secondary-color); opacity: .6; }
+        .picker-panel.picker-panel-small { height: auto; min-height: 0; width: min(420px, 94vw); }
+        .initials-input { max-width: 8rem; font-size: 1.4rem; font-weight: 600; letter-spacing: .1em; }
 
         /* the choice of the avatar: a panel over the page, the pictures as tiles which scroll */
         .picker-backdrop { position: fixed; inset: 0; z-index: 1050; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); }
@@ -235,6 +243,96 @@
         </div>`;
     }
 
+    const PENCIL_SVG = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>';
+
+    // ---- the initials: the title of the page is the initials of the pilot, a pencil next to them opens a dialog with one text field. Up to two characters, only
+    // English letters (upper and lower case) and digits, 62 characters; it can be empty, then two quiet underscores are shown. The server checks it again.
+    let initialsDialog = null;
+    // the initials the page shows now: the dialog starts with them
+    let currentInitials = '';
+
+    // the title of the page: the initials (or two underscores) and the pencil
+    function initialsTitleHtml(initials) {
+        const text = initials ? esc(initials) : '<span class="initials-empty" title="No initials yet">__</span>';
+        return text + '<button type="button" class="initials-edit" title="Change the initials" aria-label="Change the initials">' + PENCIL_SVG + '</button>';
+    }
+
+    function closeInitialsDialog() {
+        if (initialsDialog) {
+            initialsDialog.remove();
+            initialsDialog = null;
+            $(document).off('keydown.initialsDialog');
+        }
+    }
+
+    function openInitialsDialog() {
+        if (initialsDialog || avatarPicker) {
+            return;
+        }
+        const current = currentInitials;
+        initialsDialog = $(`
+            <div class="picker-backdrop">
+                <div class="picker-panel picker-panel-small" role="dialog" aria-label="Your initials">
+                    <div class="picker-header"><span class="picker-title">Your initials</span><button type="button" class="btn-close" id="initialsClose" aria-label="Close"></button></div>
+                    <div class="picker-body">
+                        <label for="initialsInput" class="form-label">Type your initials</label>
+                        <input type="text" id="initialsInput" class="form-control initials-input" maxlength="2" autocomplete="off" autocapitalize="off" spellcheck="false">
+                        <div class="form-text">Up to 2 characters: English letters and digits. It can be empty.</div>
+                        <div class="text-danger small mt-1" id="initialsError"></div>
+                    </div>
+                    <div class="picker-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="initialsCancel">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="initialsSave">Save</button>
+                    </div>
+                </div>
+            </div>`);
+        $('body').append(initialsDialog);
+        const input = initialsDialog.find('#initialsInput');
+        input.val(current);
+
+        // only English letters and digits are let in, two at most; a character which does not fit just does not appear, and the field says why
+        input.on('input', function () {
+            const cleaned = input.val().replace(/[^A-Za-z0-9]/g, '').slice(0, 2);
+            initialsDialog.find('#initialsError').text(cleaned !== input.val() ? 'Only English letters and digits, two characters at most' : '');
+            input.val(cleaned);
+        });
+        initialsDialog.on('click', e => {
+            if (e.target === initialsDialog[0]) {
+                closeInitialsDialog();
+            }
+        });
+        initialsDialog.find('#initialsClose, #initialsCancel').on('click', closeInitialsDialog);
+        $(document).on('keydown.initialsDialog', e => {
+            if (e.key === 'Escape') {
+                closeInitialsDialog();
+            }
+        });
+        const save = function () {
+            const value = input.val();
+            if (!/^[A-Za-z0-9]{0,2}$/.test(value)) {
+                initialsDialog.find('#initialsError').text('Only English letters and digits, two characters at most');
+                return;
+            }
+            initialsDialog.find('#initialsSave, #initialsCancel').prop('disabled', true);
+            airwaysAuth('POST', '/pilot/initials', {initials: value}, function (pilot) {
+                closeInitialsDialog();
+                renderPilot(pilot);
+            }, function (e) {
+                if (initialsDialog) {
+                    initialsDialog.find('#initialsError').text(e && e.status === 400 ? 'Only English letters and digits, two characters at most' : 'The initials were not saved, try again');
+                    initialsDialog.find('#initialsSave, #initialsCancel').prop('disabled', false);
+                }
+            });
+        };
+        initialsDialog.find('#initialsSave').on('click', save);
+        input.on('keydown', e => {
+            if (e.key === 'Enter') {
+                save();
+            }
+        });
+        input.trigger('focus').trigger('select');
+    }
+
     // ---- the choice of the avatar: a click on the picture of the pilot opens a panel with all the pictures which may be chosen, the shown one is chosen
     // already. The list comes from the server (GET /pilot/avatars) only when the panel is opened; Save sends the chosen file name (POST /pilot/avatar).
     let avatarPicker = null;
@@ -248,7 +346,7 @@
     }
 
     function openAvatarPicker() {
-        if (avatarPicker) {
+        if (avatarPicker || initialsDialog) {
             return;
         }
         avatarPicker = $(`
@@ -320,15 +418,16 @@
     }
 
     function renderPilot(p) {
+        currentInitials = p.initials || '';
         $('#page').html(`
-            ${pilotHeader({current: 'pilot', title: esc(p.initials), avatarImage: p.avatarImage})}
+            ${pilotHeader({current: 'pilot', title: initialsTitleHtml(p.initials), avatarImage: p.avatarImage})}
 
             ${tiles([stateTile(p), locationTile(p), placeholderTile(), bankTile(p)])}
             ${tiles([awakeTile(p), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)])}
         `);
-        $('.pilot-avatar').append('<button type="button" class="avatar-edit" title="Change the avatar" aria-label="Change the avatar">'
-            + '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg></button>');
+        $('.pilot-avatar').append('<button type="button" class="avatar-edit" title="Change the avatar" aria-label="Change the avatar">' + PENCIL_SVG + '</button>');
         $('.avatar-edit').on('click', openAvatarPicker);
+        $('.initials-edit').on('click', openInitialsDialog);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => sleepOrWake('/pilot/wake'));
     }
