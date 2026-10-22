@@ -132,14 +132,7 @@
 
     function stateTile(p) {
         const s = STATES[p.state] ?? {title: p.state, hint: ''};
-        let value = esc(s.title);
-        if (p.state === 'Resting' && p.awake && p.awake.sleepingSince) {
-            // small, on the same line: when the pilot fell asleep (UTC, like the other times of the site)
-            const d = new Date(p.awake.sleepingSince * 1000);
-            const hhmm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
-            value += ' <small class="text-secondary fw-normal" style="font-size:.5em">since ' + hhmm + '</small>';
-        }
-        return {label: 'State', value: value, hint: esc(s.hint)};
+        return {label: 'State', value: esc(s.title), hint: esc(s.hint)};
     }
 
     // At an airport or in a city the place is a big green title. When the pilot is nowhere (in the flight, on the way) it is a thin quiet line.
@@ -192,6 +185,12 @@
         let value, hint, button;
         if (a.sleeping) {
             value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + '</span>';
+            if (a.sleepingSince) {
+                // small, on the same line: when the pilot fell asleep (UTC, like the other times of the site)
+                const d = new Date(a.sleepingSince * 1000);
+                const hhmm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+                value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + ' <small class="text-secondary fw-normal" style="font-size:.5em">since ' + hhmm + '</small></span>';
+            }
             // the pilot is not told when it wakes up by itself, only that a usual sleep is 8 to 9 hours (the real time is from 7.5 to 10)
             hint = 'Usual sleep: 8-9 hours';
             button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton" title="Under 2 h of sleep gives nothing">Wake up</button>';
