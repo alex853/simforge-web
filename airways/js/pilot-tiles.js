@@ -52,13 +52,8 @@ function awakeTile(p, withButtons) {
     }
     let value, hint, button;
     if (a.sleeping) {
-        value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + '</span>';
-        if (a.sleepingSince) {
-            // small, on the same line: when the pilot fell asleep (UTC, like the other times of the site)
-            const d = new Date(a.sleepingSince * 1000);
-            const hhmm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
-            value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + ' <small class="text-secondary fw-normal" style="font-size:.5em">since ' + hhmm + '</small></span>';
-        }
+        // small, on the same line: for how long the pilot has been asleep
+        value = '<span>Sleeping <small class="text-secondary fw-normal" style="font-size:.5em">for ' + formatClock(a.sleepMinutes) + '</small></span>';
         // the pilot is not told when it wakes up by itself, only that a usual sleep is 8 to 9 hours (the real time is from 7.5 to 10)
         hint = 'Usual sleep: 8-9 hours';
         button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton" title="Under 2 h of sleep gives nothing">Wake up</button>';

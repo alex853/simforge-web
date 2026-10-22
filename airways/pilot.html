@@ -96,6 +96,23 @@
     </div>
 </div>
 
+<!-- Wake up asks first: a sleep under two hours gives nothing, a longer one makes the awake time grow -->
+<div class="modal fade" id="wakeModal" tabindex="-1" aria-labelledby="wakeModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="--bs-modal-width: 440px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="wakeModalTitle">Wake up?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="wakeModalText"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Keep sleeping</button>
+                <button type="button" class="btn btn-sm btn-primary" id="wakeConfirm">Wake up</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // GET /pilot (token of the user): who the pilot is, the state, where the pilot is and the balance of the bank account. Facts only.
 
@@ -275,7 +292,24 @@
         $('.avatar-edit').on('click', () => avatarModal.show());
         $('.initials-edit').on('click', () => initialsModal.show());
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
-        $('#wakeButton').on('click', () => sleepOrWake('/pilot/wake'));
+        $('#wakeButton').on('click', () => askToWakeUp(p));
+    }
+
+    // The question before waking up: under two hours of sleep gives nothing, a longer sleep makes the awake time grow by about so many hours
+    // (the gain is rounded to whole hours, at least one).
+    let wakeModal = null;
+
+    function askToWakeUp(p) {
+        const a = p.awake;
+        let text;
+        if (a.sleepMinutes < 120) {
+            text = 'You have slept less than 2 hours, waking up now will not add anything to your awake time.';
+        } else {
+            const hours = Math.max(1, Math.round((a.creditAfterWakeMinutes - a.creditMinutes) / 60));
+            text = 'Your awake time will grow by about ' + hours + (hours === 1 ? ' hour.' : ' hours.');
+        }
+        $('#wakeModalText').text(text);
+        wakeModal.show();
     }
 
     // a sleep or wake request is in flight: the refresh waits, so it does not draw an old state over the new one
@@ -328,6 +362,11 @@
         initSiteMenu('pilot');
         initInitialsModal();
         initAvatarModal();
+        wakeModal = new bootstrap.Modal(document.getElementById('wakeModal'));
+        $('#wakeConfirm').on('click', function () {
+            wakeModal.hide();
+            sleepOrWake('/pilot/wake');
+        });
         showLoading();
         loadPilot();
         setInterval(refreshPilot, REFRESH_INTERVAL_MS);
