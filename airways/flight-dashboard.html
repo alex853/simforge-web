@@ -308,11 +308,11 @@
 </div>
 
 <script>
-    // A flight goes in one of two modes, the pilot chooses it when he starts the flight and it does not change after that (status2.mode, null before the start):
+    // A flight goes in one of two modes, the pilot chooses it when he starts the flight and it does not change after that (status.mode, null before the start):
     //   SIM_TRACKER - the sim tracker (G7 FlightBag etc.) does Blocks Off, Takeoff, Landing and Blocks On itself, here they are only shown as tracked automatically;
     //   MANUAL      - nothing tracks the flight, the pilot presses a button for every step.
     // Before the start both ways are offered while the sim reports come in (Start tracked flight / Start manual flight), without them only the manual one.
-    // What is offered now is in status2.actions (name + allowed + checks), the same list for both modes.
+    // What is offered now is in status.actions (name + allowed + checks), the same list for both modes.
 
     // The steps which are done by the tracker in the SIM_TRACKER mode. In MANUAL mode they are buttons.
     const TRACKED_ACTIONS = ['blocks-off', 'takeoff', 'landing', 'blocks-on'];
@@ -373,7 +373,7 @@
         $(id).addClass('hidden');
     }
 
-    // status2.pilot: { state, expectedAirport, currentAirport } - the verdict about the pilot
+    // status.pilot: { state, expectedAirport, currentAirport } - the verdict about the pilot
     function userStateMessage(pilot) {
         const state = pilot?.state;
         switch (state) {
@@ -622,7 +622,7 @@
     }
 
     function loadStatus2() {
-        airwaysAuth('GET', '/flight-dashboard/status2', {}, function (response) {
+        airwaysAuth('GET', '/flight-dashboard/status', {}, function (response) {
             if (loadErrorShown) {
                 loadErrorShown = false;
                 showActionMessage(null);
@@ -667,7 +667,7 @@
         show('#manual-pay-dialog');
     }
 
-    // POST /flight-dashboard/<action>, the response is the whole new status2
+    // POST /flight-dashboard/<action>, the response is the whole new status
     function sendAction(actionName) {
         if (actionInProgress || flightId === null) {
             return;
