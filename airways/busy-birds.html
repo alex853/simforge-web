@@ -535,8 +535,8 @@
         return '<div class="terms-line"><span>Base hourly rate, ' + escapeHtml(t.aircraftType) + '</span><span class="fw-semibold">' + moneyHtml(t.hourlyRate) + '</span></div>' +
             deductionLines(t.flightPayDeductions) +
             floorNote(t.flightPayDeductions, t.flightPayCoefficientPercent) +
-            '<div class="terms-result">You get <span class="fw-semibold">' + moneyHtml(t.hourlyRate) + ' &times; ' + t.flightPayCoefficientPercent + '% = ' +
-            moneyHtml(t.effectiveHourlyRate) + '</span> for each hour of the flight.</div>';
+            '<div class="terms-line terms-result"><span>Your hourly rate: ' + moneyHtml(t.hourlyRate) + ' &times; ' + t.flightPayCoefficientPercent + '%</span>' +
+            '<span class="fw-semibold">' + moneyHtml(t.effectiveHourlyRate) + '</span></div>';
     }
 
     // the explanation of the income share: the base share of the experience level, the deductions, the result
@@ -544,8 +544,8 @@
         return '<div class="terms-line"><span>Base share, experience level ' + roman(t.experienceLevel) + '</span><span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '%</span></div>' +
             deductionLines(t.incomeShareDeductions) +
             floorNote(t.incomeShareDeductions, t.incomeShareCoefficientPercent) +
-            '<div class="terms-result">You get <span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '% &times; ' + t.incomeShareCoefficientPercent + '% = ' +
-            formatNumber(t.effectiveIncomeSharePercent) + '%</span> of the income of the mission.</div>';
+            '<div class="terms-line terms-result"><span>Your income share: ' + formatNumber(t.incomeSharePercent) + '% &times; ' + t.incomeShareCoefficientPercent + '%</span>' +
+            '<span class="fw-semibold">' + formatNumber(t.effectiveIncomeSharePercent) + '%</span></div>';
     }
 
     function renderTerms(t) {
