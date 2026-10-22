@@ -59,6 +59,8 @@
         .picker-tile:hover { border-color: var(--bs-border-color); }
         .picker-tile.selected { border-color: var(--bs-primary); background: var(--bs-primary-bg-subtle); }
         .picker-tile img { width: 64px; height: 64px; image-rendering: pixelated; }
+        /* the hint under a number is one line: on a narrow window it is cut with dots (the full text is in the tooltip), so the tiles keep the same height */
+        .stat-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         /* a place kept for a tile which is not decided yet */
         .stat.stat-placeholder { border-style: dashed; background: transparent; }
         /* the buttons of a tile sit in its top right corner, in the free place of the label row, so they do not make the tile higher */
@@ -151,7 +153,7 @@
             value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + '</span>';
             hint = a.sleepMinutes >= 120
                 ? 'If you wake up now: ' + formatClock(a.creditAfterWakeMinutes)
-                : 'Less than 2 h of sleep gives no awake time';
+                : 'Under 2 h of sleep gives nothing';
             button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton">Wake up</button>';
         } else {
             // green: four hours or more; orange: less than four hours; red: below zero, the pilot is overtired
@@ -237,7 +239,7 @@
                     ${t.actions ? `<div class="stat-corner">${t.actions}</div>` : ''}
                     <div class="stat-label">${esc(t.label)}</div>
                     ${t.html !== undefined ? `<div class="stat-small">${t.html}</div>` : `<div class="stat-value">${t.value}</div>`}
-                    ${t.hint ? `<div class="stat-hint">${t.hint}</div>` : ''}
+                    ${t.hint ? `<div class="stat-hint" title="${t.hint}">${t.hint}</div>` : ''}
                 </div>
             </div>`).join('')}
         </div>`;
