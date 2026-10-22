@@ -189,45 +189,22 @@ function entityHeader({kind, title, subtitle, flagCountry, aside}) {
     </header>`;
 }
 
-// The pictures of the pilots. avatars.csv lists the pictures which can be used (columns: file, forbidden), the picture of a pilot is the row of the
-// file: avatarId 1 is the first row after the header, 0 is no picture. The files are the 32x32 icons of FatCow in ../fatcow/FatCow_Icons32x32/.
+// The picture of the pilot. The server gives only the file name of the icon of this pilot (avatarImage, for instance user_pilot.png), the list of all the
+// pictures is on the server and never here. The icons are the 32x32 icons of FatCow in ../fatcow/FatCow_Icons32x32/.
 const AVATAR_ICONS_PATH = '../fatcow/FatCow_Icons32x32/';
-let avatarListPromise = null;
 
-// the list of the files of avatars.csv in the order of the rows, loaded once; an empty list if it cannot be loaded
-function loadAvatarFiles() {
-    if (!avatarListPromise) {
-        avatarListPromise = fetch('avatars.csv')
-            .then(r => r.ok ? r.text() : Promise.reject(new Error('avatars.csv: HTTP ' + r.status)))
-            .then(text => text.split(/\r?\n/).slice(1).filter(line => line.trim() !== '').map(line => line.split(',')[0].trim()))
-            .catch(e => {
-                console.error(e);
-                return [];
-            });
+// the icon of the picture as html, empty if there is no picture; the name is escaped, it is a file name of the icons folder
+function avatarHtml(avatarImage) {
+    if (!avatarImage) {
+        return '';
     }
-    return avatarListPromise;
-}
-
-// puts the picture into the square of the pilot header (the element has data-avatar-id); nothing is put if the pilot has no picture or the row is not known
-function applyPilotAvatar() {
-    const square = document.querySelector('.pilot-avatar[data-avatar-id]');
-    const avatarId = square ? parseInt(square.dataset.avatarId, 10) : 0;
-    if (!square || !(avatarId > 0)) {
-        return;
-    }
-    loadAvatarFiles().then(files => {
-        const file = files[avatarId - 1];
-        if (!file) {
-            return;
-        }
-        square.innerHTML = '<img src="' + AVATAR_ICONS_PATH + encodeURIComponent(file) + '" alt="" width="64" height="64">';
-    });
+    return '<img src="' + AVATAR_ICONS_PATH + encodeURIComponent(avatarImage) + '" alt="" width="64" height="64">';
 }
 
 // The header of the pages of the pilot (pilot, qualifications, logbook): the same on all of them, so it does not jump when the pilot switches the
 // pages. The avatar (an empty square for now), the kind and the title, and the same three links in the same order, the current page is not a link.
-// current: 'pilot' | 'qualifications' | 'logbook'; avatarId: the picture of the pilot (see above), 0 or nothing is the empty square; title is html (the initials on the page of the pilot, the name of the page on the others)
-function pilotHeader({current, title, avatarId}) {
+// current: 'pilot' | 'qualifications' | 'logbook'; avatarImage: the file name of the picture of the pilot (see above), nothing is the empty square; title is html (the initials on the page of the pilot, the name of the page on the others)
+function pilotHeader({current, title, avatarImage}) {
     const pages = [
         {key: 'pilot', label: 'Pilot', href: 'pilot.html'},
         {key: 'qualifications', label: 'Qualifications', href: 'pilot-qualifications.html'},
@@ -236,11 +213,9 @@ function pilotHeader({current, title, avatarId}) {
     const menu = pages.map(p => p.key === current
         ? '<span class="pilot-menu-current">' + p.label + '</span>'
         : '<a class="entity-link" href="' + p.href + '">' + p.label + '</a>').join('');
-    // the picture is put in when the header is in the page
-    setTimeout(applyPilotAvatar, 0);
     return `
     <header class="entity-header pilot-header">
-        <div class="pilot-avatar" data-avatar-id="${avatarId > 0 ? avatarId : 0}"></div>
+        <div class="pilot-avatar">${avatarHtml(avatarImage)}</div>
         <div class="flex-grow-1">
             <div class="entity-kind">Pilot</div>
             <h1 class="entity-title">${title}</h1>

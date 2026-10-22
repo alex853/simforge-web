@@ -215,7 +215,7 @@
 
     function renderPilot(p) {
         $('#page').html(`
-            ${pilotHeader({current: 'pilot', title: esc(p.initials), avatarId: p.avatarId})}
+            ${pilotHeader({current: 'pilot', title: esc(p.initials), avatarImage: p.avatarImage})}
 
             ${tiles([stateTile(p), locationTile(p), placeholderTile(), bankTile(p)])}
             ${tiles([awakeTile(p), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)])}
