@@ -191,7 +191,8 @@
                         <div class="col-auto">
                             <label class="form-label mb-1 text-nowrap" for="turnaroundSelect">Turnaround time</label>
                             <select id="turnaroundSelect" class="form-select form-select-sm plan-turnaround-select">
-                                <option value="1">1 hour</option>
+                                <option value="0.5">30 minutes</option>
+                                <option value="1" selected>1 hour</option>
                                 <option value="3">3 hours</option>
                                 <option value="6">6 hours</option>
                                 <option value="12">12 hours</option>
@@ -779,7 +780,7 @@
 
     function getPlanOptionParams() {
         return {
-            turnaroundTime: parseInt($('#turnaroundSelect').val(), 10),
+            turnaroundTime: parseFloat($('#turnaroundSelect').val()),
             ferryBackToBase: $('#ferryBackToBase').is(':checked')
         };
     }
