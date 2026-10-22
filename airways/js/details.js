@@ -201,18 +201,10 @@ function avatarHtml(avatarImage) {
     return '<img src="' + AVATAR_ICONS_PATH + encodeURIComponent(avatarImage) + '" alt="" width="64" height="64">';
 }
 
-// The header of the pages of the pilot (pilot, qualifications, logbook): the same on all of them, so it does not jump when the pilot switches the
-// pages. The avatar (an empty square for now), the kind and the title, and the same three links in the same order, the current page is not a link.
-// current: 'pilot' | 'qualifications' | 'logbook'; avatarImage: the file name of the picture of the pilot (see above), nothing is the empty square; title is html (the initials on the page of the pilot, the name of the page on the others)
-function pilotHeader({current, title, avatarImage}) {
-    const pages = [
-        {key: 'pilot', label: 'Pilot', href: 'pilot.html'},
-        {key: 'qualifications', label: 'Qualifications', href: 'pilot-qualifications.html'},
-        {key: 'logbook', label: 'Logbook', href: 'pilot-logbook.html'}
-    ];
-    const menu = pages.map(p => p.key === current
-        ? '<span class="pilot-menu-current">' + p.label + '</span>'
-        : '<a class="entity-link" href="' + p.href + '">' + p.label + '</a>').join('');
+// The header of the pages of the pilot (pilot, qualifications, logbook): the same on all of them. The avatar (an empty square when there is none), the kind
+// and the title; title is html (the initials on the page of the pilot, the name of the page on the others), avatarImage is the file name of the picture of the
+// pilot (see above). The links between the pages are in the menu of the top bar (initSiteMenu in js/requests.js).
+function pilotHeader({title, avatarImage}) {
     return `
     <header class="entity-header pilot-header">
         <div class="pilot-avatar">${avatarHtml(avatarImage)}</div>
@@ -220,7 +212,6 @@ function pilotHeader({current, title, avatarImage}) {
             <div class="entity-kind">Pilot</div>
             <h1 class="entity-title">${title}</h1>
         </div>
-        <div class="entity-aside pilot-menu">${menu}</div>
     </header>`;
 }
 

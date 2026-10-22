@@ -939,6 +939,7 @@
     }
 
     $(document).ready(function () {
+        initSiteMenu('busy-birds');
         planModal = new bootstrap.Modal(document.getElementById('planModal'));
 
         airwaysAuth('GET', '/pilot', {}, function (p) {

@@ -213,15 +213,6 @@ body {
     background: var(--bs-tertiary-bg);
 }
 
-.pilot-menu {
-    display: flex;
-    gap: 1rem;
-}
-
-.pilot-menu-current {
-    font-weight: 600;
-}
-
 /* the 32x32 icon is shown twice as big; pixels stay sharp */
 .pilot-avatar img {
     width: 64px;
@@ -237,4 +228,23 @@ body {
     font-weight: 400;
     color: var(--bs-secondary-color, #495057);
     text-decoration: line-through;
+}
+
+/* The menu of the top bar (initSiteMenu in js/requests.js): a Bootstrap dropdown, only the button and the width of the list are ours */
+.site-menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.1rem;
+    padding: 0;
+}
+
+.site-menu-button svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.site-menu-list {
+    min-width: 13rem;
 }

@@ -14,6 +14,7 @@
           integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link href="css/details.css" rel="stylesheet">
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/requests.js"></script>
     <script src="../js/flags.js"></script>
     <script src="js/details.js"></script>
@@ -216,7 +217,7 @@
             </div>` : '<div class="card-body text-secondary">No flights yet</div>';
 
         $('#page').html(`
-            ${pilotHeader({current: 'qualifications', title: 'Qualifications', avatarImage: q.avatarImage})}
+            ${pilotHeader({title: 'Qualifications', avatarImage: q.avatarImage})}
 
             ${statTiles([
                 {label: 'Flights', value: fmtNumber(t.flights)},
@@ -233,6 +234,7 @@
     }
 
     $(document).ready(function () {
+        initSiteMenu('qualifications');
         showLoading();
         airwaysAuth('GET', '/pilot/qualifications', {}, renderQualifications, function (e) {
             if (e && e.status === 401) {
