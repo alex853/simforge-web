@@ -14,6 +14,9 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+    <script src="js/pilot-tiles.js"></script>
     <style>
         .mission-row { cursor: pointer; }
         .mission-row.picked > td { background: var(--bs-primary-bg-subtle); }
@@ -24,8 +27,10 @@
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
         .pay-mark { display: inline-block; width: 1.15em; height: 1.15em; line-height: 1.05em; border: 1px solid currentColor; border-radius: 50%; font-size: 0.7em; text-align: center; margin-left: 0.35em; opacity: 0.65; cursor: help; vertical-align: middle; }
         .pay-line { white-space: nowrap; }
-        .terms-quals { flex: 0 0 20%; min-width: 12rem; }
-        .terms-part { flex: 1 1 0; min-width: 14rem; }
+        /* a button in the bottom right corner of a tile, like the one of the awake time tile in the top right corner of the page of the pilot */
+        .stat-corner-bottom { position: absolute; bottom: .45rem; right: .6rem; }
+        .stat-corner-bottom .btn { --bs-btn-padding-y: .05rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .8rem; line-height: 1.3; }
+        .stat.has-corner-bottom { position: relative; }
         .terms-sub { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color); margin-bottom: 0.5rem; }
         .terms-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
         .terms-result { border-top: 1px solid var(--bs-border-color); margin-top: 0.5rem; padding-top: 0.5rem; }
@@ -42,44 +47,46 @@
 </nav>
 
 <main class="container-lg py-4">
-    <header class="entity-header">
-        <div class="flex-grow-1">
-            <div class="entity-kind">busyBirds</div>
-            <h1 class="entity-title">Mission booking</h1>
-            <div class="entity-sub">Check your pilot, select an aircraft and a mission, get a quotation, then book.</div>
-        </div>
-    </header>
+    <div id="pageHeader"></div>
+
+    <p class="text-secondary mb-4">Check your pilot, select an aircraft and a mission, get a quotation, then book.</p>
 
     <div id="alertHost"></div>
 
-    <section class="card section mb-4" id="pilotCard">
-        <div class="card-header">
-            <span class="section-title">Pilot</span>
-        </div>
-        <div class="card-body" id="pilotBody">
-            <span class="text-secondary">Loading…</span>
-        </div>
-    </section>
+    <!-- the state, the location, the awake time and the duty time of the pilot: the same tiles as on the page of the pilot, but only the numbers, without buttons -->
+    <div id="pilotTiles"></div>
 
-    <section class="card section mb-4">
-        <div class="card-header">
-            <span class="section-title">Aircraft</span>
+    <!-- the double tile (two tiles in one): the choice of the aircraft -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6">
+            <div class="stat">
+                <div class="stat-label">Aircraft</div>
+                <select id="aircraftSelect" class="form-select mt-1" disabled>
+                    <option value="">Loading…</option>
+                </select>
+                <div class="stat-hint mt-1" id="aircraftHelp"></div>
+            </div>
         </div>
-        <div class="card-body">
-            <select id="aircraftSelect" class="form-select" disabled>
-                <option value="">Loading…</option>
-            </select>
-            <div class="form-text" id="aircraftHelp"></div>
+        <!-- the terms of the pilot on the chosen aircraft: they appear when an aircraft is chosen -->
+        <div class="col-6 col-md-3 terms-tile" style="display: none;">
+            <div class="stat has-corner-bottom">
+                <div class="stat-label">Hourly rate</div>
+                <div class="stat-value money" id="hourlyValue"></div>
+                <div class="stat-hint" id="hourlyHint"></div>
+                <div class="stat-corner-bottom"><button type="button" class="btn btn-sm btn-outline-secondary" id="hourlyDetails">Details</button></div>
+            </div>
         </div>
-    </section>
+        <div class="col-6 col-md-3 terms-tile" style="display: none;">
+            <div class="stat has-corner-bottom">
+                <div class="stat-label">Income share</div>
+                <div class="stat-value money" id="shareValue"></div>
+                <div class="stat-hint">Of the mission income</div>
+                <div class="stat-corner-bottom"><button type="button" class="btn btn-sm btn-outline-secondary" id="shareDetails">Details</button></div>
+            </div>
+        </div>
+    </div>
 
-    <section class="card section mb-4" id="termsCard" style="display: none;">
-        <div class="card-header">
-            <span class="section-title">Your terms on this aircraft</span>
-            <span class="text-secondary ms-2" id="termsType"></span>
-        </div>
-        <div class="card-body" id="termsBody"></div>
-    </section>
+    <div id="bookingAlert"></div>
 
     <div class="row g-4">
         <!-- sidebar goes first on narrow screens -->
@@ -138,6 +145,19 @@
         </div>
     </div>
 </main>
+
+<!-- Why the hourly rate or the income share is what it is: the base, the deductions and the result -->
+<div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="termsModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="termsModalBody"></div>
+        </div>
+    </div>
+</div>
 
 <!-- Plan modal (messages or legs) -->
 <div class="modal fade" id="planModal" tabindex="-1" aria-hidden="true">
@@ -491,14 +511,6 @@
         Manual: 'Manual flight'
     };
 
-    function termsMark(ok) {
-        return ok ? '<span class="terms-ok">&#10003;</span>' : '<span class="terms-no">&#10007;</span>';
-    }
-
-    function termsQualLine(label, valueHtml, tooltip) {
-        return '<div class="terms-line" title="' + escapeHtml(tooltip) + '"><span>' + escapeHtml(label) + '</span><span>' + valueHtml + '</span></div>';
-    }
-
     // the lines of the deductions, or a line that there are none
     function deductionLines(deductions) {
         if (!deductions.length) {
@@ -518,42 +530,39 @@
     // the terms of the pilot on the chosen aircraft as the server gave them, null if there are none
     let currentTerms = null;
 
-    function renderTerms(t) {
-        currentTerms = t;
-        $('#termsType').text(t.aircraftType);
-
-        const qualifications =
-            '<div class="terms-sub">Qualifications</div>' +
-            termsQualLine('Experience level', '<span class="fw-semibold">' + roman(t.experienceLevel) + '</span>',
-                'Experience level on this type, 0 to V, by all the flights and hours on the type') +
-            termsQualLine('Type currency', termsMark(t.typeCurrent), 'Enough flights and hours on this type in the last 12 months') +
-            termsQualLine('Night flying', termsMark(t.nightFlying), 'A night takeoff and a night landing on this type in the last 90 days') +
-            termsQualLine('Can carry passengers', termsMark(t.canCarryPassengers), 'Enough landings on this type in the last 90 days');
-
-        const flightPay =
-            '<div class="terms-sub">Pay for flown hours</div>' +
-            '<div class="terms-line"><span>Base hourly rate, ' + escapeHtml(t.aircraftType) + '</span><span class="fw-semibold">' + moneyHtml(t.hourlyRate) + '</span></div>' +
+    // the explanation of the hourly rate: the base rate of the type, the deductions, the result
+    function hourlyDetailsHtml(t) {
+        return '<div class="terms-line"><span>Base hourly rate, ' + escapeHtml(t.aircraftType) + '</span><span class="fw-semibold">' + moneyHtml(t.hourlyRate) + '</span></div>' +
             deductionLines(t.flightPayDeductions) +
             floorNote(t.flightPayDeductions, t.flightPayCoefficientPercent) +
             '<div class="terms-result">You get <span class="fw-semibold">' + moneyHtml(t.hourlyRate) + ' &times; ' + t.flightPayCoefficientPercent + '% = ' +
             moneyHtml(t.effectiveHourlyRate) + '</span> for each hour of the flight.</div>';
+    }
 
-        const incomeShare =
-            '<div class="terms-sub">Income share</div>' +
-            '<div class="terms-line"><span>Base share, experience level ' + roman(t.experienceLevel) + '</span><span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '%</span></div>' +
+    // the explanation of the income share: the base share of the experience level, the deductions, the result
+    function shareDetailsHtml(t) {
+        return '<div class="terms-line"><span>Base share, experience level ' + roman(t.experienceLevel) + '</span><span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '%</span></div>' +
             deductionLines(t.incomeShareDeductions) +
             floorNote(t.incomeShareDeductions, t.incomeShareCoefficientPercent) +
             '<div class="terms-result">You get <span class="fw-semibold">' + formatNumber(t.incomeSharePercent) + '% &times; ' + t.incomeShareCoefficientPercent + '% = ' +
             formatNumber(t.effectiveIncomeSharePercent) + '%</span> of the income of the mission.</div>';
-
-        $('#termsBody').html(
-            '<div class="d-flex flex-wrap gap-4">' +
-            '<div class="terms-quals">' + qualifications + '</div>' +
-            '<div class="terms-part">' + flightPay + '</div>' +
-            '<div class="terms-part">' + incomeShare + '</div>' +
-            '</div>');
-        $('#termsCard').show();
     }
+
+    function renderTerms(t) {
+        currentTerms = t;
+        $('#hourlyValue').html(moneyHtml(t.effectiveHourlyRate));
+        $('#hourlyHint').text('Per flight hour, ' + t.aircraftType);
+        $('#shareValue').text(formatNumber(t.effectiveIncomeSharePercent) + '%');
+        $('.terms-tile').show();
+    }
+
+    function showTermsModal(title, html) {
+        $('#termsModalTitle').text(title);
+        $('#termsModalBody').html(html);
+        termsModal.show();
+    }
+
+    let termsModal;
 
     // the answer of an old request must not replace the terms of the aircraft which is chosen now
     let termsRequestedFor = null;
@@ -563,7 +572,7 @@
         termsRequestedFor = aircraftId;
         if (!aircraftId) {
             currentTerms = null;
-            $('#termsCard').hide();
+            $('.terms-tile').hide();
             return;
         }
         airwaysAuth('GET', '/busy-birds/pilot-terms', {aircraftId: aircraftId}, function (t) {
@@ -573,7 +582,7 @@
         }, function () {
             if (termsRequestedFor === aircraftId) {
                 currentTerms = null;
-                $('#termsCard').hide();
+                $('.terms-tile').hide();
             }
         });
     }
@@ -902,32 +911,31 @@
     let pilotInfo;
     let bookingStatus;
 
+    // The header with the avatar, the same as on the pages of the pilot: the small title is busyBirds, the big one is the page.
+    function renderHeader() {
+        $('#pageHeader').html(pilotHeader({kind: 'busyBirds', title: 'Mission booking', avatarImage: pilotInfo ? pilotInfo.avatarImage : null}));
+    }
+
+    // The tiles of the pilot (one row, the tiles are the width of four in a row) and the answer of the booking status.
+    function renderTiles() {
+        if (pilotInfo) {
+            $('#pilotTiles').html(tiles([stateTile(pilotInfo), locationTile(pilotInfo), awakeTile(pilotInfo, false), dutyTile(pilotInfo)]));
+        } else if (pilotInfo === null) {
+            $('#pilotTiles').html('<div class="text-secondary mb-4">Pilot information is not available.</div>');
+        }
+    }
+
     function renderPilotBlock() {
         if (pilotInfo === undefined || bookingStatus === undefined) {
             return;
         }
-
-        let html = '';
-        if (pilotInfo) {
-            const p = pilotInfo;
-            const location = p.airportIcao
-                ? '<span class="fw-semibold">' + escapeHtml(p.airportIcao) + '</span>' + (p.airportName ? ' <span class="text-secondary">' + escapeHtml(p.airportName) + '</span>' : '')
-                : '<span class="text-secondary">' + escapeHtml(p.cityName || 'not at an airport') + '</span>';
-            const stateClass = p.state === 'Idle' ? 'text-bg-success' : 'text-bg-secondary';
-            html +=
-                '<div class="row g-3">' +
-                '<div class="col-6 col-md-3"><div class="stat-label">Pilot</div><div class="fs-5 fw-semibold">' + escapeHtml(p.initials || '—') + '</div></div>' +
-                '<div class="col-6 col-md-3"><div class="stat-label">State</div><div class="fs-5"><span class="badge ' + stateClass + '">' + escapeHtml(p.state || '') + '</span></div></div>' +
-                '<div class="col-12 col-md-6"><div class="stat-label">Location</div><div class="fs-5">' + location + '</div></div>' +
-                '</div>';
-        } else {
-            html += '<span class="text-secondary">Pilot information is not available.</span>';
-        }
-
+        renderHeader();
+        renderTiles();
         if (bookingStatus && !bookingStatus.canBook) {
-            html += '<div class="alert alert-warning mt-3 mb-0">' + escapeHtml(bookingStatus.problem || 'Flights cannot be booked now.') + '</div>';
+            $('#bookingAlert').html('<div class="alert alert-warning mb-4">' + escapeHtml(bookingStatus.problem || 'Flights cannot be booked now.') + '</div>');
+        } else {
+            $('#bookingAlert').empty();
         }
-        $('#pilotBody').html(html);
     }
 
     function escapeHtml(s) {
@@ -940,7 +948,19 @@
 
     $(document).ready(function () {
         initSiteMenu('busy-birds');
+        renderHeader();
         planModal = new bootstrap.Modal(document.getElementById('planModal'));
+        termsModal = new bootstrap.Modal(document.getElementById('termsModal'));
+        $('#hourlyDetails').on('click', function () {
+            if (currentTerms) {
+                showTermsModal('Your hourly rate', hourlyDetailsHtml(currentTerms));
+            }
+        });
+        $('#shareDetails').on('click', function () {
+            if (currentTerms) {
+                showTermsModal('Your income share', shareDetailsHtml(currentTerms));
+            }
+        });
 
         airwaysAuth('GET', '/pilot', {}, function (p) {
             pilotInfo = p;
@@ -983,6 +1003,15 @@
             updateQuoteButton();
             loadTerms();
         });
+        setInterval(function () {
+            if (document.hidden) {
+                return;
+            }
+            airwaysAuth('GET', '/pilot', {}, function (p) {
+                pilotInfo = p;
+                renderTiles();
+            }, function () { /* keep what is shown */ });
+        }, 60 * 1000);
         setInterval(function () {
             if (!document.hidden && getSelectedAircraftId()) {
                 loadTerms();

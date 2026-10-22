@@ -204,12 +204,12 @@ function avatarHtml(avatarImage) {
 // The header of the pages of the pilot (pilot, qualifications, logbook): the same on all of them. The avatar (an empty square when there is none), the kind
 // and the title; title is html (the initials on the page of the pilot, the name of the page on the others), avatarImage is the file name of the picture of the
 // pilot (see above). The links between the pages are in the menu of the top bar (initSiteMenu in js/requests.js).
-function pilotHeader({title, avatarImage}) {
+function pilotHeader({title, avatarImage, kind = 'Pilot'}) {
     return `
     <header class="entity-header pilot-header">
         <div class="pilot-avatar">${avatarHtml(avatarImage)}</div>
         <div class="flex-grow-1">
-            <div class="entity-kind">Pilot</div>
+            <div class="entity-kind">${esc(kind)}</div>
             <h1 class="entity-title">${title}</h1>
         </div>
     </header>`;

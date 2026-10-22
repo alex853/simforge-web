@@ -248,3 +248,24 @@ body {
 .site-menu-list {
     min-width: 13rem;
 }
+
+/* the tiles of the pilot (js/pilot-tiles.js) */
+/* where the pilot is: the airport or the city is big and green, "piloting an aircraft" is not a place, so it is thin and quiet */
+.location-place { color: var(--bs-success); }
+.location-away { font-size: 1.3rem; font-weight: 400; line-height: 1.6; color: var(--bs-secondary-color); white-space: normal; }
+.money { font-variant-numeric: tabular-nums; }
+/* the number is green while there is room, orange when it is close to the limit, red over it; the note stands right of the number */
+.duty-ok { color: var(--bs-success); }
+.duty-near { color: #fd7e14; }
+.duty-over { color: var(--bs-danger); }
+.duty-line { display: flex; align-items: center; gap: .7rem; }
+.duty-note { font-size: .8rem; font-weight: 600; line-height: 1.15; white-space: normal; }
+/* the hint under a number is one line: on a narrow window it is cut with dots (the full text is in the tooltip), so the tiles keep the same height */
+.stat-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a place kept for a tile which is not decided yet */
+.stat.stat-placeholder { border-style: dashed; background: transparent; }
+/* the buttons of a tile sit in its top right corner, in the free place of the label row, so they do not make the tile higher */
+.stat.has-corner { position: relative; }
+.stat-corner { position: absolute; top: .45rem; right: .6rem; }
+.stat-corner .btn { --bs-btn-padding-y: .05rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .8rem; line-height: 1.3; }
+.money-negative { color: var(--bs-danger); }
