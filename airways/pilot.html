@@ -29,6 +29,28 @@
         .duty-over { color: var(--bs-danger); }
         .duty-line { display: flex; align-items: center; gap: .7rem; }
         .duty-note { font-size: .8rem; font-weight: 600; line-height: 1.15; white-space: normal; }
+        /* the pencil in the bottom right corner of the picture of the pilot opens the choice of the avatar; the picture itself is not a button */
+        .pilot-avatar { position: relative; }
+        .avatar-edit { position: absolute; right: -9px; bottom: -9px; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
+            color: var(--bs-secondary-color); background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 50%; cursor: pointer; }
+        .avatar-edit:hover { color: var(--bs-primary); border-color: var(--bs-primary); }
+        .avatar-edit svg { width: 14px; height: 14px; }
+
+        /* the choice of the avatar: a panel over the page, the pictures as tiles which scroll */
+        .picker-backdrop { position: fixed; inset: 0; z-index: 1050; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); }
+        .picker-panel { display: flex; flex-direction: column; width: min(760px, 94vw); height: min(60vh, 640px); min-height: 320px; background: var(--bs-body-bg);
+            border: 1px solid var(--bs-border-color); border-radius: .75rem; box-shadow: 0 .5rem 2rem rgba(0, 0, 0, .3); overflow: hidden; }
+        .picker-header, .picker-footer { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; }
+        .picker-header { border-bottom: 1px solid var(--bs-border-color); }
+        .picker-footer { border-top: 1px solid var(--bs-border-color); justify-content: flex-end; }
+        .picker-title { flex-grow: 1; font-weight: 600; }
+        .picker-body { flex: 1; overflow-y: auto; padding: 1rem; }
+        .picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: .6rem; }
+        .picker-tile { display: flex; align-items: center; justify-content: center; height: 84px; padding: 0; background: var(--bs-tertiary-bg);
+            border: 2px solid transparent; border-radius: .6rem; cursor: pointer; }
+        .picker-tile:hover { border-color: var(--bs-border-color); }
+        .picker-tile.selected { border-color: var(--bs-primary); background: var(--bs-primary-bg-subtle); }
+        .picker-tile img { width: 64px; height: 64px; image-rendering: pixelated; }
         /* a place kept for a tile which is not decided yet */
         .stat.stat-placeholder { border-style: dashed; background: transparent; }
         /* the buttons of a tile sit in its top right corner, in the free place of the label row, so they do not make the tile higher */
@@ -213,6 +235,90 @@
         </div>`;
     }
 
+    // ---- the choice of the avatar: a click on the picture of the pilot opens a panel with all the pictures which may be chosen, the shown one is chosen
+    // already. The list comes from the server (GET /pilot/avatars) only when the panel is opened; Save sends the chosen file name (POST /pilot/avatar).
+    let avatarPicker = null;
+
+    function closeAvatarPicker() {
+        if (avatarPicker) {
+            avatarPicker.remove();
+            avatarPicker = null;
+            $(document).off('keydown.avatarPicker');
+        }
+    }
+
+    function openAvatarPicker() {
+        if (avatarPicker) {
+            return;
+        }
+        avatarPicker = $(`
+            <div class="picker-backdrop">
+                <div class="picker-panel" role="dialog" aria-label="Choose your avatar">
+                    <div class="picker-header"><span class="picker-title">Choose your avatar</span><button type="button" class="btn-close" id="pickerClose" aria-label="Close"></button></div>
+                    <div class="picker-body" id="pickerBody"><div class="text-secondary">Loading...</div></div>
+                    <div class="picker-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="pickerCancel">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="pickerSave" disabled>Save</button>
+                    </div>
+                </div>
+            </div>`);
+        $('body').append(avatarPicker);
+
+        // a click outside of the panel, the cross, Cancel and Escape close it without saving
+        avatarPicker.on('click', e => {
+            if (e.target === avatarPicker[0]) {
+                closeAvatarPicker();
+            }
+        });
+        avatarPicker.find('#pickerClose, #pickerCancel').on('click', closeAvatarPicker);
+        $(document).on('keydown.avatarPicker', e => {
+            if (e.key === 'Escape') {
+                closeAvatarPicker();
+            }
+        });
+
+        airwaysAuth('GET', '/pilot/avatars', {}, function (r) {
+            if (!avatarPicker) {
+                return; // closed while loading
+            }
+            let chosen = r.current;
+            avatarPicker.find('#pickerBody').html('<div class="picker-grid">' + r.images.map(image =>
+                '<button type="button" class="picker-tile' + (image === chosen ? ' selected' : '') + '" data-image="' + esc(image) + '" title="'
+                + esc(image.replace(/\.png$/, '').replace(/_/g, ' ')) + '">' + avatarHtml(image) + '</button>').join('') + '</div>');
+            avatarPicker.find('.picker-tile').on('click', function () {
+                chosen = $(this).data('image');
+                avatarPicker.find('.picker-tile').removeClass('selected');
+                $(this).addClass('selected');
+            });
+            // the chosen picture is scrolled to the middle of the panel; the layout of the tiles may not be final at this moment, so it is done again on the next frames
+            const body = avatarPicker.find('#pickerBody')[0];
+            const centerChosen = () => {
+                const selected = body.querySelector('.picker-tile.selected');
+                if (selected) {
+                    body.scrollTop += selected.getBoundingClientRect().top - body.getBoundingClientRect().top - (body.clientHeight - selected.offsetHeight) / 2;
+                }
+            };
+            centerChosen();
+            requestAnimationFrame(() => requestAnimationFrame(centerChosen));
+            avatarPicker.find('#pickerSave').prop('disabled', false).on('click', function () {
+                avatarPicker.find('#pickerSave, #pickerCancel').prop('disabled', true);
+                airwaysAuth('POST', '/pilot/avatar', {image: chosen}, function (pilot) {
+                    closeAvatarPicker();
+                    renderPilot(pilot);
+                }, function () {
+                    alert('The avatar was not saved, try again');
+                    if (avatarPicker) {
+                        avatarPicker.find('#pickerSave, #pickerCancel').prop('disabled', false);
+                    }
+                });
+            });
+        }, function () {
+            if (avatarPicker) {
+                avatarPicker.find('#pickerBody').html('<div class="text-danger">The pictures could not be loaded</div>');
+            }
+        });
+    }
+
     function renderPilot(p) {
         $('#page').html(`
             ${pilotHeader({current: 'pilot', title: esc(p.initials), avatarImage: p.avatarImage})}
@@ -220,6 +326,9 @@
             ${tiles([stateTile(p), locationTile(p), placeholderTile(), bankTile(p)])}
             ${tiles([awakeTile(p), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)])}
         `);
+        $('.pilot-avatar').append('<button type="button" class="avatar-edit" title="Change the avatar" aria-label="Change the avatar">'
+            + '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg></button>');
+        $('.avatar-edit').on('click', openAvatarPicker);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => sleepOrWake('/pilot/wake'));
     }
