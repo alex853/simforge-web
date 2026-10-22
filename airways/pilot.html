@@ -23,9 +23,12 @@
         .location-place { color: var(--bs-success); }
         .location-away { font-size: 1.3rem; font-weight: 400; line-height: 1.6; color: var(--bs-secondary-color); white-space: normal; }
         .money { font-variant-numeric: tabular-nums; }
-        .awake-negative { color: var(--bs-danger); }
+        /* the number is green while there is room, orange when it is close to the limit, red over it; the note stands right of the number */
+        .duty-ok { color: var(--bs-success); }
         .duty-near { color: #fd7e14; }
         .duty-over { color: var(--bs-danger); }
+        .duty-line { display: flex; align-items: center; gap: .7rem; }
+        .duty-note { font-size: .8rem; font-weight: 600; line-height: 1.15; white-space: normal; }
         /* a place kept for a tile which is not decided yet */
         .stat.stat-placeholder { border-style: dashed; background: transparent; }
         /* the buttons of a tile sit in its top right corner, in the free place of the label row, so they do not make the tile higher */
@@ -102,6 +105,9 @@
         return (minutes < 0 ? '\u2212' : '') + Math.floor(abs / 60) + ':' + String(abs % 60).padStart(2, '0');
     }
 
+    // the awake time is orange when it is less than this
+    const AWAKE_NEAR_MINUTES = 4 * 60;
+
     // The time the pilot can still stay awake and active (the awake credit of the server). Sleeping fills it: two hours of the credit for an hour of sleep,
     // but a sleep shorter than two hours gives nothing, the most is 16 hours. Below zero the pilot is overtired. The buttons of the tile put the pilot
     // to sleep and wake the pilot up; only a free pilot can go to sleep.
@@ -118,24 +124,72 @@
                 : 'Less than 2 h of sleep gives no awake time';
             button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton">Wake up</button>';
         } else {
-            value = '<span class="money' + (a.creditMinutes < 0 ? ' awake-negative' : '') + '">' + formatClock(a.creditMinutes) + '</span>';
-            hint = a.creditMinutes < 0 ? 'You are overtired, you need sleep' : 'Hours left before you need sleep';
+            // green: four hours or more; orange: less than four hours; red: below zero, the pilot is overtired
+            const cls = a.creditMinutes < 0 ? 'duty-over' : (a.creditMinutes < AWAKE_NEAR_MINUTES ? 'duty-near' : 'duty-ok');
+            value = '<span class="money ' + cls + '">' + formatClock(a.creditMinutes) + '</span>';
+            hint = a.creditMinutes < 0 ? 'You are overtired, you need sleep'
+                : (a.creditMinutes < AWAKE_NEAR_MINUTES ? 'Less than ' + formatClock(AWAKE_NEAR_MINUTES) + ' left, plan your sleep' : 'Hours left before you need sleep');
             const canSleep = p.state === 'Idle';
             button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="sleepButton"' + (canSleep ? '' : ' disabled title="Only a free pilot can go to sleep"') + '>Sleep</button>';
         }
         return {label: 'Awake time', value: value, hint: esc(hint), actions: button};
     }
 
+    // A tile with a number which has a limit: green while there is room, orange when it is close to the limit, red over it, and the note of the
+    // orange and the red states stands right of the number. Nothing is enforced yet, the page only shows the number and the limit.
+    // nearMinutes: from how many minutes the number is orange; text: {unknown, near, over} the notes.
+    function limitTile(label, minutes, limitMinutes, nearMinutes, formatValue, hint, notes) {
+        let cls = 'duty-ok';
+        let note = '';
+        if (minutes > limitMinutes) {
+            cls = 'duty-over';
+            note = notes.over;
+        } else if (minutes >= nearMinutes) {
+            cls = 'duty-near';
+            note = notes.near;
+        }
+        const value = '<span class="duty-line"><span class="money ' + cls + '">' + formatValue(minutes) + '</span>'
+            + (note ? '<span class="duty-note ' + cls + '">' + note + '</span>' : '') + '</span>';
+        return {label: label, value: value, hint: esc(hint)};
+    }
+
+    // hours with one digit: 3804 minutes -> '63.4'
+    function formatHours(minutes) {
+        return (Math.round(minutes / 6) / 10).toFixed(1);
+    }
+
     // The duty in the last 24 hours (the sliding window, not the calendar day): the finished flights of the logbook and the flight in progress up to now,
-    // each from Start flight to Finish flight. It must not exceed 14 hours; nothing is enforced yet, the page only shows the number and the limit.
+    // each from Start flight to Finish flight. It must not exceed 14 hours; orange from 12 hours.
     function dutyTile(p) {
         const d = p.duty;
         if (!d) {
             return {label: 'Duty time', html: '<span class="location-away">Unknown</span>'};
         }
-        const cls = d.last24HoursMinutes > d.limitMinutes ? ' duty-over' : (d.last24HoursMinutes >= d.limitMinutes - 120 ? ' duty-near' : '');
         const hint = d.onDuty ? 'Last 24 h with this flight, max ' + formatClock(d.limitMinutes) : 'Last 24 h, not more than ' + formatClock(d.limitMinutes);
-        return {label: 'Duty time', value: '<span class="money' + cls + '">' + formatClock(d.last24HoursMinutes) + '</span>', hint: esc(hint)};
+        return limitTile('Duty time', d.last24HoursMinutes, d.limitMinutes, d.limitMinutes - 120, formatClock, hint,
+            {near: 'Close to the duty time limit', over: 'Duty time limit exceeded'});
+    }
+
+    // The flight time (blocks off to blocks on, with the flight in progress) in the last 30 days: not more than 80 hours, orange from 70.
+    function flightTime30Tile(p) {
+        const f = p.flightTime;
+        if (!f) {
+            return {label: 'Flight time, 30 days', html: '<span class="location-away">Unknown</span>'};
+        }
+        return limitTile('Flight time, 30 days', f.last30DaysMinutes, f.limit30DaysMinutes, f.limit30DaysMinutes - 10 * 60, formatHours,
+            'Last 30 days, max ' + (f.limit30DaysMinutes / 60) + ' h',
+            {near: 'Close to the limit', over: 'Limit exceeded'});
+    }
+
+    // The same for the last 365 days: not more than 800 hours, orange from 700.
+    function flightTime365Tile(p) {
+        const f = p.flightTime;
+        if (!f) {
+            return {label: 'Flight time, 365 days', html: '<span class="location-away">Unknown</span>'};
+        }
+        return limitTile('Flight time, 365 days', f.last365DaysMinutes, f.limit365DaysMinutes, f.limit365DaysMinutes - 100 * 60, formatHours,
+            'Last 365 days, max ' + (f.limit365DaysMinutes / 60) + ' h',
+            {near: 'Close to the limit', over: 'Limit exceeded'});
     }
 
     // the place of a tile which is not decided yet
@@ -164,18 +218,43 @@
             ${pilotHeader({current: 'pilot', title: esc(p.initials)})}
 
             ${tiles([stateTile(p), locationTile(p), placeholderTile(), bankTile(p)])}
-            ${tiles([awakeTile(p), dutyTile(p)])}
+            ${tiles([awakeTile(p), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)])}
         `);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => sleepOrWake('/pilot/wake'));
     }
 
+    // a sleep or wake request is in flight: the refresh waits, so it does not draw an old state over the new one
+    let actionInProgress = false;
+
     // POST /pilot/sleep or /pilot/wake: the answer is the pilot as GET /pilot gives it, the page is drawn again
     function sleepOrWake(url) {
+        actionInProgress = true;
         $('#sleepButton, #wakeButton').prop('disabled', true);
-        airwaysAuth('POST', url, {}, renderPilot, function (e) {
+        airwaysAuth('POST', url, {}, function (pilot) {
+            actionInProgress = false;
+            renderPilot(pilot);
+        }, function (e) {
+            actionInProgress = false;
             alert(e && e.status === 409 ? (e.responseJSON && e.responseJSON.message ? e.responseJSON.message : 'The pilot cannot do it now') : 'Failed, try again');
             loadPilot();
+        });
+    }
+
+    // The page reads the pilot again once a minute (the awake time falls, the duty and the flight time change while a flight goes). A failed refresh
+    // is not shown: the page keeps what it has until the next one.
+    const REFRESH_INTERVAL_MS = 60 * 1000;
+
+    function refreshPilot() {
+        if (actionInProgress) {
+            return;
+        }
+        airwaysAuth('GET', '/pilot', {}, function (pilot) {
+            if (!actionInProgress) {
+                renderPilot(pilot);
+            }
+        }, function () {
+            // keep the current content
         });
     }
 
@@ -194,6 +273,7 @@
     $(document).ready(function () {
         showLoading();
         loadPilot();
+        setInterval(refreshPilot, REFRESH_INTERVAL_MS);
     });
 </script>
 
