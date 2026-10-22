@@ -23,6 +23,8 @@
         .location-place { color: var(--bs-success); }
         .location-away { font-size: 1.3rem; font-weight: 400; line-height: 1.6; color: var(--bs-secondary-color); white-space: normal; }
         .money { font-variant-numeric: tabular-nums; }
+        .awake-negative { color: var(--bs-danger); }
+        .stat-actions { padding-top: .5rem; }
         .money-negative { color: var(--bs-danger); }
     </style>
 </head>
@@ -87,16 +89,47 @@
         };
     }
 
-    // three tiles of the same width
+    // minutes as a clock with the sign: 750 -> '12:30', -80 -> '\u22121:20'
+    function formatClock(minutes) {
+        const abs = Math.abs(minutes);
+        return (minutes < 0 ? '\u2212' : '') + Math.floor(abs / 60) + ':' + String(abs % 60).padStart(2, '0');
+    }
+
+    // The time the pilot can still stay awake and active (the awake credit of the server). Sleeping fills it: two hours of the credit for an hour of sleep,
+    // but a sleep shorter than two hours gives nothing, the most is 16 hours. Below zero the pilot is overtired. The buttons of the tile put the pilot
+    // to sleep and wake the pilot up; only a free pilot can go to sleep.
+    function awakeTile(p) {
+        const a = p.awake;
+        if (!a) {
+            return {label: 'Awake time', html: '<span class="location-away">Unknown</span>'};
+        }
+        let value, hint, button;
+        if (a.sleeping) {
+            value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + '</span>';
+            hint = a.sleepMinutes >= 120
+                ? 'Awake time if you wake up now: ' + formatClock(a.creditAfterWakeMinutes)
+                : 'Less than 2 h of sleep gives no awake time';
+            button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton">Wake up</button>';
+        } else {
+            value = '<span class="money' + (a.creditMinutes < 0 ? ' awake-negative' : '') + '">' + formatClock(a.creditMinutes) + '</span>';
+            hint = a.creditMinutes < 0 ? 'You are overtired, you need sleep' : 'Hours left before you need sleep';
+            const canSleep = p.state === 'Idle';
+            button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="sleepButton"' + (canSleep ? '' : ' disabled title="Only a free pilot can go to sleep"') + '>Sleep</button>';
+        }
+        return {label: 'Awake time', value: value, hint: esc(hint), actions: button};
+    }
+
+    // four tiles of the same width
     function tiles(list) {
         return `
         <div class="row g-3 mb-4">
             ${list.map(t => `
-            <div class="col-12 col-md-4">
+            <div class="col-6 col-md-3">
                 <div class="stat">
                     <div class="stat-label">${esc(t.label)}</div>
                     ${t.html !== undefined ? `<div class="stat-small">${t.html}</div>` : `<div class="stat-value">${t.value}</div>`}
                     ${t.hint ? `<div class="stat-hint">${t.hint}</div>` : ''}
+                    ${t.actions ? `<div class="stat-actions">${t.actions}</div>` : ''}
                 </div>
             </div>`).join('')}
         </div>`;
@@ -106,12 +139,22 @@
         $('#page').html(`
             ${pilotHeader({current: 'pilot', title: esc(p.initials)})}
 
-            ${tiles([stateTile(p), locationTile(p), bankTile(p)])}
+            ${tiles([stateTile(p), locationTile(p), awakeTile(p), bankTile(p)])}
         `);
+        $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
+        $('#wakeButton').on('click', () => sleepOrWake('/pilot/wake'));
     }
 
-    $(document).ready(function () {
-        showLoading();
+    // POST /pilot/sleep or /pilot/wake: the answer is the pilot as GET /pilot gives it, the page is drawn again
+    function sleepOrWake(url) {
+        $('#sleepButton, #wakeButton').prop('disabled', true);
+        airwaysAuth('POST', url, {}, renderPilot, function (e) {
+            alert(e && e.status === 409 ? (e.responseJSON && e.responseJSON.message ? e.responseJSON.message : 'The pilot cannot do it now') : 'Failed, try again');
+            loadPilot();
+        });
+    }
+
+    function loadPilot() {
         airwaysAuth('GET', '/pilot', {}, renderPilot, function (e) {
             if (e && e.status === 401) {
                 showPageError('Not signed in: check the token in localStorage (airwaysToken)');
@@ -121,6 +164,11 @@
                 showPageError('Failed to load the pilot');
             }
         });
+    }
+
+    $(document).ready(function () {
+        showLoading();
+        loadPilot();
     });
 </script>
 
