@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / Sign in</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="css/details.css" rel="stylesheet">
+
+    <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+
+    <style>
+        .login-card { max-width: 30rem; margin: 3rem auto 0; padding: 1.5rem; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color-translucent); border-radius: .75rem; }
+        .login-title { font-size: 1.6rem; font-weight: 700; margin: 0 0 .25rem; }
+        .welcome { text-align: center; }
+        .welcome .pilot-avatar { margin: 0 auto 1rem; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
+
+<main class="container-lg py-4">
+    <div class="login-card" id="card"></div>
+</main>
+
+<script>
+    // The page where the user types the token. The pages which need the token of the user send here when there is no token (or the server does not accept it),
+    // with ?return=<the page they came from>. The typed token is checked with GET /pilot; when the server accepts it, it is kept in this browser
+    // (localStorage airways.token), the pilot is greeted, and in a few seconds the user is sent back to the page he came from.
+
+    const REDIRECT_SECONDS = 3;
+
+    // Where to go after the sign in: a path of this site (one slash at the start, no second slash, no backslash), never the login page itself.
+    // Anything else, or nothing, is the page of the pilot.
+    function returnTarget() {
+        const target = new URLSearchParams(location.search).get('return');
+        if (target && /^\/(?![\/\\])[^\\]*$/.test(target) && !/^\/(?:[^?#]*\/)?login\.html(?:[?#]|$)/.test(target)) {
+            return target;
+        }
+        return 'pilot.html';
+    }
+
+    function showForm(message) {
+        $('#card').html(`
+            <h1 class="login-title">Sign in</h1>
+            <p class="text-secondary">Enter your token. It stays in this browser only.</p>
+            <form id="loginForm" autocomplete="off">
+                <label for="tokenInput" class="form-label">Token</label>
+                <input type="password" id="tokenInput" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="showToken">
+                    <label class="form-check-label" for="showToken">Show the token</label>
+                </div>
+                <div class="text-danger mt-2" id="loginError">${message ? esc(message) : ''}</div>
+                <button type="submit" class="btn btn-primary mt-3" id="loginButton">Sign in</button>
+            </form>`);
+        $('#showToken').on('change', function () {
+            $('#tokenInput').attr('type', this.checked ? 'text' : 'password');
+        });
+        $('#loginForm').on('submit', function (e) {
+            e.preventDefault();
+            checkToken($('#tokenInput').val().trim());
+        });
+        $('#tokenInput').trigger('focus');
+    }
+
+    // GET /pilot with the typed token (not through airwaysAuth: the token is not kept yet, and a refusal must not send the page to itself)
+    function checkToken(token) {
+        if (!token) {
+            $('#loginError').text('Type the token');
+            return;
+        }
+        $('#loginButton, #tokenInput').prop('disabled', true);
+        $('#loginError').text('');
+        $.ajax({
+            method: 'GET',
+            url: airwaysServiceUrl + '/pilot',
+            headers: {'Authorization': 'Bearer ' + token},
+            dataType: 'json',
+            success: function (pilot) {
+                try {
+                    localStorage.setItem('airways.token', token);
+                } catch (e) {
+                    showForm('The token is right, but this browser does not let the page keep it');
+                    return;
+                }
+                showWelcome(pilot);
+            },
+            error: function (e) {
+                let message;
+                if (e && e.status === 401) {
+                    message = 'This token is not accepted';
+                } else if (e && e.status === 404) {
+                    message = 'The token is accepted, but you have no pilot yet';
+                } else {
+                    message = 'The server did not answer, try again in a moment';
+                }
+                $('#loginButton, #tokenInput').prop('disabled', false);
+                $('#loginError').text(message);
+                $('#tokenInput').trigger('focus').trigger('select');
+            }
+        });
+    }
+
+    // The pilot is greeted and a few seconds later the page he came from opens; the link goes at once
+    function showWelcome(pilot) {
+        const target = returnTarget();
+        const name = pilot && pilot.initials ? pilot.initials : 'pilot';
+        $('#card').html(`
+            <div class="welcome">
+                <div class="pilot-avatar">${avatarHtml(pilot ? pilot.avatarImage : null)}</div>
+                <h1 class="login-title">Welcome, ${esc(name)}!</h1>
+                <p class="text-secondary mb-1">You are signed in. Taking you back in <span id="seconds">${REDIRECT_SECONDS}</span> s.</p>
+                <a class="entity-link" id="goNow" href="${esc(target)}">Go now</a>
+            </div>`);
+        let left = REDIRECT_SECONDS;
+        const timer = setInterval(function () {
+            left--;
+            $('#seconds').text(Math.max(left, 0));
+            if (left <= 0) {
+                clearInterval(timer);
+                location.replace(target);
+            }
+        }, 1000);
+    }
+
+    $(document).ready(function () {
+        showForm('');
+    });
+</script>
+
+</body>
+</html>

@@ -78,9 +78,20 @@ function airwaysAuthAdmin(method, url, data, callback, errorCallback) {
     return _airwaysAuth('admin', method, url, data, callback, errorCallback);
 }
 
+// The pages which need the token of the user (authType 'user') send the user to login.html when there is no token in this browser, or when the server
+// does not accept it. login.html takes the token, checks it and sends the user back to the page he came from (?return=).
+function redirectToLogin() {
+    const here = location.pathname + location.search + location.hash;
+    location.replace('login.html?return=' + encodeURIComponent(here));
+}
+
 function _airwaysAuth(authType, method, url, data, callback, errorCallback) {
     if (!(method === 'GET' || method === 'POST' || method === 'PUT')) {
         throw new Error(`unsupported method ${method}`);
+    }
+    if (authType === 'user' && !_airwaysAuthHeaders(authType).Authorization) {
+        redirectToLogin();
+        return;
     }
     $.ajax({
         method: method,
@@ -95,6 +106,10 @@ function _airwaysAuth(authType, method, url, data, callback, errorCallback) {
         },
         error: function (e) {
             console.error("error loading " + url + " data");
+            if (authType === 'user' && e && e.status === 401) {
+                redirectToLogin(); // the token of this browser is not accepted: type it again
+                return;
+            }
             if (errorCallback) {
                 errorCallback(e);
             }
