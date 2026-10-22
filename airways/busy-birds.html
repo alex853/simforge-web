@@ -266,6 +266,12 @@
         return pay >= 1000 ? '~' + Math.floor(pay / 1000) + 'k' : '~' + pay;
     }
 
+    // the same pay with the money symbol before it (the rough number ~123k too)
+    function missionPayHtml(m) {
+        const text = formatMissionPay(m);
+        return text === '\u2014' ? text : moneySymbolHtml() + text;
+    }
+
     // The quote has set the exact price of the journey: the list and the plan show it
     function applyQuotedPrice(missionId, response) {
         if (!response || !response.price) {
@@ -359,7 +365,7 @@
             $row.append($('<td></td>').text(m.toCityName ?? '').attr('title', m.toCityName ?? ''));
             $row.append($('<td class="text-end"></td>').text(m.pax ?? ''));
             $row.append($('<td class="text-end text-nowrap"></td>').text(dist !== '' && dist !== null ? String(dist) : '—'));
-            $row.append($('<td class="text-end text-nowrap"></td>').text(formatMissionPay(m)));
+            $row.append($('<td class="text-end text-nowrap"></td>').html(missionPayHtml(m)));
             $tb.append($row);
         });
     }
@@ -523,11 +529,11 @@
 
         const flightPay =
             '<div class="terms-sub">Pay for flown hours</div>' +
-            '<div class="terms-line"><span>Base hourly rate, ' + escapeHtml(t.aircraftType) + '</span><span class="fw-semibold">' + t.hourlyRate + '</span></div>' +
+            '<div class="terms-line"><span>Base hourly rate, ' + escapeHtml(t.aircraftType) + '</span><span class="fw-semibold">' + moneyHtml(t.hourlyRate) + '</span></div>' +
             deductionLines(t.flightPayDeductions) +
             floorNote(t.flightPayDeductions, t.flightPayCoefficientPercent) +
-            '<div class="terms-result">You get <span class="fw-semibold">' + t.hourlyRate + ' &times; ' + t.flightPayCoefficientPercent + '% = ' +
-            formatNumber(t.effectiveHourlyRate) + '</span> for each hour of the flight.</div>';
+            '<div class="terms-result">You get <span class="fw-semibold">' + moneyHtml(t.hourlyRate) + ' &times; ' + t.flightPayCoefficientPercent + '% = ' +
+            moneyHtml(t.effectiveHourlyRate) + '</span> for each hour of the flight.</div>';
 
         const incomeShare =
             '<div class="terms-sub">Income share</div>' +
@@ -586,17 +592,17 @@
         const acLoc = a.locationAirportIcao ?? a.locationAirportName ?? a.locationAirportId ?? '';
 
         const route = (m.fromCityName ?? '') + ' → ' + (m.toCityName ?? '');
-        const pay = formatMissionPay(m);
+        const pay = missionPayHtml(m);
 
         $('#planMetaAcReg').text(acReg);
         $('#planMetaAcType').text(acType ? (' · ' + acType) : '');
         $('#planMetaAcLoc').text(acLoc ? (' · ' + acLoc) : '');
         $('#planMetaMissionRoute').text(route);
-        $('#planMetaMissionPay').text(pay);
+        $('#planMetaMissionPay').html(pay);
 
         // the terms of the pilot on this aircraft, they are the numbers of the block above the missions
         if (currentTerms) {
-            $('#planMetaHourly').text(formatNumber(currentTerms.effectiveHourlyRate));
+            $('#planMetaHourly').html(moneyHtml(currentTerms.effectiveHourlyRate));
             $('#planMetaShare').text(formatNumber(currentTerms.effectiveIncomeSharePercent) + '%');
             $('#planMetaTerms').show();
         } else {
@@ -709,8 +715,9 @@
         return fallback;
     }
 
+    // the number with the money symbol, for html
     function money(value) {
-        return formatPay(value);
+        return moneyHtml(value);
     }
 
     // One number of the pay of a leg with a small circled letter, the title of the letter tells what the number is.
@@ -733,7 +740,7 @@
             html = payLine(salary.flightPay, 'F', 'Flight pay');
         }
         if (salary.baseIncome != null && salary.incomeSharePercent != null) {
-            html += payLine(salary.incomeShare, 'I', 'Income share: your share ' + formatNumber(salary.incomeSharePercent) + '% of the income of the mission ' + money(salary.baseIncome));
+            html += payLine(salary.incomeShare, 'I', 'Income share: your share ' + formatNumber(salary.incomeSharePercent) + '% of the income of the mission ' + formatPay(salary.baseIncome));
         } else if (salary.incomeShare > 0) {
             html += payLine(salary.incomeShare, 'I', 'Income share of the mission');
         }

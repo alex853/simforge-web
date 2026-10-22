@@ -117,3 +117,20 @@ function _airwaysToken(authType) {
         return null;
     }
 }
+
+// The money of the game: a small lowercase v with the strike-through style (virtual money, .cur-v in css/details.css) before the number. The number has
+// the separators of thousands, a minus goes before the symbol. There is no picture and no special font.
+function moneySymbolHtml() {
+    return '<span class="cur-v" title="Virtual money">v</span>';
+}
+
+function moneyHtml(amount) {
+    if (amount === null || amount === undefined || amount === '') {
+        return '\u2014';
+    }
+    const number = Number(amount);
+    if (Number.isNaN(number)) {
+        return '\u2014';
+    }
+    return (number < 0 ? '\u2212' : '') + moneySymbolHtml() + Math.abs(number).toLocaleString('en-US');
+}

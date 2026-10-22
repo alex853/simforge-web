@@ -228,3 +228,13 @@ body {
     height: 64px;
     image-rendering: pixelated;
 }
+
+/* The money symbol (moneyHtml in js/details.js): a lowercase v one and a half times smaller than the number, thin, dark gray instead of black, struck
+   through by the ordinary strike-through style of the text. */
+.cur-v {
+    margin-right: .12em;
+    font-size: .66em;
+    font-weight: 400;
+    color: var(--bs-secondary-color, #495057);
+    text-decoration: line-through;
+}

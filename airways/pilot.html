@@ -124,7 +124,7 @@
         }
         return {
             label: 'Bank account',
-            value: `<span class="money${p.bankBalance < 0 ? ' money-negative' : ''}">${fmtNumber(p.bankBalance)}</span>`,
+            value: `<span class="money${p.bankBalance < 0 ? ' money-negative' : ''}">${moneyHtml(p.bankBalance)}</span>`,
             hint: 'Balance'
         };
     }
