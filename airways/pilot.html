@@ -24,7 +24,14 @@
         .location-away { font-size: 1.3rem; font-weight: 400; line-height: 1.6; color: var(--bs-secondary-color); white-space: normal; }
         .money { font-variant-numeric: tabular-nums; }
         .awake-negative { color: var(--bs-danger); }
-        .stat-actions { padding-top: .5rem; }
+        .duty-near { color: #fd7e14; }
+        .duty-over { color: var(--bs-danger); }
+        /* a place kept for a tile which is not decided yet */
+        .stat.stat-placeholder { border-style: dashed; background: transparent; }
+        /* the buttons of a tile sit in its top right corner, in the free place of the label row, so they do not make the tile higher */
+        .stat.has-corner { position: relative; }
+        .stat-corner { position: absolute; top: .45rem; right: .6rem; }
+        .stat-corner .btn { --bs-btn-padding-y: .05rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .8rem; line-height: 1.3; }
         .money-negative { color: var(--bs-danger); }
     </style>
 </head>
@@ -107,7 +114,7 @@
         if (a.sleeping) {
             value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + '</span>';
             hint = a.sleepMinutes >= 120
-                ? 'Awake time if you wake up now: ' + formatClock(a.creditAfterWakeMinutes)
+                ? 'If you wake up now: ' + formatClock(a.creditAfterWakeMinutes)
                 : 'Less than 2 h of sleep gives no awake time';
             button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton">Wake up</button>';
         } else {
@@ -119,17 +126,34 @@
         return {label: 'Awake time', value: value, hint: esc(hint), actions: button};
     }
 
-    // four tiles of the same width
+    // The duty in the last 24 hours (the sliding window, not the calendar day): the finished flights of the logbook and the flight in progress up to now,
+    // each from Start flight to Finish flight. It must not exceed 14 hours; nothing is enforced yet, the page only shows the number and the limit.
+    function dutyTile(p) {
+        const d = p.duty;
+        if (!d) {
+            return {label: 'Duty time', html: '<span class="location-away">Unknown</span>'};
+        }
+        const cls = d.last24HoursMinutes > d.limitMinutes ? ' duty-over' : (d.last24HoursMinutes >= d.limitMinutes - 120 ? ' duty-near' : '');
+        const hint = d.onDuty ? 'Last 24 h with this flight, max ' + formatClock(d.limitMinutes) : 'Last 24 h, not more than ' + formatClock(d.limitMinutes);
+        return {label: 'Duty time', value: '<span class="money' + cls + '">' + formatClock(d.last24HoursMinutes) + '</span>', hint: esc(hint)};
+    }
+
+    // the place of a tile which is not decided yet
+    function placeholderTile() {
+        return {label: 'Coming soon', html: '<span class="location-away">&nbsp;</span>', placeholder: true};
+    }
+
+    // tiles of the same width, four in a row
     function tiles(list) {
         return `
         <div class="row g-3 mb-4">
             ${list.map(t => `
             <div class="col-6 col-md-3">
-                <div class="stat">
+                <div class="stat${t.actions ? ' has-corner' : ''}${t.placeholder ? ' stat-placeholder' : ''}">
+                    ${t.actions ? `<div class="stat-corner">${t.actions}</div>` : ''}
                     <div class="stat-label">${esc(t.label)}</div>
                     ${t.html !== undefined ? `<div class="stat-small">${t.html}</div>` : `<div class="stat-value">${t.value}</div>`}
                     ${t.hint ? `<div class="stat-hint">${t.hint}</div>` : ''}
-                    ${t.actions ? `<div class="stat-actions">${t.actions}</div>` : ''}
                 </div>
             </div>`).join('')}
         </div>`;
@@ -139,7 +163,8 @@
         $('#page').html(`
             ${pilotHeader({current: 'pilot', title: esc(p.initials)})}
 
-            ${tiles([stateTile(p), locationTile(p), awakeTile(p), bankTile(p)])}
+            ${tiles([stateTile(p), locationTile(p), placeholderTile(), bankTile(p)])}
+            ${tiles([awakeTile(p), dutyTile(p)])}
         `);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => sleepOrWake('/pilot/wake'));
