@@ -185,10 +185,9 @@
         let value, hint, button;
         if (a.sleeping) {
             value = '<span>Sleeping ' + formatClock(a.sleepMinutes) + '</span>';
-            hint = a.sleepMinutes >= 120
-                ? 'If you wake up now: ' + formatClock(a.creditAfterWakeMinutes)
-                : 'Under 2 h of sleep gives nothing';
-            button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton">Wake up</button>';
+            // the pilot is not told when it wakes up by itself, only that a usual sleep is 8 to 9 hours (the real time is from 7.5 to 10)
+            hint = 'Usual sleep: 8-9 hours';
+            button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="wakeButton" title="Under 2 h of sleep gives nothing">Wake up</button>';
         } else {
             // green: four hours or more; orange: less than four hours; red: below zero, the pilot is overtired
             const cls = a.creditMinutes < 0 ? 'duty-over' : (a.creditMinutes < AWAKE_NEAR_MINUTES ? 'duty-near' : 'duty-ok');
