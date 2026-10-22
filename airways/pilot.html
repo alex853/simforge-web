@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / Pilot</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="css/details.css" rel="stylesheet">
+
+    <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+
+    <style>
+        /* The avatar of the pilot: an empty square for now, there are no avatars yet */
+        .pilot-header { align-items: center; }
+        .pilot-avatar { width: 5.5rem; height: 5.5rem; flex: none; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-tertiary-bg); }
+        /* where the pilot is: the airport or the city is big and green, "piloting an aircraft" is not a place, so it is thin and quiet */
+        .location-place { color: var(--bs-success); }
+        .location-away { font-size: 1.3rem; font-weight: 400; line-height: 1.6; color: var(--bs-secondary-color); white-space: normal; }
+        .money { font-variant-numeric: tabular-nums; }
+        .money-negative { color: var(--bs-danger); }
+    </style>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
+
+<main class="container-lg py-4" id="page"></main>
+
+<script>
+    // GET /pilot (token of the user): who the pilot is, the state, where the pilot is and the balance of the bank account. Facts only.
+
+    // the error of the page without the "Back to map" link of the common showError
+    function showPageError(message) {
+        $('#page').html(`<div class="alert alert-warning fs-5">${esc(message)}</div>`);
+    }
+
+    // the state of the person with a plain explanation of what it means for the player
+    const STATES = {
+        Idle: {title: 'Idle', hint: 'You are free'},
+        OnDuty: {title: 'On duty', hint: 'You are on a flight'},
+        Travelling: {title: 'Travelling', hint: 'You are on the way'},
+        Resting: {title: 'Resting', hint: 'You are resting'}
+    };
+
+    function stateTile(p) {
+        const s = STATES[p.state] ?? {title: p.state, hint: ''};
+        return {label: 'State', value: esc(s.title), hint: esc(s.hint)};
+    }
+
+    // At an airport or in a city the place is a big green title. When the pilot is nowhere (in the flight, on the way) it is a thin quiet line.
+    function locationTile(p) {
+        if (p.locationType === 'Airport' && p.airportIcao) {
+            return {
+                label: 'Location',
+                value: `<a class="entity-link location-place" href="${airportUrl(p.airportIcao)}">${esc(p.airportIcao)}</a>`,
+                hint: esc(p.airportName ?? '')
+            };
+        }
+        if (p.locationType === 'City' && p.cityName) {
+            return {label: 'Location', value: `<span class="location-place">${esc(p.cityName)}</span>`, hint: 'In the city'};
+        }
+        if (p.locationType === 'Hotel') {
+            return {label: 'Location', html: '<span class="location-away">In a hotel</span>'};
+        }
+        const away = p.state === 'OnDuty' ? 'Piloting an aircraft' : 'On the way';
+        return {label: 'Location', html: `<span class="location-away">${away}</span>`};
+    }
+
+    function bankTile(p) {
+        if (p.bankBalance === null || p.bankBalance === undefined) {
+            return {label: 'Bank account', html: '<span class="location-away">No account yet</span>'};
+        }
+        return {
+            label: 'Bank account',
+            value: `<span class="money${p.bankBalance < 0 ? ' money-negative' : ''}">${fmtNumber(p.bankBalance)}</span>`,
+            hint: 'Balance'
+        };
+    }
+
+    // three tiles of the same width
+    function tiles(list) {
+        return `
+        <div class="row g-3 mb-4">
+            ${list.map(t => `
+            <div class="col-12 col-md-4">
+                <div class="stat">
+                    <div class="stat-label">${esc(t.label)}</div>
+                    ${t.html !== undefined ? `<div class="stat-small">${t.html}</div>` : `<div class="stat-value">${t.value}</div>`}
+                    ${t.hint ? `<div class="stat-hint">${t.hint}</div>` : ''}
+                </div>
+            </div>`).join('')}
+        </div>`;
+    }
+
+    function renderPilot(p) {
+        const links = '<a class="entity-link me-3" href="pilot-qualifications.html">Qualifications</a><a class="entity-link" href="pilot-logbook.html">Logbook</a>';
+        $('#page').html(`
+            <header class="entity-header pilot-header">
+                <div class="pilot-avatar" title="Avatars are coming soon"></div>
+                <div class="flex-grow-1">
+                    <div class="entity-kind">Pilot</div>
+                    <h1 class="entity-title">${esc(p.initials)}</h1>
+                </div>
+                <div class="entity-aside">${links}</div>
+            </header>
+
+            ${tiles([stateTile(p), locationTile(p), bankTile(p)])}
+        `);
+    }
+
+    $(document).ready(function () {
+        showLoading();
+        airwaysAuth('GET', '/pilot', {}, renderPilot, function (e) {
+            if (e && e.status === 401) {
+                showPageError('Not signed in: check the token in localStorage (airwaysToken)');
+            } else if (e && e.status === 404) {
+                showPageError('You have no pilot yet');
+            } else {
+                showPageError('Failed to load the pilot');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
