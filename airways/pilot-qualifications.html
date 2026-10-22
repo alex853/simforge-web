@@ -216,7 +216,7 @@
             </div>` : '<div class="card-body text-secondary">No flights yet</div>';
 
         $('#page').html(`
-            ${entityHeader({kind: 'Pilot', title: 'Qualifications', aside: '<a class="entity-link me-3" href="pilot.html">Pilot</a><a class="entity-link" href="pilot-logbook.html">Logbook</a>'})}
+            ${pilotHeader({current: 'qualifications', title: 'Qualifications'})}
 
             ${statTiles([
                 {label: 'Flights', value: fmtNumber(t.flights)},

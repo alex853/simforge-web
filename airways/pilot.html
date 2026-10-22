@@ -19,9 +19,6 @@
     <script src="js/details.js"></script>
 
     <style>
-        /* The avatar of the pilot: an empty square for now, there are no avatars yet */
-        .pilot-header { align-items: center; }
-        .pilot-avatar { width: 5.5rem; height: 5.5rem; flex: none; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-tertiary-bg); }
         /* where the pilot is: the airport or the city is big and green, "piloting an aircraft" is not a place, so it is thin and quiet */
         .location-place { color: var(--bs-success); }
         .location-away { font-size: 1.3rem; font-weight: 400; line-height: 1.6; color: var(--bs-secondary-color); white-space: normal; }
@@ -106,16 +103,8 @@
     }
 
     function renderPilot(p) {
-        const links = '<a class="entity-link me-3" href="pilot-qualifications.html">Qualifications</a><a class="entity-link" href="pilot-logbook.html">Logbook</a>';
         $('#page').html(`
-            <header class="entity-header pilot-header">
-                <div class="pilot-avatar" title="Avatars are coming soon"></div>
-                <div class="flex-grow-1">
-                    <div class="entity-kind">Pilot</div>
-                    <h1 class="entity-title">${esc(p.initials)}</h1>
-                </div>
-                <div class="entity-aside">${links}</div>
-            </header>
+            ${pilotHeader({current: 'pilot', title: esc(p.initials)})}
 
             ${tiles([stateTile(p), locationTile(p), bankTile(p)])}
         `);

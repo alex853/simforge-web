@@ -189,6 +189,29 @@ function entityHeader({kind, title, subtitle, flagCountry, aside}) {
     </header>`;
 }
 
+// The header of the pages of the pilot (pilot, qualifications, logbook): the same on all of them, so it does not jump when the pilot switches the
+// pages. The avatar (an empty square for now), the kind and the title, and the same three links in the same order, the current page is not a link.
+// current: 'pilot' | 'qualifications' | 'logbook'; title is html (the initials on the page of the pilot, the name of the page on the others)
+function pilotHeader({current, title}) {
+    const pages = [
+        {key: 'pilot', label: 'Pilot', href: 'pilot.html'},
+        {key: 'qualifications', label: 'Qualifications', href: 'pilot-qualifications.html'},
+        {key: 'logbook', label: 'Logbook', href: 'pilot-logbook.html'}
+    ];
+    const menu = pages.map(p => p.key === current
+        ? '<span class="pilot-menu-current">' + p.label + '</span>'
+        : '<a class="entity-link" href="' + p.href + '">' + p.label + '</a>').join('');
+    return `
+    <header class="entity-header pilot-header">
+        <div class="pilot-avatar" title="Avatars are coming soon"></div>
+        <div class="flex-grow-1">
+            <div class="entity-kind">Pilot</div>
+            <h1 class="entity-title">${title}</h1>
+        </div>
+        <div class="entity-aside pilot-menu">${menu}</div>
+    </header>`;
+}
+
 // tiles: [{label, value, hint?}], value is html
 function statTiles(tiles) {
     return `
