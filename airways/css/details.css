@@ -202,6 +202,9 @@ body {
 }
 
 .pilot-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 5.5rem;
     height: 5.5rem;
     flex: none;
@@ -217,4 +220,11 @@ body {
 
 .pilot-menu-current {
     font-weight: 600;
+}
+
+/* the 32x32 icon is shown twice as big; pixels stay sharp */
+.pilot-avatar img {
+    width: 64px;
+    height: 64px;
+    image-rendering: pixelated;
 }

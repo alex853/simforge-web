@@ -216,7 +216,7 @@
             </div>` : '<div class="card-body text-secondary">No flights yet</div>';
 
         $('#page').html(`
-            ${pilotHeader({current: 'qualifications', title: 'Qualifications'})}
+            ${pilotHeader({current: 'qualifications', title: 'Qualifications', avatarId: q.avatarId})}
 
             ${statTiles([
                 {label: 'Flights', value: fmtNumber(t.flights)},

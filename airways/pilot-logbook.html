@@ -61,7 +61,7 @@
         ]);
 
         $('#page').html(`
-            ${pilotHeader({current: 'logbook', title: 'Logbook'})}
+            ${pilotHeader({current: 'logbook', title: 'Logbook', avatarId: logbook.avatarId})}
 
             ${statTiles([
                 {label: 'Flights', value: fmtNumber(t.flights)},
