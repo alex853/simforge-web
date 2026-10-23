@@ -307,6 +307,10 @@
         } else {
             const hours = Math.max(1, Math.round((a.creditAfterWakeMinutes - a.creditMinutes) / 60));
             text = 'Your awake time will grow by about ' + hours + (hours === 1 ? ' hour.' : ' hours.');
+            // the credit after a long sleep is cut at a random value up to the maximum: say it, so a sleep above the need is not a surprise
+            if (a.creditAfterWakeMaxMinutes > a.creditAfterWakeMinutes) {
+                text += ' It tops out at about 21-22 hours, so any sleep beyond that is wasted.';
+            }
         }
         $('#wakeModalText').text(text);
         wakeModal.show();
