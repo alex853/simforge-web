@@ -345,13 +345,13 @@
 
     function showTravelOptions(r) {
         const rows = r.options.map(o => `
-            <div class="d-flex align-items-center gap-3 py-2 border-top" title="${esc(o.problem ?? '')}">
+            <div class="d-flex align-items-center gap-3 py-2 border-top${o.available ? '' : ' opacity-50'}" title="${esc(o.problem ?? '')}">
                 <div class="flex-grow-1">
                     <div class="fw-semibold${o.available ? '' : ' text-secondary'}">${esc(o.title)}</div>
-                    <div class="small text-secondary">${formatDuration(o.durationMinutes)}${o.problem ? ' &middot; ' + esc(o.problem) : ''}</div>
+                    <div class="small text-secondary">${[o.durationMinutes >= 0 ? formatDuration(o.durationMinutes) : '', o.problem ? esc(o.problem) : ''].filter(t => t).join(' &middot; ')}</div>
                 </div>
-                <div class="text-end money">${o.price > 0 ? moneyHtml(o.price) : 'Free'}</div>
-                <button type="button" class="btn btn-sm btn-outline-secondary travel-go" data-method="${esc(o.method)}"${o.available ? '' : ' disabled'}>Go</button>
+                <div class="text-end money">${o.price < 0 ? '' : (o.price > 0 ? moneyHtml(o.price) : 'Free')}</div>
+                <button type="button" class="btn btn-sm ${o.available ? 'btn-outline-success' : 'btn-outline-secondary'} travel-go" data-method="${esc(o.method)}"${o.available ? '' : ' disabled'}>Go</button>
             </div>`).join('');
         $('#travelOptions').html(`
             <div class="mb-2"><span class="fw-semibold">${esc(r.airportIcao)}</span> <span class="text-secondary">${esc(r.airportName ?? '')}, ${r.distanceNm.toLocaleString()} nm</span></div>
