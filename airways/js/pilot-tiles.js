@@ -15,12 +15,14 @@ function stateTile(p) {
 }
 
 // At an airport or in a city the place is a big green title. When the pilot is nowhere (in the flight, on the way) it is a thin quiet line.
-function locationTile(p) {
+function locationTile(p, withButtons) {
     if (p.locationType === 'Airport' && p.airportIcao) {
         return {
             label: 'Location',
             value: `<a class="entity-link location-place" href="${airportUrl(p.airportIcao)}">${esc(p.airportIcao)}</a>`,
-            hint: esc(p.airportName ?? '')
+            hint: esc(p.airportName ?? ''),
+            // only a free pilot at an airport can travel (the page of the pilot has the button, the other pages only show the place)
+            actions: withButtons && p.state === 'Idle' ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="travelButton">Travel</button>' : undefined
         };
     }
     if (p.locationType === 'City' && p.cityName) {
@@ -29,7 +31,8 @@ function locationTile(p) {
     if (p.locationType === 'Hotel') {
         return {label: 'Location', html: '<span class="location-away">In a hotel</span>'};
     }
-    const away = p.state === 'OnDuty' ? 'Piloting an aircraft' : 'On the way';
+    // travelling by itself: where to
+    const away = p.state === 'OnDuty' ? 'Piloting an aircraft' : (p.destinationIcao ? 'On the way to ' + esc(p.destinationIcao) : 'On the way');
     return {label: 'Location', html: `<span class="location-away">${away}</span>`};
 }
 
