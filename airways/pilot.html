@@ -162,7 +162,7 @@
             return {label: 'Flight time, 30 days', html: '<span class="location-away">Unknown</span>'};
         }
         return limitTile('Flight time, 30 days', f.last30DaysMinutes, f.limit30DaysMinutes, f.limit30DaysMinutes - 10 * 60, formatHours,
-            'Last 30 days, max ' + (f.limit30DaysMinutes / 60) + ' h',
+            'Max ' + (f.limit30DaysMinutes / 60) + ' h',
             {near: 'Close to the limit', over: 'Limit exceeded'});
     }
 
@@ -173,7 +173,7 @@
             return {label: 'Flight time, 365 days', html: '<span class="location-away">Unknown</span>'};
         }
         return limitTile('Flight time, 365 days', f.last365DaysMinutes, f.limit365DaysMinutes, f.limit365DaysMinutes - 100 * 60, formatHours,
-            'Last 365 days, max ' + (f.limit365DaysMinutes / 60) + ' h',
+            'Max ' + (f.limit365DaysMinutes / 60) + ' h',
             {near: 'Close to the limit', over: 'Limit exceeded'});
     }
 

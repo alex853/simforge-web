@@ -65,7 +65,7 @@ function awakeTile(p, withButtons) {
         const cls = a.creditMinutes < 0 ? 'duty-over' : (a.creditMinutes < AWAKE_NEAR_MINUTES ? 'duty-near' : 'duty-ok');
         value = '<span class="money ' + cls + '">' + formatClock(a.creditMinutes) + '</span>';
         hint = a.creditMinutes < 0 ? 'You are overtired, you need sleep'
-            : (a.creditMinutes < AWAKE_NEAR_MINUTES ? 'Less than ' + formatClock(AWAKE_NEAR_MINUTES) + ' left, plan your sleep' : 'Hours left before you need sleep');
+            : (a.creditMinutes < AWAKE_NEAR_MINUTES ? 'Less than ' + formatClock(AWAKE_NEAR_MINUTES) + ' left, plan your sleep' : 'Time left before you need sleep');
         const canSleep = p.state === 'Idle';
         button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="sleepButton"' + (canSleep ? '' : ' disabled title="Only a free pilot can go to sleep"') + '>Sleep</button>';
     }
@@ -101,10 +101,10 @@ function formatHours(minutes) {
 function dutyTile(p) {
     const d = p.duty;
     if (!d) {
-        return {label: 'Duty time', html: '<span class="location-away">Unknown</span>'};
+        return {label: 'Duty time, 24 h', html: '<span class="location-away">Unknown</span>'};
     }
-    const hint = d.onDuty ? 'Last 24 h with this flight, max ' + formatClock(d.limitMinutes) : 'Last 24 h, not more than ' + formatClock(d.limitMinutes);
-    return limitTile('Duty time', d.last24HoursMinutes, d.limitMinutes, d.limitMinutes - 120, formatClock, hint,
+    const hint = 'Max ' + formatClock(d.limitMinutes);
+    return limitTile('Duty time, 24 h', d.last24HoursMinutes, d.limitMinutes, d.limitMinutes - 120, formatClock, hint,
         {near: 'Close to the duty time limit', over: 'Duty time limit exceeded'});
 }
 // tiles of the same width, four in a row
