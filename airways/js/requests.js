@@ -154,6 +154,8 @@ function moneyHtml(amount) {
 // button is aligned with the right edge of the tiles), a list of the pages under it. The page which is open is marked. The page needs the scripts of Bootstrap
 // (the dropdown opens and closes by itself) and calls initSiteMenu('<its key>') when it is loaded.
 const SITE_MENU_ITEMS = [
+    {key: 'map', label: 'Map', href: 'index.html'},
+    {divider: true},
     {key: 'pilot', label: 'Pilot', href: 'pilot.html'},
     {key: 'qualifications', label: 'Qualifications', href: 'pilot-qualifications.html'},
     {key: 'logbook', label: 'Logbook', href: 'pilot-logbook.html'},
@@ -162,18 +164,41 @@ const SITE_MENU_ITEMS = [
     {key: 'busy-birds', label: 'Busy Birds', href: 'busy-birds.html'}
 ];
 
-function initSiteMenu(current) {
-    const bar = document.querySelector('nav.navbar > .container-lg') || document.querySelector('nav.navbar > .container');
-    if (!bar || bar.querySelector('.site-menu')) {
-        return;
-    }
-    const items = SITE_MENU_ITEMS.map(function (item) {
+// the items of the list, the page which is open is marked
+function siteMenuItemsHtml(current) {
+    return SITE_MENU_ITEMS.map(function (item) {
         if (item.divider) {
             return '<li><hr class="dropdown-divider"></li>';
         }
         const active = item.key === current;
         return '<li><a class="dropdown-item' + (active ? ' active' : '') + '" href="' + item.href + '"' + (active ? ' aria-current="page"' : '') + '>' + item.label + '</a></li>';
     }).join('');
+}
+
+// The map has no top bar (it fills the whole window), so the menu is a small tab with the letters "MENU" which hangs from the top edge at the right: the same list
+// under it. The page needs the scripts of Bootstrap and calls initSiteMenuTab('<its key>') when it is loaded.
+function initSiteMenuTab(current) {
+    if (document.querySelector('.site-menu-tab')) {
+        return;
+    }
+    const style = document.createElement('style');
+    style.textContent = '.site-menu-tab { position: fixed; top: 0; right: 16px; z-index: 1100; }'
+        + '.site-menu-tab-button { display: block; padding: 3px 14px 4px; font: 600 11px/1.2 Helvetica, Arial, sans-serif; letter-spacing: .14em; color: #a8a8ff;'
+        + ' background: rgba(24, 24, 32, .82); border: 1px solid rgba(168, 168, 255, .35); border-top: 0; border-radius: 0 0 9px 9px; cursor: pointer; }'
+        + '.site-menu-tab-button:hover, .site-menu-tab-button[aria-expanded="true"] { background: rgba(48, 48, 72, .95); color: #fff; }'
+        + '.site-menu-tab .dropdown-menu { margin-top: 2px; }';
+    document.head.appendChild(style);
+    document.body.insertAdjacentHTML('beforeend', '<div class="dropdown site-menu-tab" data-bs-theme="dark">'
+        + '<button type="button" class="site-menu-tab-button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu">MENU</button>'
+        + '<ul class="dropdown-menu dropdown-menu-end">' + siteMenuItemsHtml(current) + '</ul></div>');
+}
+
+function initSiteMenu(current) {
+    const bar = document.querySelector('nav.navbar > .container-lg') || document.querySelector('nav.navbar > .container');
+    if (!bar || bar.querySelector('.site-menu')) {
+        return;
+    }
+    const items = siteMenuItemsHtml(current);
     bar.insertAdjacentHTML('beforeend', '<div class="dropdown site-menu ms-auto">'
         + '<button type="button" class="btn btn-outline-secondary site-menu-button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu">'
         + '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg></button>'
