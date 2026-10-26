@@ -211,9 +211,21 @@
         </div>`;
     }
 
-    // the place of a tile which is not decided yet
-    function placeholderTile() {
-        return {label: 'Coming soon', html: '<span class="location-away">&nbsp;</span>', placeholder: true};
+    // The settings of the pilot, only shown (the user cannot change them yet): the warp drive is told only to the pilot who has it, the auto finish (a flight of
+    // the pilot is finished by itself when it has come to its end) is always told, a green tick when it is on and an orange cross when it is off.
+    function settingsTile(p) {
+        const settings = p.settings;
+        if (!settings) {
+            return {label: 'Settings', html: '<span class="location-away">Unknown</span>'};
+        }
+        const tick = text => '<span class="text-success">&#10003; ' + text + '</span>';
+        const cross = text => '<span style="color: #fd7e14;">&#10007; ' + text + '</span>';
+        const lines = [];
+        if (settings.warpDrive) {
+            lines.push('Warp drive ' + tick('on'));
+        }
+        lines.push('Auto finish ' + (settings.autoFinish ? tick('yes') : cross('no')));
+        return {label: 'Settings', html: lines.map(l => '<div class="small">' + l + '</div>').join('')};
     }
 
     const PENCIL_SVG = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>';
@@ -325,7 +337,7 @@
         $('#page').html(`
             ${pilotHeader({title: initialsTitleHtml(p.initials), avatarImage: p.avatarImage})}
 
-            ${tiles([stateTile(p), locationTile(p, true), placeholderTile(), bankTile(p)])}
+            ${tiles([stateTile(p), locationTile(p, true), settingsTile(p), bankTile(p)])}
             ${tiles([awakeTile(p, true), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)])}
 
             ${flyButtons()}

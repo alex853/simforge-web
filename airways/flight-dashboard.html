@@ -579,6 +579,11 @@
             $checks.append('<div class="text-secondary small">Tracked: Blocks Off, Takeoff, Landing and Blocks On follow the sim. Manual: you press the buttons.</div>');
         }
 
+        // The setting of the pilot (auto finish): the server finishes the flight itself, so there is no Finish Flight button, only the note.
+        if (stage === 'postflight' && status.flight.autoFinish) {
+            $buttons.append('<button class="btn btn-outline-primary m-2 disabled">The flight will be finished automatically after the passengers have got off</button>');
+        }
+
         // In the sim tracker mode the steps done by the tracker are not in the list of actions before their time, but the pilot has to know that
         // they are not done by a button: the stage says it.
         if (status.mode === 'SIM_TRACKER' && $buttons.children().length === 0) {
