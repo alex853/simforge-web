@@ -96,7 +96,8 @@
     </div>
 </div>
 
-<!-- Travel: where to, then the ways to get there (the server offers them with the time and the money, see GET /pilot/travel/options) -->
+<!-- Travel: the menu of the ways of the place where the pilot is (the server tells which ways it has), then, for the ways which need it, where to, and the question
+     with the time and the money. One window with three views, see GET /pilot/travel/methods, /places, /find and POST /pilot/travel/go -->
 <div class="modal fade" id="travelModal" tabindex="-1" aria-labelledby="travelModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -105,14 +106,33 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <label for="travelAirport" class="form-label">Where to? Type the code of the airport</label>
-                <div class="input-group">
-                    <input type="text" id="travelAirport" class="form-control initials-input" style="max-width: none; letter-spacing: .1em;" maxlength="4"
-                           placeholder="ICAO, e.g. EGLL" autocomplete="off" autocapitalize="characters" spellcheck="false">
-                    <button type="button" class="btn btn-outline-secondary" id="travelShow">Show ways</button>
+                <div class="text-danger small mb-2" id="travelError"></div>
+
+                <!-- the menu: the quick places on top (commute), the ways below -->
+                <div id="travelViewMenu">
+                    <div id="travelCommute"></div>
+                    <div id="travelMethods"></div>
                 </div>
-                <div class="text-danger small mt-2" id="travelError"></div>
-                <div id="travelOptions" class="mt-3"></div>
+
+                <!-- where to: the name of a city or the code of an airport -->
+                <div id="travelViewWhere" style="display: none;">
+                    <label for="travelQuery" class="form-label" id="travelQueryLabel"></label>
+                    <div class="input-group">
+                        <input type="text" id="travelQuery" class="form-control" maxlength="40" autocomplete="off" spellcheck="false">
+                        <button type="button" class="btn btn-outline-secondary" id="travelFind">Find</button>
+                    </div>
+                    <div id="travelMatches" class="mt-3"></div>
+                    <div class="mt-3"><button type="button" class="btn btn-sm btn-outline-secondary" id="travelWhereBack">Back</button></div>
+                </div>
+
+                <!-- the question: the distance, the time and the money -->
+                <div id="travelViewConfirm" style="display: none;">
+                    <div id="travelConfirmText"></div>
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="travelConfirmCancel">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-success" id="travelConfirmGo">Go</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -318,8 +338,13 @@
         $('#wakeButton').on('click', () => askToWakeUp(p));
     }
 
-    // ---- Travel: the pilot types the airport, the server offers the ways with the time and the money, a click on Go pays and sends the pilot.
+    // ---- Travel: the pilot goes from an airport or a city to an airport or a city. The menu is made by the server for the place where the pilot is (the quick
+    // places on top, then the ways: Mach 3 only from an airport to an airport, by airline only from a city and not made yet, by ground from anywhere to anywhere,
+    // the warp drive for the pilot who has it). Mach 3 asks for the code of an airport, by ground and the warp drive for a city or an airport; then the question with
+    // the distance, the time and the money, and Go pays and sends the pilot.
     let travelModal = null;
+    // what is chosen now: {method, place, back}, back is the view to return to from the question (menu or where)
+    let travelChoice = null;
 
     // minutes as a plain duration: 18 min, 4 h 40 min, 3 d 5 h; zero is 'At once'
     function formatDuration(minutes) {
@@ -343,64 +368,154 @@
         return e && e.responseJSON && e.responseJSON.message ? e.responseJSON.message : fallback;
     }
 
-    function showTravelOptions(r) {
-        const rows = r.options.map(o => `
-            <div class="d-flex align-items-center gap-3 py-2 border-top${o.available ? '' : ' opacity-50'}" title="${esc(o.problem ?? '')}">
-                <div class="flex-grow-1">
-                    <div class="fw-semibold${o.available ? '' : ' text-secondary'}">${esc(o.title)}</div>
-                    <div class="small text-secondary">${[o.durationMinutes >= 0 ? formatDuration(o.durationMinutes) : '', o.problem ? esc(o.problem) : ''].filter(t => t).join(' &middot; ')}</div>
-                </div>
-                <div class="text-end money">${o.price < 0 ? '' : (o.price > 0 ? moneyHtml(o.price) : 'Free')}</div>
-                <button type="button" class="btn btn-sm ${o.available ? 'btn-outline-success' : 'btn-outline-secondary'} travel-go" data-method="${esc(o.method)}"${o.available ? '' : ' disabled'}>Go</button>
-            </div>`).join('');
-        $('#travelOptions').html(`
-            <div class="mb-2"><span class="fw-semibold">${esc(r.airportIcao)}</span> <span class="text-secondary">${esc(r.airportName ?? '')}, ${r.distanceNm.toLocaleString()} nm</span></div>
-            ${rows}`);
+    function travelShowView(name) {
+        $('#travelViewMenu').toggle(name === 'menu');
+        $('#travelViewWhere').toggle(name === 'where');
+        $('#travelViewConfirm').toggle(name === 'confirm');
     }
 
-    function loadTravelOptions() {
-        const icao = $('#travelAirport').val().trim().toUpperCase();
+    // the menu: the quick places (commute) with the separator, then the ways, each with a line under it
+    function travelLoadMenu() {
+        travelChoice = null;
+        travelShowView('menu');
+        $('#travelModalTitle').text('Travel');
+        $('#travelCommute').empty();
+        $('#travelMethods').empty();
+        airwaysAuth('GET', '/pilot/travel/places', {}, function (r) {
+            const buttons = r.places.map(p => `
+                <button type="button" class="btn btn-outline-success w-100 text-start mb-2 travel-commute${p.available ? '' : ' disabled'}"
+                        data-kind="${esc(p.kind)}" data-id="${esc(p.id)}"${p.available ? '' : ' disabled'} title="${esc(p.problem ?? '')}">
+                    Commute to ${esc(p.title)}${p.subtitle ? ' <span class="small opacity-75">' + esc(p.subtitle) + '</span>' : ''}
+                </button>`).join('');
+            $('#travelCommute').html(buttons ? buttons + '<div class="d-flex align-items-center gap-2 my-3 text-secondary small"><hr class="flex-grow-1 m-0"><span>or travel</span><hr class="flex-grow-1 m-0"></div>' : '');
+        }, function () {
+            // no quick places: only the ways are shown
+        });
+        airwaysAuth('GET', '/pilot/travel/methods', {}, function (r) {
+            $('#travelMethods').html(r.methods.map(m => `
+                <div class="mb-2">
+                    <button type="button" class="btn ${m.available ? 'btn-outline-success' : 'btn-outline-secondary'} w-100 text-start travel-method" data-method="${esc(m.method)}"
+                            data-title="${esc(m.title)}"${m.available ? '' : ' disabled'}>${esc(m.title)}</button>
+                    <div class="small text-secondary ps-1 mt-1">${esc(m.note)}</div>
+                </div>`).join(''));
+        }, function (e) {
+            $('#travelError').text(travelErrorText(e, 'The ways could not be loaded, try again'));
+        });
+    }
+
+    // where to: Mach 3 asks for the code of an airport, the other ways for a city or an airport
+    function travelAskWhere(method, title) {
+        travelChoice = {method: method, title: title};
         $('#travelError').text('');
-        $('#travelOptions').empty();
-        if (!icao) {
+        $('#travelMatches').empty();
+        $('#travelQuery').val('');
+        $('#travelQueryLabel').text(method === 'Mach3' ? 'Where to? Type the ICAO code of an airport' : 'Where to? Type the name of a city or the ICAO code of an airport');
+        $('#travelModalTitle').text(title);
+        travelShowView('where');
+        setTimeout(() => $('#travelQuery').trigger('focus'), 150);
+    }
+
+    function travelFind() {
+        const query = $('#travelQuery').val().trim();
+        $('#travelError').text('');
+        $('#travelMatches').empty();
+        if (!query) {
             return;
         }
-        airwaysAuth('GET', '/pilot/travel/options', {airport: icao}, showTravelOptions, function (e) {
-            $('#travelError').text(e && e.status === 404 ? 'There is no such airport' : travelErrorText(e, 'The ways could not be loaded, try again'));
+        airwaysAuth('GET', '/pilot/travel/find', {method: travelChoice.method, query: query}, function (r) {
+            if (r.message) {
+                $('#travelMatches').html('<div class="text-secondary">' + esc(r.message) + '</div>');
+                return;
+            }
+            // one place: the question at once; several (the cities with the same name): to choose from
+            if (r.matches.length === 1) {
+                travelAsk(r.matches[0], 'where');
+                return;
+            }
+            $('#travelMatches').html('<div class="fw-semibold mb-1">Which one?</div>' + r.matches.map((p, i) => `
+                <button type="button" class="btn btn-outline-secondary w-100 text-start mb-2 travel-match" data-index="${i}">
+                    ${esc(p.title)}${p.subtitle ? ' <span class="small text-secondary">' + esc(p.subtitle) + '</span>' : ''}
+                    <span class="small text-secondary float-end">${p.distanceNm.toLocaleString(undefined, {maximumFractionDigits: 0})} nm</span>
+                </button>`).join(''));
+            $('#travelMatches').data('matches', r.matches);
+        }, function (e) {
+            $('#travelError').text(travelErrorText(e, 'The search failed, try again'));
         });
+    }
+
+    // the question: where, how far, how long, how much; Go is not possible when the server says why the pilot cannot go
+    function travelAsk(place, back) {
+        travelChoice = Object.assign({}, travelChoice, {place: place, back: back});
+        const money = place.price > 0 ? moneyHtml(place.price) : 'Free';
+        $('#travelConfirmText').html(`
+            <div class="fw-semibold">${esc(travelChoice.title)}</div>
+            <div>to <span class="fw-semibold">${esc(place.title)}</span>${place.subtitle ? ' <span class="text-secondary">' + esc(place.subtitle) + '</span>' : ''}</div>
+            <div class="mt-2">Distance ${Math.round(place.distanceNm).toLocaleString()} nm &middot; ${formatDuration(place.durationMinutes)} &middot; <span class="money">${money}</span></div>
+            ${place.problem ? '<div class="text-danger mt-2">' + esc(place.problem) + '</div>' : ''}`);
+        $('#travelConfirmGo').prop('disabled', !place.available);
+        travelShowView('confirm');
     }
 
     function initTravelModal() {
         const $modal = $('#travelModal');
         travelModal = new bootstrap.Modal($modal[0]);
         $modal.on('show.bs.modal', function () {
-            $('#travelAirport').val('');
             $('#travelError').text('');
-            $('#travelOptions').empty();
+            travelLoadMenu();
         });
-        $modal.on('shown.bs.modal', () => $('#travelAirport').trigger('focus'));
-        $('#travelAirport').on('input', function () {
-            $(this).val($(this).val().toUpperCase().replace(/[^A-Z0-9]/g, ''));
-        }).on('keydown', function (e) {
+
+        // a quick place: the question at once, the way is by ground
+        $('#travelCommute').on('click', '.travel-commute', function () {
+            const $b = $(this);
+            airwaysAuth('GET', '/pilot/travel/places', {}, function (r) {
+                const place = r.places.find(p => p.id === String($b.data('id')) && p.kind === $b.data('kind'));
+                if (place) {
+                    travelChoice = {method: 'Ground', title: 'Travel by ground'};
+                    travelAsk(place, 'menu');
+                }
+            });
+        });
+        $('#travelMethods').on('click', '.travel-method', function () {
+            travelAskWhere($(this).data('method'), $(this).data('title'));
+        });
+        $('#travelFind').on('click', travelFind);
+        $('#travelQuery').on('keydown', function (e) {
             if (e.key === 'Enter') {
-                loadTravelOptions();
+                travelFind();
             }
         });
-        $('#travelShow').on('click', loadTravelOptions);
-        // Go pays and sends the pilot at once: the buttons are locked while the request is in flight
-        $('#travelOptions').on('click', '.travel-go', function () {
-            const method = $(this).data('method');
-            $('#travelOptions .travel-go, #travelShow').prop('disabled', true);
+        $('#travelMatches').on('click', '.travel-match', function () {
+            const matches = $('#travelMatches').data('matches') || [];
+            travelAsk(matches[$(this).data('index')], 'where');
+        });
+        $('#travelWhereBack').on('click', travelLoadMenu);
+        $('#travelConfirmCancel').on('click', function () {
+            $('#travelError').text('');
+            if (travelChoice && travelChoice.back === 'where') {
+                $('#travelModalTitle').text(travelChoice.title);
+                travelShowView('where');
+            } else {
+                travelLoadMenu();
+            }
+        });
+
+        // Go pays and sends the pilot at once: the button is locked while the request is in flight
+        $('#travelConfirmGo').on('click', function () {
+            const choice = travelChoice;
+            if (!choice || !choice.place) {
+                return;
+            }
+            $('#travelConfirmGo, #travelConfirmCancel').prop('disabled', true);
             actionInProgress = true;
-            airwaysAuth('POST', '/pilot/travel', {airport: $('#travelAirport').val().trim().toUpperCase(), method: method}, function (pilot) {
+            airwaysAuth('POST', '/pilot/travel/go', {method: choice.method, kind: choice.place.kind, id: choice.place.id}, function (pilot) {
                 actionInProgress = false;
+                $('#travelConfirmCancel').prop('disabled', false);
                 travelModal.hide();
                 renderPilot(pilot);
             }, function (e) {
                 actionInProgress = false;
-                $('#travelShow').prop('disabled', false);
+                $('#travelConfirmGo, #travelConfirmCancel').prop('disabled', false);
                 $('#travelError').text(travelErrorText(e, 'The travel failed, try again'));
-                loadTravelOptions();
             });
         });
     }

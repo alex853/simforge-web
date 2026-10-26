@@ -26,13 +26,19 @@ function locationTile(p, withButtons) {
         };
     }
     if (p.locationType === 'City' && p.cityName) {
-        return {label: 'Location', value: `<span class="location-place">${esc(p.cityName)}</span>`, hint: 'In the city'};
+        return {
+            label: 'Location',
+            value: `<span class="location-place">${esc(p.cityName)}</span>`,
+            hint: 'In the city',
+            // a free pilot in a city travels to the airports of the city
+            actions: withButtons && p.state === 'Idle' ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="travelButton">Travel</button>' : undefined
+        };
     }
     if (p.locationType === 'Hotel') {
         return {label: 'Location', html: '<span class="location-away">In a hotel</span>'};
     }
     // travelling by itself: where to
-    const away = p.state === 'OnDuty' ? 'Piloting an aircraft' : (p.destinationIcao ? 'On the way to ' + esc(p.destinationIcao) : 'On the way');
+    const away = p.state === 'OnDuty' ? 'Piloting an aircraft' : (p.destinationIcao ? 'On the way to ' + esc(p.destinationIcao) : (p.destinationCity ? 'On the way to ' + esc(p.destinationCity) : 'On the way'));
     return {label: 'Location', html: `<span class="location-away">${away}</span>`};
 }
 
