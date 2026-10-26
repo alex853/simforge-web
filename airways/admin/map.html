@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / World Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/requests.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: #1b2230;
+        }
+
+        /* The map of the editor is blue so it cannot be taken for the map of the game: the tiles are the same quiet grey ones, tinted by the filter */
+        #map .leaflet-tile-pane {
+            filter: sepia(1) hue-rotate(175deg) saturate(2.2) brightness(.95);
+        }
+
+        .always-shown-tooltip {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            color: #bcd;
+        }
+
+        .always-shown-tooltip.leaflet-tooltip::before {
+            display: none;
+        }
+
+        #editor-title {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            z-index: 1000;
+            color: #8fd3ff;
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 15pt;
+            text-shadow: 1px 1px 1px black;
+        }
+
+        #editor-title small {
+            font-size: 10pt;
+            color: #9ab;
+        }
+
+        #token-box {
+            position: absolute;
+            top: 50px;
+            left: 60px;
+            z-index: 1000;
+            width: 340px;
+        }
+
+        .modal-body table td:first-child {
+            color: #6c757d;
+            white-space: nowrap;
+            width: 1%;
+            padding-right: 1.5rem;
+        }
+
+        a.pick {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map" style="width: 100%; height: 100%;"></div>
+
+<div id="editor-title">simforge / airways <small>world editor</small> <small id="counts"></small></div>
+
+<div id="token-box" class="card card-body hidden" style="display: none;">
+    <div class="small mb-2">The admin token is not set in this browser.</div>
+    <div class="input-group input-group-sm">
+        <input id="token-input" type="password" class="form-control" placeholder="admin token" autocomplete="off">
+        <button class="btn btn-primary" id="token-save" type="button">Save</button>
+    </div>
+</div>
+
+<div class="modal fade" id="info-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="info-title"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="info-body"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const mapZoomMin = 3;
+    const mapZoomMax = 10;
+    const map = L.map('map', {preferCanvas: true}).setView([30, 10], mapZoomMin + 1);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+        maxZoom: mapZoomMax,
+        minZoom: mapZoomMin
+    }).addTo(map);
+
+    const data = {cities: [], airports: []};
+    let markers = [];
+    let lines = [];
+    const modal = new bootstrap.Modal(document.getElementById('info-modal'));
+
+    function esc(text) {
+        return $('<div>').text(text ?? '').html();
+    }
+
+    function adminGet(url, callback) {
+        airwaysAuthAdmin('GET', url, {}, callback, showError);
+    }
+
+    function adminPost(url, params, callback) {
+        airwaysAuthAdmin('POST', url + '?' + $.param(params), {}, callback, showError);
+    }
+
+    function showError(e) {
+        const status = e && e.status;
+        if (status === 401 || status === 403) {
+            $('#token-box').show();
+            alert('The server does not accept the admin token (' + status + ').');
+        } else {
+            alert('Error' + (status ? ' ' + status : '') + (e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : ''));
+        }
+    }
+
+    // ---- the map
+
+    function iconOf(kind, size) {
+        return L.icon({
+            iconUrl: kind === 'city' ? '../icons/city/001-cityscape.png' : '../icons/airport/001-airplane.png',
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2]
+        });
+    }
+
+    // the links go once: a thin line from the city to every airport of it
+    function drawLinks() {
+        lines.forEach(l => map.removeLayer(l));
+        lines = [];
+        const airportByIcao = {};
+        data.airports.forEach(a => airportByIcao[a.icao] = a);
+        data.cities.forEach(c => (c.airports ?? []).forEach(icao => {
+            const a = airportByIcao[icao];
+            if (a) {
+                lines.push(L.polyline([[c.latitude, c.longitude], [a.latitude, a.longitude]], {color: '#9fdcff', weight: 1.5, opacity: .85, interactive: false}).addTo(map));
+            }
+        }));
+    }
+
+    function drawMarkers() {
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+
+        const zoom = map.getZoom();
+        const citySize = (zoom - mapZoomMin) * 5 + 12;
+        const airportSize = (zoom - mapZoomMin) * 3 + 8;
+
+        data.airports.forEach(a => {
+            let marker = L.marker([a.latitude, a.longitude], {icon: iconOf('airport', airportSize)})
+                .on('click', () => openAirport(a.icao));
+            if (zoom >= 8) {
+                marker = marker.bindTooltip(a.icao, {permanent: true, direction: 'right', offset: [airportSize / 10, 0], className: 'always-shown-tooltip'});
+            }
+            marker.addTo(map);
+            markers.push(marker);
+        });
+        data.cities.forEach(c => {
+            let marker = L.marker([c.latitude, c.longitude], {icon: iconOf('city', citySize)})
+                .on('click', () => openCity(c.id));
+            if (zoom >= 6) {
+                marker = marker.bindTooltip(c.name, {permanent: true, direction: 'right', offset: [citySize / 3, 0], className: 'always-shown-tooltip'});
+            }
+            marker.addTo(map);
+            markers.push(marker);
+        });
+    }
+
+    map.on('zoomend', drawMarkers);
+
+    map.on('moveend', function () {
+        try {
+            const center = map.getCenter();
+            localStorage.setItem('adminMapState', JSON.stringify({lat: center.lat, lng: center.lng, zoom: map.getZoom()}));
+        } catch (e) { /* no storage, no memory of the place */ }
+    });
+
+    try {
+        const saved = JSON.parse(localStorage.getItem('adminMapState') ?? 'null');
+        if (saved) {
+            map.setView([saved.lat, saved.lng], saved.zoom);
+        }
+    } catch (e) { /* the place is not remembered */ }
+
+    function loadWorld() {
+        airwaysGet('/geo/cities', function (cities) {
+            data.cities = cities;
+            airwaysGet('/geo/airports', function (airports) {
+                data.airports = airports;
+                $('#counts').text(cities.length + ' cities, ' + airports.length + ' airports');
+                drawLinks();
+                drawMarkers();
+            });
+        });
+    }
+
+    // ---- the dialogs
+
+    function openCity(id) {
+        adminGet('/admin/world/city?id=' + encodeURIComponent(id), showCity);
+    }
+
+    function openAirport(icao) {
+        adminGet('/admin/world/airport?icao=' + encodeURIComponent(icao), showAirport);
+    }
+
+    function row(label, html) {
+        return '<tr><td>' + label + '</td><td>' + html + '</td></tr>';
+    }
+
+    function number(n) {
+        return n === null || n === undefined ? '&mdash;' : Number(n).toLocaleString('en-US');
+    }
+
+    function coords(o) {
+        return o.latitude.toFixed(4) + ', ' + o.longitude.toFixed(4);
+    }
+
+    function showCity(c) {
+        $('#info-title').text(c.name + (c.country ? ', ' + c.country : ''));
+        const airports = c.airports.length === 0 ? '<div class="text-muted">no airports linked</div>'
+            : '<table class="table table-sm mb-0"><thead><tr><th>ICAO</th><th>IATA</th><th>Name</th><th class="text-end">Distance, nm</th><th>Business terminal</th></tr></thead><tbody>'
+            + c.airports.map(a => '<tr><td><a class="pick" onclick="openAirport(\'' + a.icao + '\')">' + esc(a.icao) + '</a></td><td>' + esc(a.iata) + '</td><td>' + esc(a.name)
+                + '</td><td class="text-end">' + a.distance.toFixed(1) + '</td><td>' + (a.businessTerminal ? 'yes' : '') + '</td></tr>').join('')
+            + '</tbody></table>';
+        $('#info-body').html(
+            '<table class="table table-sm"><tbody>'
+            + row('Id', esc(c.id))
+            + row('Name', esc(c.name))
+            + row('Country', esc(c.country) + (c.countryCode ? ' (' + esc(c.countryCode) + ')' : ''))
+            + row('Coordinates', coords(c))
+            + row('Population', '<form class="d-flex gap-2" id="population-form"><input type="number" min="0" step="1" class="form-control form-control-sm w-auto" id="population-input" value="' + c.population
+                + '"><button class="btn btn-sm btn-primary" type="submit">Set</button><span class="text-muted align-self-center">' + number(c.population) + '</span></form>')
+            + row('Attraction', c.attraction === null ? '<span class="text-muted">the city has no flow</span>'
+                : '<form class="d-flex gap-2" id="attraction-form"><input type="number" min="0" max="65" step="0.1" class="form-control form-control-sm w-auto" id="attraction-input" value="' + c.attraction
+                + '"><button class="btn btn-sm btn-primary" type="submit">Set</button><span class="text-muted align-self-center">1 is usual, the flows of the city are counted again</span></form>')
+            + row('Mobility', c.mobility === null ? '&mdash;' : c.mobility)
+            + row('Flows counted at', c.lastRedistributionTime === null ? '&mdash;' : (c.lastRedistributionTime === 0 ? 'not yet (will be counted soon)' : number(c.lastRedistributionTime)))
+            + '</tbody></table>'
+            + '<h6 class="mt-3">Airports</h6>' + airports);
+
+        $('#population-form').on('submit', function (e) {
+            e.preventDefault();
+            adminPost('/admin/world/city/population', {id: c.id, value: $('#population-input').val()}, function (info) {
+                const city = data.cities.find(x => x.id === c.id);
+                if (city) {
+                    city.population = info.population;
+                }
+                showCity(info);
+            });
+        });
+        $('#attraction-form').on('submit', function (e) {
+            e.preventDefault();
+            adminPost('/admin/world/city/attraction', {id: c.id, value: $('#attraction-input').val()}, showCity);
+        });
+        modal.show();
+    }
+
+    function showAirport(a) {
+        $('#info-title').text(a.icao + ' ' + a.name);
+        const cities = a.cities.length === 0 ? '<div class="text-muted">no cities linked</div>'
+            : '<table class="table table-sm mb-0"><thead><tr><th>City</th><th>Country</th><th class="text-end">Population</th><th class="text-end">Distance, nm</th></tr></thead><tbody>'
+            + a.cities.map(c => '<tr><td><a class="pick" onclick="openCity(\'' + c.id + '\')">' + esc(c.name) + '</a></td><td>' + esc(c.countryCode) + '</td><td class="text-end">'
+                + number(c.population) + '</td><td class="text-end">' + c.distance.toFixed(1) + '</td></tr>').join('')
+            + '</tbody></table>';
+        const facilities = a.facilities.length === 0 ? '<div class="text-muted">no facilities</div>'
+            : '<ul class="mb-0">' + a.facilities.map(f => '<li>' + esc(f.type) + (f.operator ? ' <span class="text-muted">(' + esc(f.operator) + ')</span>' : '') + '</li>').join('') + '</ul>';
+        $('#info-body').html(
+            '<table class="table table-sm"><tbody>'
+            + row('Id', esc(a.id))
+            + row('ICAO / IATA', esc(a.icao) + ' / ' + esc(a.iata))
+            + row('Name', esc(a.name))
+            + row('Coordinates', coords(a))
+            + row('Excluded', a.excluded ? 'yes' : 'no')
+            + row('Business terminal', (a.businessTerminal ? '<span class="me-3">yes</span><button class="btn btn-sm btn-outline-danger" id="bt-button">Remove business terminal</button>'
+                : '<span class="me-3">no</span><button class="btn btn-sm btn-outline-primary" id="bt-button">Create business terminal</button>'))
+            + '</tbody></table>'
+            + '<h6 class="mt-3">Cities</h6>' + cities
+            + '<h6 class="mt-3">Facilities</h6>' + facilities);
+
+        $('#bt-button').on('click', function () {
+            if (a.businessTerminal && !confirm('Remove the business aviation terminal of ' + a.icao + '?')) {
+                return;
+            }
+            adminPost('/admin/world/airport/business-terminal', {icao: a.icao, enabled: !a.businessTerminal}, showAirport);
+        });
+        modal.show();
+    }
+
+    // ---- the start
+
+    $('#token-save').on('click', function () {
+        try {
+            localStorage.setItem('airways.admin.token', $('#token-input').val().trim());
+        } catch (e) { /* no storage */ }
+        $('#token-box').hide();
+    });
+
+    try {
+        if (!(localStorage.getItem('airways.admin.token') ?? '').trim()) {
+            $('#token-box').show();
+        }
+    } catch (e) {
+        $('#token-box').show();
+    }
+
+    loadWorld();
+</script>
+</body>
+</html>
