@@ -431,7 +431,19 @@
     }
 
     function applyDefaultFromCity() {
-        if (fromCityChosen || !airportCityIds || missions.length === 0) {
+        if (fromCityChosen || missions.length === 0) {
+            return;
+        }
+        // a pilot in a city: the missions from this city first
+        if (pilotInfo && !pilotInfo.airportIcao && pilotInfo.cityName) {
+            const mission = missions.find(function (m) { return m.fromCityName === pilotInfo.cityName; });
+            if (mission) {
+                filterFrom = mission.fromCityName;
+                renderMissionsAndFilters();
+            }
+            return;
+        }
+        if (!airportCityIds) {
             return;
         }
         for (let i = 0; i < airportCityIds.length; i++) {
@@ -461,9 +473,13 @@
         const $sel = $('#aircraftSelect');
         $sel.empty();
 
-        const airport = pilotInfo ? pilotInfo.airportIcao : null;
-        aircraft = airport
-            ? allAircraft.filter(function (a) { return String(a.locationAirportIcao ?? '').toUpperCase() === airport.toUpperCase(); })
+        // the airports of the pilot: its airport, or the airports of its city (the pilot travels to the airport of the aircraft before the start)
+        const airports = pilotInfo && Array.isArray(pilotInfo.bookingAirports)
+            ? pilotInfo.bookingAirports.map(function (icao) { return String(icao).toUpperCase(); })
+            : [];
+        const airport = airports.join(', ');
+        aircraft = airports.length
+            ? allAircraft.filter(function (a) { return airports.includes(String(a.locationAirportIcao ?? '').toUpperCase()); })
             : [];
 
         if (aircraft.length === 0) {
@@ -472,7 +488,7 @@
             updateQuoteButton();
             loadTerms();
             $('#aircraftHelp').text(!pilotInfo ? 'Your pilot is not known, so there is no aircraft to choose.'
-                : !airport ? 'Your pilot is not at an airport.'
+                : !airport ? 'Your pilot is not at an airport or in a city.'
                 : 'No aircraft at ' + airport + '.');
             return;
         }
@@ -481,7 +497,8 @@
             const id = a.id;
             const reg = a.regNo ?? '';
             const type = a.typeCode ?? a.type ?? '';
-            const parts = [reg || ('#' + id), type].filter(function (p) { return p; });
+            // a pilot in a city sees the aircraft of several airports, so the airport is shown
+            const parts = [reg || ('#' + id), type, airports.length > 1 ? a.locationAirportIcao : null].filter(function (p) { return p; });
             $sel.append($('<option></option>').attr('value', id).text(parts.join(' · ')));
         });
         $sel.prop('disabled', false);
@@ -968,6 +985,8 @@
             updateAircraftDropdown();
             if (p.airportIcao) {
                 loadAirportCities(p.airportIcao);
+            } else {
+                applyDefaultFromCity();
             }
         }, function () {
             pilotInfo = null;

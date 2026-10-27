@@ -383,6 +383,8 @@
                 return 'Your pilot is busy now (resting, travelling or on duty), flying is not available.';
             case 'PERSON_NOT_AT_AIRPORT':
                 return 'Your pilot is not at an airport, flying is not available.';
+            case 'PERSON_IN_CITY':
+                return 'Your pilot is in ' + escapeHtml(pilot.expectedCity ?? 'a city') + '. Travel to the departure airport of the flight to start it.';
             case 'WRONG_AIRPORT':
                 return 'Your pilot is expected at ' + escapeHtml(pilot.expectedAirport ?? '?')
                     + ' but the simulator puts the aircraft at ' + escapeHtml(pilot.currentAirport ?? '?') + '.';
@@ -404,7 +406,7 @@
         const parts = [];
         const location = status.pilot;
         if (location) {
-            parts.push("Pilot: " + location.state + (location.expectedAirport ? " at " + location.expectedAirport : ""));
+            parts.push("Pilot: " + location.state + (location.expectedAirport ? " at " + location.expectedAirport : location.expectedCity ? " in " + location.expectedCity : ""));
         }
         if (status.flight) {
             parts.push("Flight: " + status.flight.fmSt + (status.flight.tfSt ? " / T/F: " + status.flight.tfSt : ""));
