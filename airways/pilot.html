@@ -138,6 +138,19 @@
     </div>
 </div>
 
+<!-- The last operations of the bank account of the pilot, see GET /pilot/bank -->
+<div class="modal fade" id="bankModal" tabindex="-1" aria-labelledby="bankModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bankModalTitle">Bank account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="bankModalBody"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Wake up asks first: a sleep under two hours gives nothing, a longer one makes the awake time grow -->
 <div class="modal fade" id="wakeModal" tabindex="-1" aria-labelledby="wakeModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="--bs-modal-width: 440px;">
@@ -170,7 +183,8 @@
         return {
             label: 'Bank account',
             value: `<span class="money${p.bankBalance < 0 ? ' money-negative' : ''}">${moneyHtml(p.bankBalance)}</span>`,
-            hint: 'Balance'
+            hint: 'Balance',
+            actions: '<button type="button" class="btn btn-sm btn-outline-secondary" id="bankButton">Details</button>'
         };
     }
 
@@ -346,6 +360,7 @@
         $('.avatar-edit').on('click', () => avatarModal.show());
         $('.initials-edit').on('click', () => initialsModal.show());
         $('#travelButton').on('click', () => travelModal.show());
+        $('#bankButton').on('click', openBankDetails);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => askToWakeUp(p));
     }
@@ -587,6 +602,42 @@
         });
     }
 
+    // The last 10 operations of the account: the date and time (UTC, no seconds), what for, the amount (the money which was paid is minus) and the balance after.
+    let bankModal;
+
+    function bankTime(iso) {
+        return new Date(iso + ':00Z').toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC'});
+    }
+
+    function renderBankOperations(bank) {
+        if (!bank.operations.length) {
+            return '<div class="text-muted">No operations yet</div>';
+        }
+        const rows = bank.operations.map(o => `
+            <tr>
+                <td class="text-nowrap">${esc(bankTime(o.time))}</td>
+                <td>${esc(o.type)}</td>
+                <td class="text-end"><span class="money${o.amount < 0 ? ' money-negative' : ''}">${moneyHtml(o.amount)}</span></td>
+                <td class="text-end"><span class="money${o.balance < 0 ? ' money-negative' : ''}">${moneyHtml(o.balance)}</span></td>
+            </tr>`).join('');
+        return `
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Date and time (UTC)</th><th>Operation</th><th class="text-end">Amount</th><th class="text-end">Balance</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div class="text-muted small mt-2">The last ${bank.operations.length} operations</div>`;
+    }
+
+    function openBankDetails() {
+        $('#bankModalBody').html('<div class="text-muted">Loading...</div>');
+        bankModal.show();
+        airwaysAuth('GET', '/pilot/bank', {}, function (bank) {
+            $('#bankModalBody').html(renderBankOperations(bank));
+        }, function () {
+            $('#bankModalBody').html('<div class="text-danger">Failed to load the operations</div>');
+        });
+    }
+
     function loadPilot() {
         airwaysAuth('GET', '/pilot', {}, renderPilot, function (e) {
             if (e && e.status === 401) {
@@ -605,6 +656,7 @@
         initAvatarModal();
         initTravelModal();
         wakeModal = new bootstrap.Modal(document.getElementById('wakeModal'));
+        bankModal = new bootstrap.Modal(document.getElementById('bankModal'));
         $('#wakeConfirm').on('click', function () {
             wakeModal.hide();
             sleepOrWake('/pilot/wake');
