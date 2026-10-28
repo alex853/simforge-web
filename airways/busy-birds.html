@@ -21,7 +21,7 @@
         .mission-row { cursor: pointer; }
         .mission-row.picked > td { background: var(--bs-primary-bg-subtle); }
         .mission-row .form-check-input { cursor: pointer; }
-        .plan-options-row .plan-turnaround-select { width: 6.25rem; max-width: 100%; }
+        .leg-gap-select { width: 4.25rem; min-width: 0; padding-left: 0.4rem; padding-right: 1.4rem; }
         .plan-options-row > .col:last-child { min-width: 0; }
         .plan-options-row .ferry-check { padding-bottom: 0.15rem; }
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
@@ -208,17 +208,6 @@
                                 <option value="" disabled selected>Select plan…</option>
                             </select>
                         </div>
-                        <div class="col-auto">
-                            <label class="form-label mb-1 text-nowrap" for="turnaroundSelect">Turnaround time</label>
-                            <select id="turnaroundSelect" class="form-select form-select-sm plan-turnaround-select">
-                                <option value="0.5">30 minutes</option>
-                                <option value="1" selected>1 hour</option>
-                                <option value="3">3 hours</option>
-                                <option value="6">6 hours</option>
-                                <option value="12">12 hours</option>
-                                <option value="24">24 hours</option>
-                            </select>
-                        </div>
                         <div class="col">
                             <div class="form-check mb-1 ferry-check">
                                 <input type="checkbox" class="form-check-input" id="ferryBackToBase" name="ferryBackToBase" checked>
@@ -230,6 +219,7 @@
                         <table class="table table-bordered table-striped table mb-0">
                             <thead class="table-light">
                             <tr>
+                                <th style="width: 5rem;" class="text-center" title="The time before the leg: the first leg departs this long from now, every other leg this long after the arrival of the previous one">After</th>
                                 <th style="width: 2rem;" class="text-center">#</th>
                                 <th style="width: 7.5rem;" class="text-center">DOF</th>
                                 <th style="width: 5rem;" class="text-center">From</th>
@@ -706,7 +696,7 @@
             const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
             arr.forEach(function (m) {
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
-                $tb.append('<tr><td colspan="8" class="text-muted text-center">' + text + '</td></tr>');
+                $tb.append('<tr><td colspan="9" class="text-muted text-center">' + text + '</td></tr>');
             });
             return;
         }
@@ -781,7 +771,7 @@
         const $tb = $('#planLegsBody');
         $tb.empty();
         if (!legs || legs.length === 0) {
-            $tb.append('<tr><td colspan="8" class="text-muted text-center">No legs in response</td></tr>');
+            $tb.append('<tr><td colspan="9" class="text-muted text-center">No legs in response</td></tr>');
             return;
         }
         legs.forEach(function (leg, idx) {
@@ -795,6 +785,7 @@
             const distance = legCell(leg, ['distance'], '—');
 
             const row = '<tr>' +
+                '<td class="text-center">' + legGapSelectHtml(idx) + '</td>' +
                 '<td class="text-center">' + (idx + 1) + '</td>' +
                 '<td class="text-center text-nowrap">' + dof + '</td>' +
                 '<td class="text-center">' + from + '<br><span style="font-size: 0.8em;">' + depTime + '</span></td>' +
@@ -808,15 +799,30 @@
         });
         if (planSalary) {
             $tb.append('<tr class="table-light fw-bold">' +
-                '<td colspan="7" class="text-end">Total for the whole plan</td>' +
+                '<td colspan="8" class="text-end">Total for the whole plan</td>' +
                 '<td class="text-end"><div class="pay-line">' + money(planSalary.total) + '<span class="pay-mark" style="visibility: hidden;">F</span></div></td>' +
                 '</tr>');
         }
     }
 
+    // The time before every leg of the plan, hours: the first leg departs this long from now, every other leg this long after the arrival of the previous one.
+    // The first leg has a short list, the others a longer one. The values stay when the plan is rebuilt or another plan is chosen.
+    const FIRST_LEG_GAPS = [[0.5, '30m'], [1, '1h'], [2, '2h']];
+    const NEXT_LEG_GAPS = [[0.5, '30m'], [1, '1h'], [3, '3h'], [6, '6h'], [12, '12h'], [24, '24h']];
+    const legGaps = [0.5, 1, 1];
+
+    function legGapSelectHtml(idx) {
+        const options = (idx === 0 ? FIRST_LEG_GAPS : NEXT_LEG_GAPS).map(function (o) {
+            return '<option value="' + o[0] + '"' + (legGaps[idx] === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+        }).join('');
+        return '<select class="form-select form-select-sm leg-gap-select leg-gap" data-leg="' + idx + '" aria-label="Time before leg ' + (idx + 1) + '">' + options + '</select>';
+    }
+
+    // intervals is for the server (the time before every leg), turnaroundTime is the old parameter: the gap before the second leg
     function getPlanOptionParams() {
         return {
-            turnaroundTime: parseFloat($('#turnaroundSelect').val()),
+            intervals: legGaps.join(','),
+            turnaroundTime: legGaps[1],
             ferryBackToBase: $('#ferryBackToBase').is(':checked')
         };
     }
@@ -854,7 +860,7 @@
     }
 
     function setPlanOptionsBusy(busy) {
-        $('#turnaroundSelect, #ferryBackToBase, #planSelect').prop('disabled', busy);
+        $('.leg-gap, #ferryBackToBase, #planSelect').prop('disabled', busy);
     }
 
     function loadBuildPlans(options) {
@@ -1081,7 +1087,19 @@
             loadBuildPlans({missionId: missionId, aircraftId: aircraftId});
         });
 
-        $('#turnaroundSelect, #ferryBackToBase').on('change', function () {
+        // a gap of a leg is chosen in the row of the leg, the plan is rebuilt with it
+        $('#planLegsBody').on('change', '.leg-gap', function () {
+            legGaps[parseInt($(this).attr('data-leg'), 10)] = parseFloat($(this).val());
+            if (!selectedMissionId || !selectedAircraftId) {
+                return;
+            }
+            if (!$('#planLegsWrap').is(':visible')) {
+                return;
+            }
+            loadBuildPlans({refresh: true, silent: true});
+        });
+
+        $('#ferryBackToBase').on('change', function () {
             if (!selectedMissionId || !selectedAircraftId) {
                 return;
             }
