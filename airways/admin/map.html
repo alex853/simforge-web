@@ -238,6 +238,49 @@
         return o.latitude.toFixed(4) + ', ' + o.longitude.toFixed(4);
     }
 
+    // The factors of a city (attraction, mobility): a text field with minus and plus. 0 is the least, 65.5 is the most (the storage of the factor).
+    const MAX_FACTOR = 65.5;
+
+    function factorHtml(name, value) {
+        if (value === null || value === undefined) {
+            return '<span class="text-muted">the city has no flow</span>';
+        }
+        return '<div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-outline-secondary px-2" id="' + name + '-minus" title="Minus 1">&minus;</button>'
+            + '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm" style="width: 5rem;" id="' + name + '-input" value="' + value + '">'
+            + '<button type="button" class="btn btn-sm btn-outline-secondary px-2" id="' + name + '-plus" title="Plus 1">+</button></div>';
+    }
+
+    // The factor goes to the server at once: with plus and minus (by 1), or when the text of the field is changed (Enter or leaving the field).
+    // A text which is not a number, or not from 0 to 65.5, is not sent, the field gets the old value back.
+    function bindFactor(name, c, current) {
+        if (current === null || current === undefined) {
+            return;
+        }
+        const input = $('#' + name + '-input');
+        const send = value => adminPost('/admin/world/city/' + name, {id: c.id, value: value}, showCity);
+        const typed = () => parseFloat(String(input.val()).replace(',', '.'));
+        const step = delta => {
+            const typedValue = typed();
+            const base = Number.isNaN(typedValue) ? current : typedValue;
+            const next = Math.min(MAX_FACTOR, Math.max(0, Math.round((base + delta) * 10) / 10));
+            if (next !== current) {
+                send(next);
+            } else {
+                input.val(current);
+            }
+        };
+        $('#' + name + '-plus').on('click', () => step(1));
+        $('#' + name + '-minus').on('click', () => step(-1));
+        input.on('change', function () {
+            const value = typed();
+            if (Number.isNaN(value) || value < 0 || value > MAX_FACTOR) {
+                input.val(current);
+            } else if (value !== current) {
+                send(value);
+            }
+        });
+    }
+
     function showCity(c) {
         $('#info-title').text(c.name + (c.country ? ', ' + c.country : ''));
         const airports = (c.airports.length === 0 ? '<div class="text-muted">no airports linked</div>'
@@ -256,10 +299,8 @@
             + row('Coordinates', coords(c))
             + row('Population', '<form class="d-flex gap-2" id="population-form"><input type="number" min="0" step="1" class="form-control form-control-sm w-auto" id="population-input" value="' + c.population
                 + '"><button class="btn btn-sm btn-primary" type="submit">Set</button><span class="text-muted align-self-center">' + number(c.population) + '</span></form>')
-            + row('Attraction', c.attraction === null ? '<span class="text-muted">the city has no flow</span>'
-                : '<form class="d-flex gap-2" id="attraction-form"><input type="number" min="0" max="65" step="0.1" class="form-control form-control-sm w-auto" id="attraction-input" value="' + c.attraction
-                + '"><button class="btn btn-sm btn-primary" type="submit">Set</button><span class="text-muted align-self-center">1 is usual, the flows of the city are counted again</span></form>')
-            + row('Mobility', c.mobility === null ? '&mdash;' : c.mobility)
+            + row('Attraction', factorHtml('attraction', c.attraction))
+            + row('Mobility', factorHtml('mobility', c.mobility))
             + row('Flows counted at', c.lastRedistributionTime === null ? '&mdash;' : (c.lastRedistributionTime === 0 ? 'not yet (will be counted soon)' : number(c.lastRedistributionTime)))
             + '</tbody></table>'
             + '<h6 class="mt-3">Airports</h6>' + airports);
@@ -274,10 +315,8 @@
                 showCity(info);
             });
         });
-        $('#attraction-form').on('submit', function (e) {
-            e.preventDefault();
-            adminPost('/admin/world/city/attraction', {id: c.id, value: $('#attraction-input').val()}, showCity);
-        });
+        bindFactor('attraction', c, c.attraction);
+        bindFactor('mobility', c, c.mobility);
         $('#link-form').on('submit', function (e) {
             e.preventDefault();
             const icao = $('#link-icao').val().trim();
