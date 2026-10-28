@@ -240,11 +240,14 @@
 
     function showCity(c) {
         $('#info-title').text(c.name + (c.country ? ', ' + c.country : ''));
-        const airports = c.airports.length === 0 ? '<div class="text-muted">no airports linked</div>'
-            : '<table class="table table-sm mb-0"><thead><tr><th>ICAO</th><th>IATA</th><th>Name</th><th class="text-end">Distance, nm</th><th>Business terminal</th></tr></thead><tbody>'
+        const airports = (c.airports.length === 0 ? '<div class="text-muted">no airports linked</div>'
+            : '<table class="table table-sm mb-0"><thead><tr><th>ICAO</th><th>IATA</th><th>Name</th><th class="text-end">Distance, nm</th><th>Business terminal</th><th></th></tr></thead><tbody>'
             + c.airports.map(a => '<tr><td><a class="pick" onclick="openAirport(\'' + a.icao + '\')">' + esc(a.icao) + '</a></td><td>' + esc(a.iata) + '</td><td>' + esc(a.name)
-                + '</td><td class="text-end">' + a.distance.toFixed(1) + '</td><td>' + (a.businessTerminal ? 'yes' : '') + '</td></tr>').join('')
-            + '</tbody></table>';
+                + '</td><td class="text-end">' + a.distance.toFixed(1) + '</td><td>' + (a.businessTerminal ? 'yes' : '')
+                + '</td><td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 unlink-airport" data-icao="' + esc(a.icao) + '" title="Remove the link with ' + esc(a.icao) + '">&times;</button></td></tr>').join('')
+            + '</tbody></table>')
+            + '<form class="d-flex gap-2 mt-2" id="link-form"><input type="text" class="form-control form-control-sm w-auto" id="link-icao" maxlength="4" placeholder="ICAO" autocomplete="off" spellcheck="false">'
+            + '<button class="btn btn-sm btn-primary" type="submit">Add airport link</button></form>';
         $('#info-body').html(
             '<table class="table table-sm"><tbody>'
             + row('Id', esc(c.id))
@@ -275,7 +278,30 @@
             e.preventDefault();
             adminPost('/admin/world/city/attraction', {id: c.id, value: $('#attraction-input').val()}, showCity);
         });
+        $('#link-form').on('submit', function (e) {
+            e.preventDefault();
+            const icao = $('#link-icao').val().trim();
+            if (icao) {
+                adminPost('/admin/world/city/airport-link', {id: c.id, icao: icao}, linksChanged);
+            }
+        });
+        $('.unlink-airport').on('click', function () {
+            const icao = $(this).data('icao');
+            if (confirm('Remove the link of ' + c.name + ' with ' + icao + '?')) {
+                adminPost('/admin/world/city/airport-unlink', {id: c.id, icao: icao}, linksChanged);
+            }
+        });
         modal.show();
+    }
+
+    // the links of the city have changed: the dialog shows the new list, the lines of the map are drawn again
+    function linksChanged(info) {
+        const city = data.cities.find(x => x.id === info.id);
+        if (city) {
+            city.airports = info.airports.map(a => a.icao);
+            drawLinks();
+        }
+        showCity(info);
     }
 
     function showAirport(a) {
