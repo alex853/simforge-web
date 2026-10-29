@@ -18,8 +18,8 @@
     <script src="js/details.js"></script>
     <script src="js/roster-demo.js"></script>
     <style>
-        .flight-tile { position: relative; height: auto; }
-        .flight-tile.flight-over { opacity: .65; }
+        .flight-tile { position: relative; height: auto; container-type: inline-size; }
+        .flight-over { opacity: .65; }
         /* a value which the server does not give yet */
         .todo { color: #dc3545; font-weight: 700; }
         /* the tickets of the flight: to the left of the corner of the tile, where the buttons will be (like Sleep and Travel on the page of the pilot) */
@@ -29,6 +29,14 @@
         .flight-sales { position: absolute; bottom: .9rem; right: 9.5rem; width: 10.5rem; font-size: .9rem; line-height: 1.5; }
         /* a ferry flight has one line: it is at the level of the centres of the letters of the airports */
         .flight-sales.is-ferry { top: 2.2rem; bottom: auto; height: 2.4rem; display: flex; align-items: center; }
+        /* a flight which is over has no buttons, the numbers go to the right edge */
+        .flight-sales.no-actions { right: 1.1rem; }
+        /* a narrow tile (a narrow window): the route and the numbers are smaller, so they do not run into each other and into the buttons */
+        @container (max-width: 540px) {
+            .flight-tile .flight-route { font-size: 1.3rem; }
+            .flight-sales { right: 7.4rem; width: 8.6rem; font-size: .8rem; }
+            .flight-sales.no-actions { right: 1.1rem; }
+        }
         .flight-sales > div { display: flex; justify-content: space-between; gap: 1rem; }
         .flight-sales .sales-label { color: var(--bs-secondary-color); }
         .flight-tile:last-child { margin-bottom: 0 !important; }
@@ -58,7 +66,15 @@
 <main class="container-lg py-4">
     <div id="pageHeader"></div>
 
-    <p class="text-secondary mb-4">The flights you have booked, in the order you fly them.</p>
+    <!-- the line of the subtitle: on the right the switch of the flights which are shown -->
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+        <p class="text-secondary mb-0">The flights you have booked, in the order you fly them.</p>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Which flights are shown" id="flightsFilter">
+            <button type="button" class="btn btn-outline-secondary" data-filter="recent"
+                    title="The flights which are not over and the ones which ended not earlier than 12 hours ago">Recent flights</button>
+            <button type="button" class="btn btn-outline-secondary" data-filter="all" title="All the flights, the old ones too">All flights</button>
+        </div>
+    </div>
 
     <div id="rosterBody"></div>
 
@@ -98,7 +114,7 @@
     function salesHtml(fl) {
         // a flight without a transport flight is a ferry flight (no passengers, so no tickets and no income)
         if (fl.ferry) {
-            return '<div class="flight-sales is-ferry"><div><span class="text-primary fw-semibold">Ferry flight</span></div></div>';
+            return '<div class="flight-sales is-ferry' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '"><div><span class="text-primary fw-semibold">Ferry flight</span></div></div>';
         }
         const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
         // a finished flight has the passengers it carried instead of the tickets which were sold and remained
@@ -106,7 +122,7 @@
             ? '<div><span class="sales-label">Carried PAX</span><span class="fw-semibold">' + num(fl.carried) + '</span></div>'
             : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
               '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>';
-        return '<div class="flight-sales">' + tickets +
+        return '<div class="flight-sales' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '">' + tickets +
             '<div><span class="sales-label">Income</span><span class="todo" title="the income of the flight is not counted yet">TODO</span></div></div>';
     }
 
@@ -143,7 +159,7 @@
     // The tile of the aircraft (the vertical one, the operator, the type, the registration) on the left, the flights of the aircraft in the middle: as high as the flights
     function groupHtml(group, lastFlightId, afterFlights) {
         return '<div class="row g-3 mb-3 justify-content-center"><div class="col-12 col-md-3 d-flex justify-content-md-end">' +
-            '<div class="stat aircraft-tile">' + (group.operatorName
+            '<div class="stat aircraft-tile' + (group.flights.every(function (fl) { return !isRosterFlightActive(fl); }) ? ' flight-over' : '') + '">' + (group.operatorName
                 ? '<div class="stat-label">' + esc(group.operatorName) + '</div>'
                 : '<div class="stat-label todo" title="the aircraft has no operator">TODO operator</div>') +
             '<div class="aircraft-value">' + group.type + '</div><div class="aircraft-value">' + group.reg + '</div></div></div>' +
@@ -162,11 +178,42 @@
             '</a>';
     }
 
-    function renderRoster(flights) {
+    // Which flights are shown: the recent ones (the flights which are not over and the ones which ended not earlier than 12 hours ago) or all of them.
+    // The choice is remembered in the browser.
+    const RECENT_MILLIS = 12 * 60 * 60 * 1000;
+
+    function savedFilter() {
+        try {
+            return localStorage.getItem('airwaysRosterFilter') === 'all' ? 'all' : 'recent';
+        } catch (e) {
+            return 'recent';
+        }
+    }
+
+    let rosterFilter = savedFilter();
+    let rosterFlights = [];
+
+    function isRecent(fl) {
+        return isRosterFlightActive(fl) || fl.arr >= Date.now() - RECENT_MILLIS;
+    }
+
+    function renderFilter() {
+        $('#flightsFilter .btn').each(function () {
+            $(this).toggleClass('active', $(this).attr('data-filter') === rosterFilter);
+        });
+    }
+
+    function renderRoster(allFlights) {
+        rosterFlights = allFlights;
+        renderFilter();
+        const flights = rosterFilter === 'recent' ? allFlights.filter(isRecent) : allFlights;
         const $body = $('#rosterBody');
+        // the booking goes on after the last flight of all the flights, also when the old ones are not shown: a new flight (not the continuation) is bound by the booked
+        // flights: any place and aircraft, not earlier than 2 hours after the last arrival
+        $('#bookShadowJet').attr('href', shadowJetHref(rosterContinuation(allFlights, false)));
         if (flights.length === 0) {
-            $body.html('<div class="stat stat-placeholder text-center text-secondary py-3 mb-4">No flights are booked.</div>');
-            $('#bookShadowJet').attr('href', 'shadow-jet.html');
+            $body.html('<div class="stat stat-placeholder text-center text-secondary py-3 mb-4">'
+                + (allFlights.length === 0 ? 'No flights are booked.' : 'No recent flights. The older ones are under All flights.') + '</div>');
             return;
         }
         let html = '';
@@ -178,8 +225,6 @@
         });
         html += '<hr class="my-4">';
         $body.html(html);
-        // a new flight (not the continuation) is bound by the booked flights too: any place and aircraft, not earlier than 2 hours after the last arrival
-        $('#bookShadowJet').attr('href', shadowJetHref(rosterContinuation(flights, false)));
     }
 
     // undefined - not loaded yet, null - failed or there is no pilot
@@ -201,6 +246,15 @@
         renderHeader();
         loadPilot();
         loadRosterFlights(renderRoster);
+        $('#flightsFilter').on('click', '.btn', function () {
+            rosterFilter = $(this).attr('data-filter');
+            try {
+                localStorage.setItem('airwaysRosterFilter', rosterFilter);
+            } catch (e) {
+                // the choice is just not remembered
+            }
+            renderRoster(rosterFlights);
+        });
     });
 </script>
 </body>
