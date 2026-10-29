@@ -45,6 +45,7 @@
         .time-lines .k, .count-lines .k { display: inline-block; min-width: 6.4rem; color: var(--bs-secondary-color); font-size: .85rem; text-transform: uppercase; letter-spacing: .08em; }
         .count-lines { font-size: 1.2rem; line-height: 1.5; }
         .count-lines .k { min-width: 7.4rem; }
+        .count-lines .t-tbd { color: #fd7e14; }
 
         /* a place where the server has not got the data yet */
         .todo { color: #e00000; font-weight: 700; font-style: normal; }
@@ -172,8 +173,17 @@
                 return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'in a city, not at an airport'};
             case 'PERSON_NOT_AT_AIRPORT':
                 return {label: 'Pilot', value: '---', cls: 'big bad', hint: 'not at an airport'};
-            case 'PERSON_NOT_IDLE':
+            case 'PERSON_NOT_IDLE': {
+                // the status does not tell why the pilot is busy, /pilot does: a travelling pilot has the place where he is going
+                const travelTo = lastPilot && lastPilot.state === 'Travelling' ? (lastPilot.destinationIcao ?? lastPilot.destinationCity) : null;
+                if (travelTo) {
+                    return {label: 'Pilot', value: '→ ' + esc(travelTo), cls: 'big bad', hint: 'travelling, on the way there'};
+                }
+                if (lastPilot && lastPilot.state === 'Travelling') {
+                    return {label: 'Pilot', value: 'on the way', cls: 'big bad', hint: 'travelling'};
+                }
                 return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'busy (resting, travelling or on duty)'};
+            }
             case 'NO_PERSON':
                 return {label: 'Pilot', value: 'no pilot', cls: 'big bad'};
             default:
@@ -210,7 +220,7 @@
             case 'Boarding':
                 // the progress of the check-in and of the boarding is in their own tiles, PAX is known only when the boarding is over
                 return {label: 'Payload', html: '<div class="count-lines"><div><span class="k">Sold tickets</span><b>' + f.stkts + '</b></div>'
-                        + '<div><span class="k">PAX</span><b title="Will be known at the end of the boarding">TBD</b></div></div>'};
+                        + '<div><span class="k">PAX</span><b class="t-tbd" title="Will be known at the end of the boarding">TBD</b></div></div>'};
             case 'Deboarding':
             case 'Finished':
                 // the number of those who were carried is not in the status: the checked-in ones are about it
@@ -606,7 +616,7 @@
                 break;
         }
         return {mode: mode, actions: actions, sim: {status: 'Connected', locationStatus: 'At airport', airportIcao: 'KAUS', parkingBrake: true, engineRunning: false, measuredGs: '0'},
-            flight: f, pilot: {state: 'OK', expectedAirport: 'KAUS', currentAirport: 'KAUS'}};
+            flight: f, pilot: name === 'travelling' ? {state: 'PERSON_NOT_IDLE'} : {state: 'OK', expectedAirport: 'KAUS', currentAirport: 'KAUS'}};
     }
 
     const STUB_PILOT = {state: 'Idle', awake: {creditMinutes: 600, sleeping: false}, duty: {last24HoursMinutes: 200, limitMinutes: 840},
@@ -624,7 +634,8 @@
         if (stub !== null) {
             lastStatus = stubStatus(stub);
             // over-limit: before the start, the duty time is over its limit (the awake and the flight time are fine)
-            lastPilot = stub === 'over-limit' ? Object.assign({}, STUB_PILOT, {duty: {last24HoursMinutes: 890, limitMinutes: 840}}) : STUB_PILOT;
+            lastPilot = stub === 'over-limit' ? Object.assign({}, STUB_PILOT, {duty: {last24HoursMinutes: 890, limitMinutes: 840}})
+                : (stub === 'travelling' ? Object.assign({}, STUB_PILOT, {state: 'Travelling', destinationIcao: 'KAUS'}) : STUB_PILOT);
             render();
             return;
         }
