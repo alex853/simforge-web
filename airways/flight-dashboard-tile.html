@@ -492,6 +492,8 @@
     let flightId = null;
     let actionInProgress = false;
     let actionMessage = null;
+    // the last reading of the status failed: the banner is there until the next reading succeeds (it is not a message of an action, which stays until the next action)
+    let statusLoadFailed = false;
     let stub = null;
 
     function render() {
@@ -507,6 +509,9 @@
             banners += '<div class="alert alert-warning py-2">The sim tracker is not connected: there were no reports from the sim for a while.</div>';
         }
         // the state of the pilot has no banner: the red tile of the pilot and the failed conditions under the tiles say it
+        if (statusLoadFailed) {
+            banners += '<div class="alert alert-danger py-2">Failed to load the status</div>';
+        }
         if (actionMessage) {
             banners += '<div class="alert alert-' + (actionMessage.error ? 'danger' : 'secondary') + ' py-2">' + esc(actionMessage.text) + '</div>';
         }
@@ -530,9 +535,10 @@
     function loadStatus() {
         airwaysAuth('GET', '/flight-dashboard/status', {}, function (response) {
             lastStatus = response;
+            statusLoadFailed = false;
             render();
         }, function () {
-            actionMessage = {text: 'Failed to load the status', error: true};
+            statusLoadFailed = true;
             render();
         });
     }
@@ -557,6 +563,7 @@
             actionInProgress = false;
             actionMessage = null;
             lastStatus = response;
+            statusLoadFailed = false;
             render();
             loadPilot();
         }, function (e) {
