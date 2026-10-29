@@ -45,7 +45,7 @@
         .time-lines .k, .count-lines .k { display: inline-block; min-width: 6.4rem; color: var(--bs-secondary-color); font-size: .85rem; text-transform: uppercase; letter-spacing: .08em; }
         .count-lines { font-size: 1.2rem; line-height: 1.5; }
         .count-lines .k { min-width: 7.4rem; }
-        .count-lines .t-tbd { color: #fd7e14; }
+        .count-lines .t-tbd { color: #fd7e14; -webkit-text-stroke: .5px #000; }
 
         /* a place where the server has not got the data yet */
         .todo { color: #e00000; font-weight: 700; font-style: normal; }
@@ -384,16 +384,6 @@
         return BLOCKING_USER_STATES.includes(state);
     }
 
-    function userStateMessage(pilot) {
-        switch (pilot && pilot.state) {
-            case 'NO_PERSON': return 'You have no pilot (person), flying is not available.';
-            case 'PERSON_NOT_IDLE': return 'Your pilot is busy now (resting, travelling or on duty), flying is not available.';
-            case 'PERSON_NOT_AT_AIRPORT': return 'Your pilot is not at an airport, flying is not available.';
-            case 'WRONG_AIRPORT': return 'Your pilot is expected at ' + esc(pilot.expectedAirport ?? '?') + ' but the simulator puts the aircraft at ' + esc(pilot.currentAirport ?? '?') + '.';
-            default: return null;
-        }
-    }
-
     // The area under the tiles: the title of the stage, the conditions of the actions and the buttons.
     function areaHtml(status) {
         const f = status.flight;
@@ -465,11 +455,7 @@
         if (status.mode === 'SIM_TRACKER' && status.sim && status.sim.status !== 'Connected') {
             banners += '<div class="alert alert-warning py-2">The sim tracker is not connected: there were no reports from the sim for a while.</div>';
         }
-        // without a flight the tile of the pilot says the same
-        const warning = status.flight === null ? null : userStateMessage(status.pilot);
-        if (warning) {
-            banners += '<div class="alert alert-danger py-2">' + warning + '</div>';
-        }
+        // the state of the pilot has no banner: the red tile of the pilot and the failed conditions under the tiles say it
         if (actionMessage) {
             banners += '<div class="alert alert-' + (actionMessage.error ? 'danger' : 'secondary') + ' py-2">' + esc(actionMessage.text) + '</div>';
         }
