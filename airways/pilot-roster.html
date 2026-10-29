@@ -70,8 +70,6 @@
             <a class="btn btn-outline-primary fly-button" id="bookBusyBirds" href="busy-birds.html">Book busyBirds flight</a>
         </div>
     </div>
-
-    <div class="form-text">The flights come from my-flights. The ones booked on the ShadowJet page are demo flights, kept in this browser (the server cannot book them yet). <a href="#" id="resetDemo">Reset the demo flights</a></div>
 </main>
 
 <script>
@@ -103,10 +101,13 @@
             return '<div class="flight-sales is-ferry"><div><span class="text-primary fw-semibold">Ferry flight</span></div></div>';
         }
         const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
-        return '<div class="flight-sales">' +
-            '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
-            '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>' +
-            '<div><span class="sales-label">Income</span><span class="todo" title="my-flights has no income of the flight">TODO</span></div></div>';
+        // a finished flight has the passengers it carried instead of the tickets which were sold and remained
+        const tickets = fl.status === 'Finished'
+            ? '<div><span class="sales-label">Carried PAX</span><span class="fw-semibold">' + num(fl.carried) + '</span></div>'
+            : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
+              '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>';
+        return '<div class="flight-sales">' + tickets +
+            '<div><span class="sales-label">Income</span><span class="todo" title="the income of the flight is not counted yet">TODO</span></div></div>';
     }
 
     // A booked flight, a double tile in the middle. The operator, the type and the aircraft are in the tile of the aircraft next to it. Only the last flight of
@@ -133,7 +134,7 @@
             if (group && group.reg === fl.reg && fl.dep - prev.arr <= SECTION_GAP_MILLIS) {
                 group.flights.push(fl);
             } else {
-                groups.push({reg: fl.reg, type: fl.type, flights: [fl]});
+                groups.push({reg: fl.reg, type: fl.type, operatorName: fl.operatorName, flights: [fl]});
             }
         });
         return groups;
@@ -142,7 +143,9 @@
     // The tile of the aircraft (the vertical one, the operator, the type, the registration) on the left, the flights of the aircraft in the middle: as high as the flights
     function groupHtml(group, lastFlightId, afterFlights) {
         return '<div class="row g-3 mb-3 justify-content-center"><div class="col-12 col-md-3 d-flex justify-content-md-end">' +
-            '<div class="stat aircraft-tile"><div class="stat-label todo" title="my-flights has no operator of the flight">TODO operator</div>' +
+            '<div class="stat aircraft-tile">' + (group.operatorName
+                ? '<div class="stat-label">' + esc(group.operatorName) + '</div>'
+                : '<div class="stat-label todo" title="the aircraft has no operator">TODO operator</div>') +
             '<div class="aircraft-value">' + group.type + '</div><div class="aircraft-value">' + group.reg + '</div></div></div>' +
             '<div class="col-12 col-md-6">' + group.flights.map(function (fl) { return flightTile(fl, fl.id === lastFlightId); }).join('') + (afterFlights || '') + '</div>' +
             '<div class="col-md-3 d-none d-md-block"></div></div>';
@@ -198,11 +201,6 @@
         renderHeader();
         loadPilot();
         loadRosterFlights(renderRoster);
-        $('#resetDemo').on('click', function (e) {
-            e.preventDefault();
-            demoRosterReset();
-            loadRosterFlights(renderRoster);
-        });
     });
 </script>
 </body>

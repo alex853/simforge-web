@@ -1,7 +1,7 @@
 // The roster of the pilot, shared by pilot-roster.html and shadow-jet.html. The flights come from GET /flight-dashboard/my-flights (loadRosterFlights).
 // The flights which a ShadowJet booking makes on the page are DEMO ones, they live in the browser until the server books them (demoRoster*), and are shown
 // with the real ones. The shape of a flight of the roster, in the order of the departure:
-// {id, from, to, dep, arr (UTC millis), reg, type, status, sold, remained (null when there is no transport flight), ferry (no transport flight), demo (true for the demo ones)}.
+// {id, from, to, dep, arr (UTC millis), reg, type, status, operatorName, sold, remained (null when there is no transport flight), carried (the passengers carried, only of a finished flight, otherwise null), ferry (no transport flight), demo (true for the demo ones)}.
 
 const ROSTER_DEMO_KEY = 'airways.demo.roster';
 const TURNAROUND_MILLIS = 30 * 60 * 1000; // the least time between the arrival of a flight and the departure of the next one
@@ -94,7 +94,8 @@ function myFlightToRosterFlight(m) {
     const t = m.transportFlight;
     return {
         id: f.id, from: f.depIcao, to: f.destIcao, dep: dep, arr: arr, reg: m.aircraft.regNo, type: m.aircraft.type, status: f.status,
-        sold: t ? t.soldSeats : null, remained: t ? t.totalSeats - t.soldSeats : null, ferry: !t, demo: false
+        operatorName: m.aircraft.operatorName, sold: t ? t.soldSeats : null, remained: t ? t.totalSeats - t.soldSeats : null,
+        carried: t ? t.carriedPax : null, ferry: !t, demo: false
     };
 }
 
@@ -102,7 +103,7 @@ function myFlightToRosterFlight(m) {
 // (then there are the demo ones only)
 function loadRosterFlights(callback) {
     const done = function (real) {
-        const demo = demoRosterLoad().map(function (fl) { return Object.assign({}, fl, {demo: true}); });
+        const demo = demoRosterLoad().map(function (fl) { return Object.assign({}, fl, {operatorName: 'ShadowJet', demo: true}); });
         callback(real.concat(demo).sort(function (a, b) { return a.dep - b.dep; }));
     };
     airwaysAuth('GET', '/flight-dashboard/my-flights', {}, function (response) {

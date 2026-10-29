@@ -27,8 +27,6 @@
         table.qualifications { table-layout: fixed; }
         table.qualifications td, table.qualifications th { text-align: center; vertical-align: middle; }
         .qual-line { display: flex; justify-content: center; align-items: center; gap: .7rem; white-space: nowrap; }
-        .qual-small { font-size: .7em; font-weight: 600; color: var(--bs-success); cursor: help; }
-        .qual-penalty { font-size: .75em; font-weight: 600; color: #fd7e14; cursor: help; }
         .qual-help { cursor: help; }
         #sortToggle { text-decoration: none; padding: 0; }
         .qual-label { font-weight: 600; font-size: 1em; }
@@ -54,7 +52,8 @@
 
 <script>
     // GET /pilot/qualifications (token of the user): the totals of the logbook and the currency of the pilot on every type of aircraft of the logbook.
-    // Three criteria of a type, each is a green tick (met) or an orange cross (not met); the totals of the type are not used in them. The type
+    // Three criteria of a type, each is a green tick (met) or an orange cross (not met); the totals of the type are not used in them. The page does not say what
+    // the missing criteria cost: the rates are of the operator. The type
     // currency has two conditions: flights and hours of the last 12 months, the tick is by the hours of the last 12 months.
 
     // the error of the page without the "Back to map" link of the common showError
@@ -81,17 +80,11 @@
             + (next ? '. Next, ' + roman(next.level) + ': ' + next.flights + ' flights and ' + next.hours + ' hours.' : '. The highest level.');
     }
 
-    // 0.5 -> '0.5%', 3 -> '3%'
-    function formatPercent(percent) {
-        return (Math.round(percent * 1000) / 1000) + '%';
-    }
-
-    // One criterion in one line: the title with the tooltip of the criterion, the mark and, if it is not met, what is taken off the pay with its own tooltip.
-    // A criterion which is met has no penalty to show.
-    function criterion(title, ok, tooltip, penaltyPercent, penaltyTooltip) {
+    // One criterion in one line: the title with the tooltip of the criterion and the mark. What the operator takes off the pay for a criterion which is not met is
+    // not here: the rates are the affair of the operator, they are in the Details of the pages of booking.
+    function criterion(title, ok, tooltip) {
         return '<div class="qual-line"><span class="qual-label qual-help" title="' + esc(tooltip) + '">' + title + '</span>'
             + '<span class="qual-mark">' + mark(ok, '') + '</span>'
-            + (ok ? '' : '<span class="qual-penalty" title="' + esc(penaltyTooltip) + '">&minus;' + penaltyPercent + '%</span>')
             + '</div>';
     }
 
@@ -168,21 +161,15 @@
             + '<td>' + a.recentNightLandings + '</td>'
             + '</tr>'
             + '<tr class="qual-criteria">'
-            // Each criterion is one cell over the whole group of the numbers it comes from, in one line: the title (its tooltip tells what the criterion is), the value
-            // and, for the experience level, the base share of the level; for a criterion which is not met, what is taken off the pay.
+            // Each criterion is one cell over the whole group of the numbers it comes from, in one line: the title (its tooltip tells what the criterion is) and the value.
             + '<td colspan="3" class="group-start"><div class="qual-line"><span class="qual-label qual-help" title="' + esc(experienceTooltip(a, q.experienceLevels)) + '">Experience level</span>'
-            + '<span class="qual-level">' + roman(a.experienceLevel) + '</span>'
-            + '<span class="qual-small" title="' + esc('You will get ' + formatPercent(a.baseIncomeSharePercent) + ': your base income share rate is ' + formatPercent(a.baseIncomeSharePercent)
-                + ' of the mission payment (the price of the mission)') + '">' + formatPercent(a.baseIncomeSharePercent) + '</span></div></td>'
+            + '<span class="qual-level">' + roman(a.experienceLevel) + '</span></div></td>'
             + '<td colspan="2" class="group-start">' + criterion('Current on type', a.typeCurrent,
-                'Current on type: ' + c.recentFlights + ' or more flights and ' + c.recentFlightHours + ' or more hours on this type in the last ' + recentFlights,
-                c.typeCurrencyPenaltyPercent, 'Your base penalty for the missing current on type is ' + c.typeCurrencyPenaltyPercent + '% (of the flight pay and of the income share)') + '</td>'
+                'Current on type: ' + c.recentFlights + ' or more flights and ' + c.recentFlightHours + ' or more hours on this type in the last ' + recentFlights) + '</td>'
             + '<td class="group-start">' + criterion('Can carry passengers', a.canCarryPassengers,
-                'Can carry passengers: ' + c.recentLandings + ' or more landings on this type in the last ' + recentLandings,
-                c.canCarryPassengersPenaltyPercent, 'Your base penalty for not being able to carry passengers is ' + c.canCarryPassengersPenaltyPercent + '% (of the flight pay)') + '</td>'
+                'Can carry passengers: ' + c.recentLandings + ' or more landings on this type in the last ' + recentLandings) + '</td>'
             + '<td colspan="2" class="group-start">' + criterion('Night flying', a.nightFlying,
-                'Night flying: at least ' + c.nightTakeoffs + ' night takeoff and ' + c.nightLandings + ' night landing on this type in the last ' + recentLandings,
-                c.nightFlyingPenaltyPercent, 'Your base penalty for the missing night flying is ' + c.nightFlyingPenaltyPercent + '% (of the flight pay)') + '</td>'
+                'Night flying: at least ' + c.nightTakeoffs + ' night takeoff and ' + c.nightLandings + ' night landing on this type in the last ' + recentLandings) + '</td>'
             + '</tr>'
             + '</tbody>').join('');
 
