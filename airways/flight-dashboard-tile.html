@@ -190,7 +190,7 @@
     // The double header of the page: the small title is the page, the big one is the route of the flight (the avatar is the pilot's)
     function renderHeader(status) {
         const f = status.flight;
-        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) : 'Flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
+        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) : 'No active flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
     }
 
     // The first tile of the second row, always Payload. Ferry: Ferry flight. Revenue: before the check-in the sold tickets, in the check-in the sold and the
