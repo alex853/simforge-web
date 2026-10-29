@@ -695,7 +695,16 @@
                 loadStatus();
             }
         }, 10000);
-        setInterval(loadPilot, 30000);
+        // /pilot is read again only where its numbers change and are shown: before the start of a flight (the awake time falls, the limits of the start),
+        // without a flight, while the pilot travels (the place of the arrival), and when it has not been loaded. During the flight nothing of it is shown.
+        setInterval(function () {
+            const flight = lastStatus && lastStatus.flight;
+            const flightInProgress = flight && flight.fmSt !== 'Dispatched';
+            const travelling = lastPilot && lastPilot.state === 'Travelling';
+            if (!lastPilot || !flightInProgress || travelling) {
+                loadPilot();
+            }
+        }, 30000);
     });
 </script>
 </body>
