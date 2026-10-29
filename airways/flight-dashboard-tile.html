@@ -221,14 +221,14 @@
         }
     }
 
-    // The check-in goes by itself, the time is counted from the planned departure: it does not depend on the start of the flight. BusyBirds close it when
-    // everyone who booked has checked in, so the tile shows the progress (checked in / sold), not the time of the end.
+    // The check-in goes by itself, the time is counted from the planned departure: it does not depend on the start of the flight. The tile is like the
+    // deboarding one: how many have checked in so far and when it ends (no number of the sold tickets, they are in the payload).
     function checkInTile(f) {
         if (f.tfSt === 'CheckIn') {
-            return {label: 'Check-in', value: f.ckdIn + ' / ' + f.stkts, cls: 'big good', hint: 'checked in'};
+            return {label: 'Check-in', value: f.ckdIn + ' checked in', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the check-in')};
         }
         if (f.tfSt !== 'Scheduled') {
-            return {label: 'Check-in', value: f.ckdIn + ' / ' + f.stkts, cls: 'big', hint: 'checked in'};
+            return {label: 'Check-in', value: f.ckdIn + ' checked in', cls: 'big'};
         }
         return {label: 'Check-in', html: '<div class="stat-value big">' + todo('the time of the start of the check-in') + '</div>', hint: 'starts at'};
     }
