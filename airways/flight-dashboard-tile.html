@@ -28,6 +28,8 @@
         @media (max-width: 767px) { .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
         .tile-grid .stat { height: 100%; }
+        /* a tile which says that something is wrong: a pale red background */
+        .tile-grid .stat.stat-alert { background: color-mix(in srgb, var(--bs-danger) 6%, var(--bs-body-bg)); border-color: color-mix(in srgb, var(--bs-danger) 28%, var(--bs-body-bg)); }
         /* the values of this page are words and may be longer than the numbers of the pilot page: they are not cut */
         .tile-grid .stat-value, .tile-grid .stat-hint { white-space: normal; overflow: visible; text-overflow: clip; }
         .stat-value.big { font-size: 1.55rem; letter-spacing: .02em; }
@@ -176,10 +178,19 @@
         }
     }
 
+    // Without a flight: the two tiles which say what to do. The pilot with the link to his page (to fix what is wrong), the flight with the link to the booking.
+    function noFlightRow(status) {
+        const pilot = pilotTile(status);
+        pilot.hint = (pilot.hint ? pilot.hint + '<br>' : '') + '<a href="pilot.html">Open the pilot page</a>';
+        pilot.span2 = true;
+        pilot.alert = !status.pilot || status.pilot.state !== 'OK';
+        return [{label: 'Flight', value: 'No active flight', cls: 'big t-plan', hint: 'Nothing to fly now. <a href="busy-birds.html">Book a mission</a>', span2: true, alert: true}, pilot];
+    }
+
     // The double header of the page: the small title is the page, the big one is the route of the flight (the avatar is the pilot's)
     function renderHeader(status) {
         const f = status.flight;
-        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) : 'No active flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
+        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) : 'Flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
     }
 
     // The first tile of the second row, always Payload. Ferry: Ferry flight. Revenue: before the check-in the sold tickets, in the check-in the sold and the
@@ -318,7 +329,7 @@
     }
 
     function tileHtml(t) {
-        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + '">'
+        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + (t.alert ? ' stat-alert' : '') + '">'
             + '<div class="stat-label">' + esc(t.label) + '</div>'
             + (t.html !== undefined ? '<div class="stat-small">' + t.html + '</div>' : '<div class="stat-value ' + (t.cls || '') + '">' + t.value + '</div>')
             + (t.hint ? '<div class="stat-hint">' + t.hint + '</div>' : '')
@@ -368,8 +379,7 @@
     function areaHtml(status) {
         const f = status.flight;
         if (f === null) {
-            return '<div class="action-area"><div class="action-title">No active flight found</div>'
-                + '<div class="action-text">Book a mission to fly.</div><div class="action-buttons"><a class="btn btn-primary" href="busy-birds.html">Book a mission</a></div></div>';
+            return '';
         }
         if (f.fmSt === 'Finished') {
             return '<div class="action-area"><div class="action-title">' + STAGE_TITLES.Finished + '</div>'
@@ -436,7 +446,8 @@
         if (status.mode === 'SIM_TRACKER' && status.sim && status.sim.status !== 'Connected') {
             banners += '<div class="alert alert-warning py-2">The sim tracker is not connected: there were no reports from the sim for a while.</div>';
         }
-        const warning = userStateMessage(status.pilot);
+        // without a flight the tile of the pilot says the same
+        const warning = status.flight === null ? null : userStateMessage(status.pilot);
         if (warning) {
             banners += '<div class="alert ' + (status.pilot.state === 'PERSON_IN_CITY' ? 'alert-warning' : 'alert-danger') + ' py-2">' + warning + '</div>';
         }
@@ -446,7 +457,7 @@
         $('#banners').html(banners);
         renderHeader(status);
 
-        $('#tiles').html(status.flight === null ? '' : buildRows(status.flight, lastPilot, status).map(rowHtml).join(''));
+        $('#tiles').html(status.flight === null ? rowHtml(noFlightRow(status)) : buildRows(status.flight, lastPilot, status).map(rowHtml).join(''));
         $('#area').html(areaHtml(status));
         $('#todoList').html(todos.size === 0 ? '' : '<div class="todo">TODO for the server:</div><ul class="todo mb-0">' + [...todos].map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>');
 
@@ -528,6 +539,9 @@
     // ---- stub data of the stages (?stub=before-start), shaped like the answers of the server: the page shows them without the server
 
     function stubStatus(name) {
+        if (name === 'no-flight') {
+            return {mode: null, actions: [], sim: {status: 'Connected'}, flight: null, pilot: {state: 'PERSON_NOT_IDLE'}};
+        }
         const f = {dep: 'KAUS', dest: 'MMMX', fmId: '1', fmSt: 'Dispatched', tfId: 't1', tfSt: 'Scheduled', pdep: '19:05', parr: '20:51', etkf: '19:15', eldg: '20:41', earr: '20:51',
             acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true};
         let actions = [{name: 'start-flight', allowed: true, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, {name: 'The aircraft is idle at the departure airport KAUS', result: true}]},
