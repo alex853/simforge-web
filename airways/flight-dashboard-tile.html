@@ -198,12 +198,18 @@
         }
     }
 
+    // The pilot tile is pale red when the pilot can not start a flight: no pilot, busy, not at an airport, in a city, at the wrong airport. UNKNOWN (the sim
+    // does not confirm the place) is not a problem.
+    function pilotHasProblem(status) {
+        return !status.pilot || BLOCKING_USER_STATES.includes(status.pilot.state) || status.pilot.state === 'PERSON_IN_CITY';
+    }
+
     // Without a flight: the two tiles which say what to do. The pilot with the link to his page (to fix what is wrong), the flight with the link to the booking.
     function noFlightRow(status) {
         const pilot = pilotTile(status);
         pilot.hint = (pilot.hint ? pilot.hint + '<br>' : '') + '<a href="pilot.html">Open the pilot page</a>';
         pilot.span2 = true;
-        pilot.alert = !status.pilot || status.pilot.state !== 'OK';
+        pilot.alert = pilotHasProblem(status);
         return [{label: 'Flight', value: 'No active flight', cls: 'big t-plan', hint: 'Nothing to fly now. <a href="busy-birds.html">Book a mission</a>', span2: true, alert: true}, pilot];
     }
 
@@ -317,7 +323,7 @@
     // The rows of the tiles for the stage of the flight. The first row: flight stage, aircraft, pilot, tracking (the route is in the header). The second row starts with the payload, the rest depends on the stage.
     function buildRows(f, pilot, status) {
         // the pilot who is not where the flight starts (the check of the start fails) has the pale red tile as without a flight
-        const pilotCell = Object.assign(pilotTile(status), {alert: !status.pilot || status.pilot.state !== 'OK'});
+        const pilotCell = Object.assign(pilotTile(status), {alert: pilotHasProblem(status)});
         const rows = [[stageTile(f), aircraftTile(f), pilotCell, trackingTile(status)]];
         const passenger = f.tfId !== null && f.tfId !== undefined;
         const tf = f.tfSt;
