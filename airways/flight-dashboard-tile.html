@@ -29,7 +29,6 @@
 
         .tile-grid .stat { height: 100%; }
         /* a tile which says that something is wrong: a pale red background */
-        .tile-grid .stat.stat-warn { background: color-mix(in srgb, var(--bs-warning) 14%, var(--bs-body-bg)); border-color: color-mix(in srgb, var(--bs-warning) 45%, var(--bs-body-bg)); }
         .tile-grid .stat.stat-alert { background: color-mix(in srgb, var(--bs-danger) 6%, var(--bs-body-bg)); border-color: color-mix(in srgb, var(--bs-danger) 28%, var(--bs-body-bg)); }
         /* the values of this page are words and may be longer than the numbers of the pilot page: they are not cut */
         .tile-grid .stat-value, .tile-grid .stat-hint { white-space: normal; overflow: visible; text-overflow: clip; }
@@ -170,7 +169,7 @@
             case 'WRONG_AIRPORT':
                 return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'the sim puts the aircraft at ' + esc(p.currentAirport ?? '?')};
             case 'PERSON_IN_CITY':
-                return {label: 'Pilot', value: esc(where), cls: 'big', hint: 'in a city, not at an airport', warn: true};
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'in a city, not at an airport'};
             case 'PERSON_NOT_AT_AIRPORT':
                 return {label: 'Pilot', value: '---', cls: 'big bad', hint: 'not at an airport'};
             case 'PERSON_NOT_IDLE':
@@ -187,7 +186,7 @@
         const pilot = pilotTile(status);
         pilot.hint = (pilot.hint ? pilot.hint + '<br>' : '') + '<a href="pilot.html">Open the pilot page</a>';
         pilot.span2 = true;
-        pilot.alert = !pilot.warn && (!status.pilot || status.pilot.state !== 'OK');
+        pilot.alert = !status.pilot || status.pilot.state !== 'OK';
         return [{label: 'Flight', value: 'No active flight', cls: 'big t-plan', hint: 'Nothing to fly now. <a href="busy-birds.html">Book a mission</a>', span2: true, alert: true}, pilot];
     }
 
@@ -226,7 +225,7 @@
     // everyone who booked has checked in, so the tile shows the progress (checked in / sold), not the time of the end.
     function checkInTile(f) {
         if (f.tfSt === 'CheckIn') {
-            return {label: 'Check-in', value: f.ckdIn + ' / ' + f.stkts, cls: 'big good', hint: 'closes when everyone has checked in'};
+            return {label: 'Check-in', value: f.ckdIn + ' / ' + f.stkts, cls: 'big good', hint: 'checked in'};
         }
         if (f.tfSt !== 'Scheduled') {
             return {label: 'Check-in', value: f.ckdIn + ' / ' + f.stkts, cls: 'big', hint: 'checked in'};
@@ -338,7 +337,7 @@
     }
 
     function tileHtml(t) {
-        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + (t.alert ? ' stat-alert' : '') + (t.warn ? ' stat-warn' : '') + '">'
+        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + (t.alert ? ' stat-alert' : '') + '">'
             + '<div class="stat-label">' + esc(t.label) + '</div>'
             + (t.html !== undefined ? '<div class="stat-small">' + t.html + '</div>' : '<div class="stat-value ' + (t.cls || '') + '">' + t.value + '</div>')
             + (t.hint ? '<div class="stat-hint">' + t.hint + '</div>' : '')
