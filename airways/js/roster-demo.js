@@ -6,7 +6,6 @@
 const ROSTER_DEMO_KEY = 'airways.demo.roster';
 const TURNAROUND_MILLIS = 30 * 60 * 1000; // the least time between the arrival of a flight and the departure of the next one
 const NEW_FLIGHT_GAP_MILLIS = 2 * 60 * 60 * 1000; // a new flight (not the continuation of the aircraft) is not earlier than this after the arrival of the last flight
-const DEMO_FLIGHT_MILLIS = 90 * 60 * 1000; // TODO the duration comes from the distance and the type when the server plans the flight
 
 function demoRosterLoad() {
     try {

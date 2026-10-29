@@ -39,6 +39,9 @@
         .stat.has-corner-bottom { position: relative; }
         .terms-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
         .terms-result { border-top: 1px solid var(--bs-border-color); margin-top: 0.5rem; padding-top: 0.5rem; }
+        /* a value which the server does not give yet */
+        .todo { color: #dc3545; font-weight: 700; }
+        .hint-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
         .airport-hint { flex: 1; min-width: 0; font-size: 1.2rem; line-height: 1.15; white-space: normal; overflow: visible; text-overflow: clip; margin: 0; }
         .airport-hint { display: flex; align-items: center; gap: .5rem; }
         .airport-hint .flag { flex: none; vertical-align: middle; }
@@ -133,10 +136,34 @@
         </div>
     </div>
 
-    <div class="mb-4">
-        <button type="button" id="btnBook" class="btn btn-primary btn-lg px-5" disabled>Book Flight</button>
-        <a class="btn btn-link" href="pilot-roster.html">Back to the roster</a>
-        <div class="form-text" id="bookHint"></div>
+    <!-- the third row is half filled: only the right two tiles. Both are for what the departure time gives, it is shown with the second row -->
+    <div class="row g-3 mb-4 type-tile" style="display: none;">
+        <div class="col-md-3 d-none d-md-block"></div>
+        <div class="col-md-3 d-none d-md-block"></div>
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label">Time before departure</div>
+                <div class="stat-small fw-bold" style="font-size: 1.15rem; padding-top: .3rem;" id="timeBeforeValue">&mdash;</div>
+                <div class="stat-hint hint-wrap">The earlier the booking, the more passengers</div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label">Expected load</div>
+                <div class="stat-value"><span class="todo" title="the load which the flight can reach and the approximate income come from the server later">TODO</span></div>
+                <div class="stat-hint hint-wrap">The load the flight can reach and the approximate income</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- the buttons are on the right side, under the two right tiles -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6 d-none d-md-block"></div>
+        <div class="col-12 col-md-6">
+            <button type="button" id="btnBook" class="btn btn-primary btn-lg px-5" disabled>Book Flight</button>
+            <a class="btn btn-link" href="pilot-roster.html">Back to the roster</a>
+            <div class="form-text" id="bookHint"></div>
+        </div>
     </div>
 </main>
 
@@ -182,16 +209,80 @@
         return day === 'Today' ? timeOfDay(millis) : day + ' at ' + timeOfDay(millis);
     }
 
-    // the arrival is calculated from the departure and the route; TODO the server plans it (the distance and the type), now it is a fixed duration.
-    // Until both airports are known there is no arrival, only the explanation.
-    function updateArrival() {
+    // 'in 1 h 15 min', 'in 45 min', 'in 1 d 3 h': the time from now to the departure which is chosen
+    function updateTimeBefore() {
         const dep = parseInt($('#departureSelect').val(), 10);
-        const $value = $('#arrivalValue');
-        if (!airportKnown.from || !airportKnown.to || !dep) {
-            $value.addClass('arrival-wait').text('Enter airports to get the arrival time');
+        if (!dep) {
+            $('#timeBeforeValue').text('—');
             return;
         }
-        $value.removeClass('arrival-wait').text(dayLabel(dep + DEMO_FLIGHT_MILLIS, Date.now()) + ' ' + timeOfDay(dep + DEMO_FLIGHT_MILLIS));
+        const minutes = Math.max(0, Math.round((dep - Date.now()) / 60000));
+        const days = Math.floor(minutes / 1440);
+        const hours = Math.floor((minutes % 1440) / 60);
+        const mins = minutes % 60;
+        const parts = [];
+        if (days) {
+            parts.push(days + ' d');
+        }
+        if (hours) {
+            parts.push(hours + ' h');
+        }
+        if (mins && !days) {
+            parts.push(mins + ' min');
+        }
+        $('#timeBeforeValue').text('in ' + (parts.length ? parts.join(' ') : '0 min'));
+    }
+
+    // The duration of the flight (blocks off to blocks on) is calculated by the server from the type and the route (GET /shadow-jet/calculate-flight-duration), the same
+    // way as the planned arrival of the flight which is booked. The arrival is the departure plus the duration. It is asked when the type and both airports are
+    // known; until then there is no arrival, only the explanation.
+    // durationKey is what the duration is asked for, flightDurationMillis is the answer (null while it is not here), durationFailed says the server has not given it.
+    let durationKey = null;
+    let flightDurationMillis = null;
+    let durationFailed = false;
+
+    function loadFlightDuration() {
+        const type = $('#typeSelect').val();
+        const from = $('#icaoFrom').val().toUpperCase();
+        const to = $('#icaoTo').val().toUpperCase();
+        const ready = type && airportKnown.from && airportKnown.to && from !== to;
+        const key = ready ? type + ' ' + from + ' ' + to : null;
+        if (key === durationKey) {
+            return;
+        }
+        durationKey = key;
+        flightDurationMillis = null;
+        durationFailed = false;
+        if (!key) {
+            return;
+        }
+        airwaysAuth('GET', '/shadow-jet/calculate-flight-duration', {type: type, from: from, to: to}, function (r) {
+            if (durationKey === key) {
+                flightDurationMillis = r.durationSeconds * 1000;
+                updateBookState();
+            }
+        }, function () {
+            if (durationKey === key) {
+                durationFailed = true;
+                updateBookState();
+            }
+        });
+    }
+
+    function updateArrival() {
+        updateTimeBefore();
+        const dep = parseInt($('#departureSelect').val(), 10);
+        const $value = $('#arrivalValue');
+        if (!durationKey || !dep) {
+            $value.addClass('arrival-wait').text('Enter airports to get the arrival time');
+        } else if (durationFailed) {
+            $value.addClass('arrival-wait').text('The arrival time is not available');
+        } else if (flightDurationMillis === null) {
+            $value.addClass('arrival-wait').text('Calculating the arrival time\u2026');
+        } else {
+            const arrival = dep + flightDurationMillis;
+            $value.removeClass('arrival-wait').text(dayLabel(arrival, Date.now()) + ' ' + timeOfDay(arrival));
+        }
     }
 
     // The possible departures: from the current time up to the quarter of an hour (the first one) to 24 hours after it, every 15 minutes.
@@ -356,11 +447,18 @@
         if (!parseInt($('#departureSelect').val(), 10)) {
             return 'Choose the time of the departure.';
         }
+        if (durationFailed) {
+            return 'The duration of the flight is not available, try again later.';
+        }
+        if (flightDurationMillis === null) {
+            return 'Calculating the arrival time…';
+        }
         return null;
     }
 
     // the button is disabled while the flight cannot be booked, the hint under it says why
     function updateBookState() {
+        loadFlightDuration();
         updateArrival();
         const problem = bookProblem();
         $('#btnBook').prop('disabled', problem !== null);
@@ -378,7 +476,7 @@
         const to = $('#icaoTo').val().toUpperCase();
         const dep = parseInt($('#departureSelect').val(), 10);
         const reg = new URLSearchParams(location.search).get('aircraft') || 'G-SJ' + pad2(Math.floor(Math.random() * 100));
-        demoRosterAdd({operator: 'ShadowJet', from: from, to: to, dep: dep, arr: dep + DEMO_FLIGHT_MILLIS, reg: reg, type: type});
+        demoRosterAdd({operator: 'ShadowJet', from: from, to: to, dep: dep, arr: dep + flightDurationMillis, reg: reg, type: type});
         location.href = 'pilot-roster.html';
     }
 
