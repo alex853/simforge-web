@@ -299,7 +299,9 @@
 
     // The rows of the tiles for the stage of the flight. The first row: flight stage, aircraft, pilot, tracking (the route is in the header). The second row starts with the payload, the rest depends on the stage.
     function buildRows(f, pilot, status) {
-        const rows = [[stageTile(f), aircraftTile(f), pilotTile(status), trackingTile(status)]];
+        // the pilot who is not where the flight starts (the check of the start fails) has the pale red tile as without a flight
+        const pilotCell = Object.assign(pilotTile(status), {alert: !status.pilot || status.pilot.state !== 'OK'});
+        const rows = [[stageTile(f), aircraftTile(f), pilotCell, trackingTile(status)]];
         const passenger = f.tfId !== null && f.tfId !== undefined;
         const tf = f.tfSt;
         const payload = payloadTile(f);
