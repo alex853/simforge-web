@@ -186,6 +186,13 @@
             }
             case 'NO_PERSON':
                 return {label: 'Pilot', value: 'no pilot', cls: 'big bad'};
+            case 'UNKNOWN':
+                // the pilot is at an airport of the world, the sim does not say where the aircraft is (not connected, or not on the ground at an airport)
+                // without the sim there is nothing to confirm, and a manual flight does not need it: the place of the pilot in the world is right
+                if (!status.sim || status.sim.status !== 'Connected') {
+                    return {label: 'Pilot', value: esc(where), cls: 'big good', hint: 'at the airport, no sim is connected'};
+                }
+                return {label: 'Pilot', value: esc(where), cls: 'big', hint: 'not confirmed by the sim'};
             default:
                 return {label: 'Pilot', value: esc(where), cls: 'big', hint: esc(p.state)};
         }
