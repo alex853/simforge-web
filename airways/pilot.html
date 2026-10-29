@@ -189,28 +189,6 @@
     }
 
 
-    // The flight time (blocks off to blocks on, with the flight in progress) in the last 30 days: not more than 80 hours, orange from 70.
-    function flightTime30Tile(p) {
-        const f = p.flightTime;
-        if (!f) {
-            return {label: 'Flight time, 30 days', html: '<span class="location-away">Unknown</span>'};
-        }
-        return limitTile('Flight time, 30 days', f.last30DaysMinutes, f.limit30DaysMinutes, f.limit30DaysMinutes - 10 * 60, formatHours,
-            'Max ' + (f.limit30DaysMinutes / 60) + ' h',
-            {near: 'Close to the limit', over: 'Limit exceeded'});
-    }
-
-    // The same for the last 365 days: not more than 800 hours, orange from 700.
-    function flightTime365Tile(p) {
-        const f = p.flightTime;
-        if (!f) {
-            return {label: 'Flight time, 365 days', html: '<span class="location-away">Unknown</span>'};
-        }
-        return limitTile('Flight time, 365 days', f.last365DaysMinutes, f.limit365DaysMinutes, f.limit365DaysMinutes - 100 * 60, formatHours,
-            'Max ' + (f.limit365DaysMinutes / 60) + ' h',
-            {near: 'Close to the limit', over: 'Limit exceeded'});
-    }
-
     // The third row: two big square buttons in the middle (the second and the third place of the row of four), a little lower than the tiles. ShadowJet is not
     // open yet, so its button is disabled; busyBirds is the booking of the missions.
     function flyButtons() {

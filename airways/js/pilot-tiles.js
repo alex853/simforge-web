@@ -113,6 +113,28 @@ function dutyTile(p) {
     return limitTile('Duty time, 24 h', d.last24HoursMinutes, d.limitMinutes, d.limitMinutes - 120, formatClock, hint,
         {near: 'Close to the duty time limit', over: 'Duty time limit exceeded'});
 }
+// The flight time (blocks off to blocks on, with the flight in progress) in the last 30 days: not more than 80 hours, orange from 70.
+function flightTime30Tile(p) {
+    const f = p.flightTime;
+    if (!f) {
+        return {label: 'Flight time, 30 days', html: '<span class="location-away">Unknown</span>'};
+    }
+    return limitTile('Flight time, 30 days', f.last30DaysMinutes, f.limit30DaysMinutes, f.limit30DaysMinutes - 10 * 60, formatHours,
+        'Max ' + (f.limit30DaysMinutes / 60) + ' h',
+        {near: 'Close to the limit', over: 'Limit exceeded'});
+}
+
+// The same for the last 365 days: not more than 800 hours, orange from 700.
+function flightTime365Tile(p) {
+    const f = p.flightTime;
+    if (!f) {
+        return {label: 'Flight time, 365 days', html: '<span class="location-away">Unknown</span>'};
+    }
+    return limitTile('Flight time, 365 days', f.last365DaysMinutes, f.limit365DaysMinutes, f.limit365DaysMinutes - 100 * 60, formatHours,
+        'Max ' + (f.limit365DaysMinutes / 60) + ' h',
+        {near: 'Close to the limit', over: 'Limit exceeded'});
+}
+
 // tiles of the same width, four in a row
 function tiles(list) {
     return `
