@@ -161,6 +161,7 @@ const SITE_MENU_ITEMS = [
     {key: 'logbook', label: 'Logbook', href: 'pilot-logbook.html'},
     {divider: true},
     {key: 'flight-dashboard', label: 'Flight dashboard', href: 'flight-dashboard.html'},
+    {key: 'flight-dashboard-tile', label: 'Flight Dashboard Tile', href: 'flight-dashboard-tile.html'},
     {key: 'busy-birds', label: 'Book busyBirds', href: 'busy-birds.html'}
 ];
 

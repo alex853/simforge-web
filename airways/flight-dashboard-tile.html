@@ -28,13 +28,11 @@
         @media (max-width: 767px) { .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
         .tile-grid .stat { height: 100%; }
-        .tile-center { text-align: center; }
-        .tile-center .stat-label { text-align: center; }
         /* the values of this page are words and may be longer than the numbers of the pilot page: they are not cut */
         .tile-grid .stat-value, .tile-grid .stat-hint { white-space: normal; overflow: visible; text-overflow: clip; }
         .stat-value.big { font-size: 1.55rem; letter-spacing: .02em; }
-        .stat-value.route { font-size: 2.3rem; letter-spacing: .04em; }
         .stat-value.good { color: var(--bs-success); }
+        .stat-value.bad { color: var(--bs-danger); }
         .stat-value.ferry { color: #1d3f8f; }
         [data-bs-theme="dark"] .stat-value.ferry { color: #6f94ee; }
 
@@ -57,7 +55,6 @@
         .checks .ok::before { content: "\2713\00a0"; color: var(--bs-success); font-weight: 700; }
         .checks .no::before { content: "\2717\00a0"; color: var(--bs-danger); font-weight: 700; }
         .action-buttons .btn { margin: 0 .5rem .5rem 0; }
-        .status-line { font-size: .85rem; color: var(--bs-secondary-color); margin-bottom: 1rem; }
         .todo-list { margin-top: 1.5rem; font-size: .85rem; }
     </style>
 </head>
@@ -70,8 +67,7 @@
 </nav>
 
 <main class="container-lg py-4">
-    <h1 class="entity-title mb-1">Flight</h1>
-    <div class="status-line" id="statusLine"></div>
+    <div id="pageHeader"></div>
     <div id="banners"></div>
     <div id="tiles"></div>
     <div id="area"></div>
@@ -151,10 +147,42 @@
 
     const STAGE_NAMES = {Dispatched: 'Dispatched', Preflight: 'Preflight', Departure: 'Departure', Flying: 'Flying', Arrival: 'Arrival', Postflight: 'Postflight', Finished: 'Finished'};
 
-    const stageTile = f => ({label: 'Stage', value: esc(STAGE_NAMES[f.fmSt] ?? f.fmSt), cls: 'big'});
-    const routeTile = f => ({label: 'Route', value: esc(f.dep) + ' → ' + esc(f.dest), cls: 'route', span2: true, center: true});
+    const stageTile = f => ({label: 'Flight stage', value: esc(STAGE_NAMES[f.fmSt] ?? f.fmSt), cls: 'big'});
+    // The aircraft of the flight: the tail number and the type on one line
+    const aircraftTile = f => ({label: 'Aircraft', html: '<div class="stat-value big">' + esc(f.acRg ?? '---') + ' <span class="t-plan">' + esc(f.acTp ?? '') + '</span></div>'});
 
-    // The fourth tile of the first row, always Payload. Ferry: Ferry flight. Revenue: before the check-in the sold tickets, in the check-in the sold and the
+    // Where the pilot is and whether it is right: the state of the pilot of the user (the same states which block the actions)
+    function pilotTile(status) {
+        const p = status.pilot;
+        if (!p) {
+            return {label: 'Pilot', value: '---', cls: 'big t-plan'};
+        }
+        const where = p.expectedAirport ?? p.expectedCity ?? '---';
+        switch (p.state) {
+            case 'OK':
+                return {label: 'Pilot', value: esc(where), cls: 'big good', hint: 'the location is correct'};
+            case 'WRONG_AIRPORT':
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'the sim puts the aircraft at ' + esc(p.currentAirport ?? '?')};
+            case 'PERSON_IN_CITY':
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'in a city, not at an airport'};
+            case 'PERSON_NOT_AT_AIRPORT':
+                return {label: 'Pilot', value: '---', cls: 'big bad', hint: 'not at an airport'};
+            case 'PERSON_NOT_IDLE':
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'busy (resting, travelling or on duty)'};
+            case 'NO_PERSON':
+                return {label: 'Pilot', value: 'no pilot', cls: 'big bad'};
+            default:
+                return {label: 'Pilot', value: esc(where), cls: 'big', hint: esc(p.state)};
+        }
+    }
+
+    // The double header of the page: the small title is the page, the big one is the route of the flight (the avatar is the pilot's)
+    function renderHeader(status) {
+        const f = status.flight;
+        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) : 'No active flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
+    }
+
+    // The first tile of the second row, always Payload. Ferry: Ferry flight. Revenue: before the check-in the sold tickets, in the check-in the sold and the
     // checked-in ones, in the boarding the sold, the checked-in and the boarded ones, after the boarding PAX, in the deboarding Carried PAX.
     function payloadTile(f) {
         if (f.tfId === null || f.tfId === undefined) {
@@ -205,6 +233,33 @@
         return {label: 'Deboarding', value: 'WAITING', cls: 'big t-plan', hint: 'starts at your discretion'};
     }
 
+    // The mode of the tracking and the state of the sim: the last tile of the first row
+    function trackingTile(status) {
+        const sim = status.sim || {};
+        const f = status.flight;
+        const mode = status.mode === 'SIM_TRACKER' ? 'Sim tracker' : status.mode === 'MANUAL' ? 'Manual' : f ? (sim.status === 'Connected' ? 'Choose at start' : 'Manual only') : '---';
+        const details = [];
+        details.push('Sim ' + esc(sim.status ?? '---'));
+        if (sim.locationStatus) {
+            details.push(esc(sim.locationStatus) + (sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''));
+        }
+        if (sim.parkingBrake !== null && sim.parkingBrake !== undefined) {
+            details.push('P/B ' + (sim.parkingBrake ? 'SET' : 'OFF'));
+        }
+        if (sim.engineRunning !== null && sim.engineRunning !== undefined) {
+            details.push('ENG ' + (sim.engineRunning ? 'RUN' : 'OFF'));
+        }
+        if (sim.measuredGs) {
+            details.push('G/S ' + esc(sim.measuredGs));
+        }
+        const good = status.mode === 'SIM_TRACKER' && sim.status === 'Connected';
+        return {label: 'Tracking', value: mode, cls: 'big' + (good ? ' good' : ''), hint: details.join(' &middot; ') + '<div>updated ' + new Date().toISOString().slice(11, 19) + 'Z</div>'};
+    }
+
+    // all four times in one tile (a place is saved for the check-in)
+    const timesTile = f => ({label: 'Times', html: '<div class="time-lines">' + [['off', 'Blocks off'], ['tkf', 'Take off'], ['ldg', 'Landing'], ['on', 'Blocks on']]
+        .map(k => '<div><span class="k">' + k[1] + '</span>' + timeSpan(timeOf(f, k[0])) + '</div>').join('') + '</div>'});
+
     const placeholder = () => ({label: '', value: '', placeholder: true});
 
     // blocks off to blocks on, the times on two lines
@@ -223,14 +278,16 @@
     // the limits of the pilot, they are shown before the start of the flight only
     const limitTiles = p => p ? [awakeTile(p, false), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)] : [];
 
-    // the rows of the tiles for the stage of the flight
-    function buildRows(f, pilot) {
-        const rows = [[stageTile(f), routeTile(f), payloadTile(f)]];
+    // The rows of the tiles for the stage of the flight. The first row: flight stage, aircraft, pilot, tracking (the route is in the header). The second row starts with the payload, the rest depends on the stage.
+    function buildRows(f, pilot, status) {
+        const rows = [[stageTile(f), aircraftTile(f), pilotTile(status), trackingTile(status)]];
         const passenger = f.tfId !== null && f.tfId !== undefined;
         const tf = f.tfSt;
+        const payload = payloadTile(f);
 
         if (f.fmSt === 'Finished') {
-            rows.push([departureTile(f), arrivalTile(f), flightTimeTile(f), dutyTimeTile()]);
+            rows.push([payload, departureTile(f), arrivalTile(f), flightTimeTile(f)]);
+            rows.push([dutyTimeTile()]);
             return rows;
         }
 
@@ -238,21 +295,20 @@
         const checkIn = passenger && (tf === 'Scheduled' || tf === 'CheckIn');
         const boarding = passenger && (checkIn || tf === 'WaitingForBoarding' || tf === 'Boarding');
         if (afterArrival) {
-            const row = [departureTile(f), arrivalTile(f)];
-            if (passenger) {
-                row.push(deboardingTile(f), placeholder());
-            }
+            const row = [payload, departureTile(f), arrivalTile(f)];
+            row.push(passenger ? deboardingTile(f) : placeholder());
             rows.push(row);
         } else if (checkIn || boarding) {
-            // the places are taken by the check-in and the boarding, the four times are squeezed into two tiles
-            const row = [];
+            // the payload and the check-in take places, with the check-in the four times are squeezed into one tile
+            const row = [payload];
             if (checkIn) {
-                row.push(checkInTile(f));
+                row.push(checkInTile(f), boardingTile(f), timesTile(f));
+            } else {
+                row.push(boardingTile(f), departureTile(f), arrivalTile(f));
             }
-            row.push(boardingTile(f), departureTile(f), arrivalTile(f));
             rows.push(row);
         } else {
-            rows.push(['off', 'tkf', 'ldg', 'on'].map(k => timeTile(f, k)));
+            rows.push([payload, departureTile(f), arrivalTile(f), placeholder()]);
         }
 
         if (f.fmSt === 'Dispatched' && pilot) {
@@ -262,7 +318,7 @@
     }
 
     function tileHtml(t) {
-        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + (t.center ? ' tile-center' : '') + '">'
+        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + '">'
             + '<div class="stat-label">' + esc(t.label) + '</div>'
             + (t.html !== undefined ? '<div class="stat-small">' + t.html + '</div>' : '<div class="stat-value ' + (t.cls || '') + '">' + t.value + '</div>')
             + (t.hint ? '<div class="stat-hint">' + t.hint + '</div>' : '')
@@ -306,21 +362,6 @@
             case 'WRONG_AIRPORT': return 'Your pilot is expected at ' + esc(pilot.expectedAirport ?? '?') + ' but the simulator puts the aircraft at ' + esc(pilot.currentAirport ?? '?') + '.';
             default: return null;
         }
-    }
-
-    function statusLine(status) {
-        const parts = [];
-        const sim = status.sim || {};
-        parts.push('Sim: ' + esc(sim.status ?? '---') + (sim.locationStatus ? ' &middot; ' + esc(sim.locationStatus) : '') + (sim.airportIcao ? ' ' + esc(sim.airportIcao) : '')
-            + (sim.parkingBrake === null || sim.parkingBrake === undefined ? '' : ' &middot; P/B ' + (sim.parkingBrake ? 'SET' : 'OFF'))
-            + (sim.engineRunning === null || sim.engineRunning === undefined ? '' : ' &middot; ENG ' + (sim.engineRunning ? 'RUN' : 'OFF'))
-            + (sim.measuredGs ? ' &middot; G/S ' + esc(sim.measuredGs) : ''));
-        parts.push('Tracking: ' + (status.mode === 'SIM_TRACKER' ? 'Sim tracker' : status.mode === 'MANUAL' ? 'Manual' : status.flight ? (sim.status === 'Connected' ? 'Choose at start' : 'Manual only') : '---'));
-        if (status.pilot) {
-            parts.push('Pilot: ' + esc(status.pilot.state) + (status.pilot.expectedAirport ? ' at ' + esc(status.pilot.expectedAirport) : status.pilot.expectedCity ? ' in ' + esc(status.pilot.expectedCity) : ''));
-        }
-        parts.push('updated ' + new Date().toISOString().slice(11, 19) + 'Z');
-        return parts.join(' &nbsp;|&nbsp; ');
     }
 
     // The area under the tiles: the title of the stage, the conditions of the actions and the buttons.
@@ -391,8 +432,6 @@
         todos.clear();
         flightId = status.flight ? status.flight.fmId : null;
 
-        $('#statusLine').html(statusLine(status));
-
         let banners = '';
         if (status.mode === 'SIM_TRACKER' && status.sim && status.sim.status !== 'Connected') {
             banners += '<div class="alert alert-warning py-2">The sim tracker is not connected: there were no reports from the sim for a while.</div>';
@@ -405,8 +444,9 @@
             banners += '<div class="alert alert-' + (actionMessage.error ? 'danger' : 'secondary') + ' py-2">' + esc(actionMessage.text) + '</div>';
         }
         $('#banners').html(banners);
+        renderHeader(status);
 
-        $('#tiles').html(status.flight === null ? '' : buildRows(status.flight, lastPilot).map(rowHtml).join(''));
+        $('#tiles').html(status.flight === null ? '' : buildRows(status.flight, lastPilot, status).map(rowHtml).join(''));
         $('#area').html(areaHtml(status));
         $('#todoList').html(todos.size === 0 ? '' : '<div class="todo">TODO for the server:</div><ul class="todo mb-0">' + [...todos].map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>');
 
@@ -489,7 +529,7 @@
 
     function stubStatus(name) {
         const f = {dep: 'KAUS', dest: 'MMMX', fmId: '1', fmSt: 'Dispatched', tfId: 't1', tfSt: 'Scheduled', pdep: '19:05', parr: '20:51', etkf: '19:15', eldg: '20:41', earr: '20:51',
-            adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true};
+            acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true};
         let actions = [{name: 'start-flight', allowed: true, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, {name: 'The aircraft is idle at the departure airport KAUS', result: true}]},
             {name: 'start-flight-manual', allowed: true, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}]}];
         let mode = null;
