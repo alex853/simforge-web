@@ -76,11 +76,11 @@ function awakeTile(p, withButtons) {
         button = '<button type="button" class="btn btn-sm btn-outline-secondary" id="sleepButton"' + (canSleep ? '' : ' disabled title="Only a free pilot can go to sleep"') + '>Sleep</button>';
     }
     // the page of the pilot has the buttons Sleep and Wake up, the other pages only show the number
-    return {label: 'Awake time', value: value, hint: esc(hint), actions: withButtons ? button : undefined};
+    return {label: 'Awake time', value: value, hint: esc(hint), actions: withButtons ? button : undefined, over: !a.sleeping && a.creditMinutes < 0};
 }
 
 // A tile with a number which has a limit: green while there is room, orange when it is close to the limit, red over it, and the note of the
-// orange and the red states stands right of the number. Nothing is enforced yet, the page only shows the number and the limit.
+// orange and the red states stands right of the number. Over the limit the server does not let the pilot start a flight.
 // nearMinutes: from how many minutes the number is orange; text: {unknown, near, over} the notes.
 function limitTile(label, minutes, limitMinutes, nearMinutes, formatValue, hint, notes) {
     let cls = 'duty-ok';
@@ -94,7 +94,8 @@ function limitTile(label, minutes, limitMinutes, nearMinutes, formatValue, hint,
     }
     const value = '<span class="duty-line"><span class="money ' + cls + '">' + formatValue(minutes) + '</span>'
         + (note ? '<span class="duty-note ' + cls + '">' + note + '</span>' : '') + '</span>';
-    return {label: label, value: value, hint: esc(hint)};
+    // over: the flight can not be started over a limit, the tile page marks the tile
+    return {label: label, value: value, hint: esc(hint), over: minutes > limitMinutes};
 }
 
 // hours with one digit: 3804 minutes -> '63.4'
