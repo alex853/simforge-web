@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / roster</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/details.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+    <script src="js/roster-demo.js"></script>
+    <style>
+        .flight-tile { position: relative; height: auto; }
+        .flight-tile.flight-over { opacity: .65; }
+        /* a value which the server does not give yet */
+        .todo { color: #dc3545; font-weight: 700; }
+        /* the tickets of the flight: to the left of the corner of the tile, where the buttons will be (like Sleep and Travel on the page of the pilot) */
+        /* the buttons of the flight: a column in the right edge of the tile, they are not working yet */
+        .flight-actions { position: absolute; top: .45rem; right: .6rem; bottom: .45rem; width: 6rem; display: flex; flex-direction: column; justify-content: space-between; }
+        .flight-actions .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .85rem; line-height: 1.3; }
+        .flight-sales { position: absolute; bottom: .9rem; right: 9.5rem; width: 10.5rem; font-size: .9rem; line-height: 1.5; }
+        /* a ferry flight has one line: it is at the level of the centres of the letters of the airports */
+        .flight-sales.is-ferry { top: 2.2rem; bottom: auto; height: 2.4rem; display: flex; align-items: center; }
+        .flight-sales > div { display: flex; justify-content: space-between; gap: 1rem; }
+        .flight-sales .sales-label { color: var(--bs-secondary-color); }
+        .flight-tile:last-child { margin-bottom: 0 !important; }
+        /* the tile of the aircraft: to the left of the flights of the aircraft, half a tile wide and as high as they are, next to them */
+        .aircraft-tile { width: 50%; height: 100%; padding: .9rem .75rem; }
+        .aircraft-tile .aircraft-value { font-size: 1.35rem; font-weight: 700; line-height: 1.3; }
+        @media (max-width: 767.98px) { .aircraft-tile { width: 100%; height: auto; } }
+        .flight-route { font-size: 1.9rem; font-weight: 700; line-height: 1.25; }
+        .flight-cancel { position: absolute; top: .45rem; right: .6rem; }
+        /* the tile of the next flight: half grey, half filled, a link */
+        .next-tile { display: block; height: auto; margin-bottom: 0; text-decoration: none; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); border-style: dashed; opacity: .85; }
+        .next-tile:hover { opacity: 1; color: var(--bs-body-color); border-color: var(--bs-primary-border-subtle); }
+        .next-tile .flight-route { color: var(--bs-secondary-color); }
+        /* the two big buttons of the page of the pilot: as wide as a tile and a quarter as high */
+        .fly-button { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 1; padding: .4rem; font-size: 1.2rem; font-weight: 700;
+            line-height: 1.2; text-align: center; white-space: normal; border-radius: .75rem; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
+
+<main class="container-lg py-4">
+    <div id="pageHeader"></div>
+
+    <p class="text-secondary mb-4">The flights you have booked, in the order you fly them.</p>
+
+    <div id="rosterBody"></div>
+
+    <div class="row g-3 mt-2 justify-content-center">
+        <div class="col-6 col-md-3">
+            <a class="btn btn-outline-primary fly-button" id="bookShadowJet" href="shadow-jet.html">Book ShadowJet flight</a>
+        </div>
+        <div class="col-6 col-md-3">
+            <a class="btn btn-outline-primary fly-button" id="bookBusyBirds" href="busy-birds.html">Book busyBirds flight</a>
+        </div>
+    </div>
+
+    <div class="form-text">The flights come from my-flights. The ones booked on the ShadowJet page are demo flights, kept in this browser (the server cannot book them yet). <a href="#" id="resetDemo">Reset the demo flights</a></div>
+</main>
+
+<script>
+
+    // 'HH:MM', with the day ('30 Oct') when it is not today (UTC)
+    function timeLabel(millis) {
+        const d = new Date(millis);
+        const hhmm = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
+        const sameDay = Math.floor(millis / 86400000) === Math.floor(Date.now() / 86400000);
+        return sameDay ? hhmm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ' + hhmm;
+    }
+
+    // TODO the actions are disabled until the server has them (fly = start the flight, reschedule, cancel)
+    function actionsHtml(fl) {
+        // a flight which is over has no buttons
+        if (!isRosterFlightActive(fl)) {
+            return '';
+        }
+        return '<div class="flight-actions">' +
+            '<button type="button" class="btn btn-outline-secondary" disabled>Fly</button>' +
+            '<button type="button" class="btn btn-outline-secondary" disabled>Reschedule</button>' +
+            '<button type="button" class="btn btn-outline-secondary" disabled>Cancel</button></div>';
+    }
+
+    // The tickets come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight). The income of the flight is not in my-flights yet.
+    function salesHtml(fl) {
+        // a flight without a transport flight is a ferry flight (no passengers, so no tickets and no income)
+        if (fl.ferry) {
+            return '<div class="flight-sales is-ferry"><div><span class="text-primary fw-semibold">Ferry flight</span></div></div>';
+        }
+        const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
+        return '<div class="flight-sales">' +
+            '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
+            '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>' +
+            '<div><span class="sales-label">Income</span><span class="todo" title="my-flights has no income of the flight">TODO</span></div></div>';
+    }
+
+    // A booked flight, a double tile in the middle. The operator, the type and the aircraft are in the tile of the aircraft next to it. Only the last flight of
+    // the roster can be cancelled.
+    function flightTile(fl, isLast) {
+        return '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + '">' +
+            // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
+            salesHtml(fl) + actionsHtml(fl) +
+            '<div class="stat-label">' + fl.status + (fl.demo ? ' &middot; demo' : '') + '</div>' +
+            '<div class="flight-route">' + fl.from + ' &rarr; ' + fl.to + '</div>' +
+            '<div class="stat-hint">' + timeLabel(fl.dep) + ' &rarr; ' + timeLabel(fl.arr) + '</div>' +
+            '</div>';
+    }
+
+    const SECTION_GAP_MILLIS = 24 * 60 * 60 * 1000;
+
+    // The sections: the neighbour flights go together while the aircraft is the same and the gap between the arrival of a flight and the departure of the next one is not
+    // longer than 24 hours. Another aircraft or a longer gap starts a new section (its own tile of the aircraft and a line before it).
+    function groupFlights(flights) {
+        const groups = [];
+        flights.forEach(function (fl) {
+            const group = groups[groups.length - 1];
+            const prev = group ? group.flights[group.flights.length - 1] : null;
+            if (group && group.reg === fl.reg && fl.dep - prev.arr <= SECTION_GAP_MILLIS) {
+                group.flights.push(fl);
+            } else {
+                groups.push({reg: fl.reg, type: fl.type, flights: [fl]});
+            }
+        });
+        return groups;
+    }
+
+    // The tile of the aircraft (the vertical one, the operator, the type, the registration) on the left, the flights of the aircraft in the middle: as high as the flights
+    function groupHtml(group, lastFlightId, afterFlights) {
+        return '<div class="row g-3 mb-3 justify-content-center"><div class="col-12 col-md-3 d-flex justify-content-md-end">' +
+            '<div class="stat aircraft-tile"><div class="stat-label todo" title="my-flights has no operator of the flight">TODO operator</div>' +
+            '<div class="aircraft-value">' + group.type + '</div><div class="aircraft-value">' + group.reg + '</div></div></div>' +
+            '<div class="col-12 col-md-6">' + group.flights.map(function (fl) { return flightTile(fl, fl.id === lastFlightId); }).join('') + (afterFlights || '') + '</div>' +
+            '<div class="col-md-3 d-none d-md-block"></div></div>';
+    }
+
+    // The tile of the next flight with the values which are known already: the airport of the departure, the aircraft, the earliest time.
+    // The page of ShadowJet opens with these fixed, only the time (and the airport of the arrival) is chosen there.
+    function nextFlightTile(last) {
+        const c = rosterContinuation([last], true);
+        return '<a class="stat next-tile" href="' + shadowJetHref(c) + '">' +
+            '<div class="stat-label">Book the next flight</div>' +
+            '<div class="flight-route">' + c.from + ' &rarr; ?</div>' +
+            '<div class="stat-hint">Not earlier than ' + timeLabel(c.notBefore) + '</div>' +
+            '</a>';
+    }
+
+    function renderRoster(flights) {
+        const $body = $('#rosterBody');
+        if (flights.length === 0) {
+            $body.html('<div class="stat stat-placeholder text-center text-secondary py-3 mb-4">No flights are booked.</div>');
+            $('#bookShadowJet').attr('href', 'shadow-jet.html');
+            return;
+        }
+        let html = '';
+        // the tile of the next flight (only after a flight which is not over) is a part of the last section: the tile of the aircraft is as high as the flights and this tile together
+        const groups = groupFlights(flights);
+        groups.forEach(function (group, i) {
+            const isLastGroup = i === groups.length - 1;
+            html += (i > 0 ? '<hr class="my-4">' : '') + groupHtml(group, null, isLastGroup && isRosterFlightActive(flights[flights.length - 1]) ? nextFlightTile(flights[flights.length - 1]) : '');
+        });
+        html += '<hr class="my-4">';
+        $body.html(html);
+        // a new flight (not the continuation) is bound by the booked flights too: any place and aircraft, not earlier than 2 hours after the last arrival
+        $('#bookShadowJet').attr('href', shadowJetHref(rosterContinuation(flights, false)));
+    }
+
+    // undefined - not loaded yet, null - failed or there is no pilot
+    let pilotInfo;
+
+    function renderHeader() {
+        $('#pageHeader').html(pilotHeader({kind: 'Pilot', title: 'Roster', avatarImage: pilotInfo ? pilotInfo.avatarImage : null}));
+    }
+
+    function loadPilot() {
+        airwaysAuth('GET', '/pilot', {}, function (p) {
+            pilotInfo = p;
+            renderHeader();
+        }, function () { /* the header stays without the avatar */ });
+    }
+
+    $(document).ready(function () {
+        initSiteMenu('pilot-roster');
+        renderHeader();
+        loadPilot();
+        loadRosterFlights(renderRoster);
+        $('#resetDemo').on('click', function (e) {
+            e.preventDefault();
+            demoRosterReset();
+            loadRosterFlights(renderRoster);
+        });
+    });
+</script>
+</body>
+</html>

@@ -189,13 +189,13 @@
     }
 
 
-    // The third row: two big square buttons in the middle (the second and the third place of the row of four), a little lower than the tiles. ShadowJet is not
-    // open yet, so its button is disabled; busyBirds is the booking of the missions.
+    // The third row: two big square buttons in the middle (the second and the third place of the row of four), a little lower than the tiles. ShadowJet is the dispatch
+    // of a flight, busyBirds is the booking of the missions.
     function flyButtons() {
         return `
         <div class="row g-3 mt-4 justify-content-center">
             <div class="col-6 col-md-3">
-                <button type="button" class="btn btn-outline-secondary fly-button" id="flyShadowJet" disabled>Fly ShadowJet</button>
+                <a class="btn btn-primary fly-button" id="flyShadowJet" href="shadow-jet.html">Fly ShadowJet</a>
             </div>
             <div class="col-6 col-md-3">
                 <a class="btn btn-primary fly-button" id="flyBusyBirds" href="busy-birds.html">Fly busyBirds</a>

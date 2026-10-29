@@ -1,757 +1,718 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>airways / Flight Dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / Flight dashboard (tiles)</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="css/details.css" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+    <script src="js/pilot-tiles.js"></script>
+
     <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-        }
+        /* The flight dashboard in tiles (the page of the flight, the old one is flight-dashboard-old.html). The rows of tiles change with the stage of the flight, the big
+           area under them has the messages, the conditions and the buttons. ?stub=<stage> shows stub data of a stage without the server. */
+        .tile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .tile-grid .tile-2 { grid-column: span 2; }
+        @media (max-width: 767px) { .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-        .outer {
-            height: 100%;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+        .tile-grid .stat { height: 100%; }
+        /* a tile which says that something is wrong: a pale red background */
+        .tile-grid .stat.stat-alert { background: color-mix(in srgb, var(--bs-danger) 6%, var(--bs-body-bg)); border-color: color-mix(in srgb, var(--bs-danger) 28%, var(--bs-body-bg)); }
+        /* the values of this page are words and may be longer than the numbers of the pilot page: they are not cut */
+        .tile-grid .stat-value, .tile-grid .stat-hint { white-space: normal; overflow: visible; text-overflow: clip; }
+        .stat-value.big { font-size: 1.55rem; letter-spacing: .02em; }
+        .stat-value.good { color: var(--bs-success); }
+        .stat-value.bad { color: var(--bs-danger); }
+        /* the time which is expected next (the tile "Waiting for ..."): bigger and bluish, it is neither a fact nor a problem */
+        .tile-grid .stat.stat-next { background: color-mix(in srgb, var(--bs-primary) 7%, var(--bs-body-bg)); border-color: color-mix(in srgb, var(--bs-primary) 35%, var(--bs-body-bg)); }
+        .stat-value.t-next { font-size: 2.1rem; font-weight: 700; color: var(--bs-primary); }
+        .stat-value.ferry { color: #1d3f8f; }
+        [data-bs-theme="dark"] .stat-value.ferry { color: #6f94ee; }
 
-        .dashboard {
-            width: 50rem;
-            min-height: 34rem;
-            background: #fff;
-            border: 1px solid #ccc;
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
+        /* a time which is only planned or estimated is grey and italic, a time which has happened is plain and bold */
+        .t-plan { color: var(--bs-secondary-color); font-style: italic; }
+        .t-fact { font-weight: 700; }
+        .time-lines { font-size: 1.15rem; line-height: 1.55; }
+        .time-lines .k, .count-lines .k { display: inline-block; min-width: 6.4rem; color: var(--bs-secondary-color); font-size: .85rem; text-transform: uppercase; letter-spacing: .08em; }
+        .count-lines { font-size: 1.2rem; line-height: 1.5; }
+        .count-lines .k { min-width: 7.4rem; }
+        /* an intermediate state which needs attention (PAX TBD, Waiting): orange with a thin black outline */
+        .count-lines .t-tbd, .stat-value.t-wait { color: #fd7e14; -webkit-text-stroke: .5px #000; }
 
-        .dashboard-header {
-            background: #f8f9fa;
-            border-bottom: 1px solid #ddd;
-            padding: 0.75rem;
-            text-align: center;
-            font-size: 1.25rem;
-            font-weight: bold;
-        }
+        /* a place where the server has not got the data yet */
+        .todo { color: #e00000; font-weight: 700; font-style: normal; }
 
-        .dashboard-body {
-            flex: 1;
-            display: flex;
-            flex-direction: row;
-        }
-
-        .sidebar {
-            width: 15rem;
-            border-right: 1px solid #ddd;
-            overflow-y: auto;
-            padding: 1rem;
-        }
-
-        .main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .dialog-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.45);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        /* the overlay has its own display, so "hidden" has to be said for it again, otherwise the dialog is always on the screen */
-        .dialog-overlay.hidden {
-            display: none;
-        }
-
-        .dialog-card {
-            width: 36rem;
-            max-width: 95%;
-            background: #fff;
-            border-radius: 12px;
-            padding: 1.25rem;
-            box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.3);
-        }
-
-        .section-top {
-            /*flex: 1;*/
-            height: 3rem;
-            display: flex;
-            border-bottom: 1px solid #eee;
-            flex-direction: row;
-        }
-
-        .section {
-            /*flex: 3;*/
-            display: flex;
-            border-bottom: 1px solid #eee;
-        }
-
-        .section:last-child {
-            border-bottom: none;
-        }
-
-        .section-label {
-            width: 2.5rem;
-            background: #f8f9fa;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
-            font-size: 0.9rem;
-            writing-mode: vertical-rl;
-            transform: rotate(180deg);
-            border-right: 1px solid #eee;
-        }
-
-        .section-content {
-            flex: 1;
-            padding: 1rem;
-        }
-
-        .airport-icao {
-            font-size: 3rem;
-            text-align: center;
-        }
-
-        .flight-time {
-            font-size: 1.0rem;
-            text-align: center;
-        }
-
-        .time-planned {
-        }
-        .time-actual {
-            font-weight: 600;
-        }
-        .time-estimated {
-            font-style: italic;
-            color: gray;
-        }
-
-        .flight-type {
-            font-weight: bold;
-            font-size: 1.2rem;
-            text-align: center;
-            padding-top: 10px;
-        }
-
-        .flight-passenger-count-layout {
-            display: flex;
-            flex-direction: row;
-            padding-bottom: 10px;
-        }
-
-        .flight-passenger-count {
-            flex: 1;
-            text-align: center;
-        }
-
-
-        .stage-title {
-            border-top: 1px solid #f4f4f4;
-            text-align: center;
-            font-size: 1.5rem;
-            padding-top: 5px;
-        }
-
-        .stage-content {
-            text-align: center;
-        }
-
-        .stage-buttons {
-            text-align: center;
-        }
-
-
-        .flight-list-item {
-            cursor: pointer;
-        }
-
-        .flight-list-item.flight-selected {
-            border: 2px solid #0d6efd; /* bootstrap primary */
-        }
-
-        .flight-dof-today {
-            background-color: #eaf7ee; /* light green */
-        }
-
-        .flight-dof-tomorrow {
-            background-color: #eaf2ff; /* light blue */
-        }
-
-        .flight-dof-future {
-            background-color: #f3f7ff; /* very light blue */
-        }
-
-        .flight-dof-past {
-            background-color: #fff8db; /* light yellow */
-        }
+        .action-area { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .6rem; padding: 1.4rem 1.6rem; min-height: 9rem; }
+        .action-title { font-size: 1.5rem; font-weight: 700; margin-bottom: .6rem; }
+        .action-text { font-size: 1.05rem; margin-bottom: .8rem; }
+        .checks { list-style: none; padding: 0; margin: 0 0 1rem 0; }
+        .checks li { padding: .12rem 0; }
+        .checks .ok::before { content: "\2713\00a0"; color: var(--bs-success); font-weight: 700; }
+        .checks .no::before { content: "\2717\00a0"; color: var(--bs-danger); font-weight: 700; }
+        .action-buttons .btn { margin: 0 .5rem .5rem 0; }
+        .todo-list { margin-top: 1.5rem; font-size: .85rem; }
     </style>
 </head>
 <body>
-<div class="outer">
-    <div class="dashboard">
-        <div class="dashboard-header">
-            Flight Dashboard
-        </div>
 
-        <div class="dashboard-body">
-            <div class="main">
-                <div class="section-top">
-                    <div style="flex: 1; border-right: 1px solid #eee; display: flex; flex-direction: row; font-size: 0.75em; text-align: center;">
-                        <div style="flex: 2;">Sim<br><span id="sim-status-status">---</span></div>
-                        <div style="flex: 3;"><span id="sim-status-location-status">---</span><br><span id="sim-status-airport-icao">---</span></div>
-                        <div style="flex: 1;">P/B<br><span id="sim-status-parking-brake">---</span></div>
-                        <div style="flex: 1;">ENG<br><span id="sim-status-engine-running">---</span></div>
-                        <div style="flex: 1;">G/S<br><span id="sim-status-measured-gs">---</span></div>
-                    </div>
-                    <div style="flex: 0 0 9rem; font-size: 0.75em; text-align: center;">Tracking<br><span id="tracking-mode" class="fw-bold">---</span></div>
-                </div>
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
 
-                <div id="status-line" class="small text-muted text-center py-1"></div>
-                <div id="sim-warning" class="alert alert-warning m-2 py-2 hidden"></div>
-                <div id="user-state-warning" class="alert alert-danger m-2 py-2 hidden"></div>
-                <div id="action-message" class="alert alert-secondary m-2 py-2 hidden"></div>
+<main class="container-lg py-4">
+    <div id="pageHeader"></div>
+    <div id="banners"></div>
+    <div id="tiles"></div>
+    <div id="area"></div>
+    <div class="todo-list" id="todoList"></div>
+</main>
 
-                <div class="section" style="flex-direction: column;">
-                    <div id="flight-info" class="hidden">
-                        <div style="display: flex; flex-direction: row;">
-                            <div style="flex: 2;"></div>
-                            <div id="flight-route-departure-icao" class="airport-icao" style="flex: 3;">AAAA</div>
-                            <div class="airport-icao" style="flex: 1;">-</div>
-                            <div id="flight-route-destination-icao" class="airport-icao" style="flex: 3;">ZZZZ</div>
-                            <div style="flex: 2;"></div>
-                        </div>
-                        <div style="display: flex; flex-direction: row;">
-                            <div style="flex: 1;"></div>
-                            <div id="flight-time-of-departure" class="flight-time" style="flex: 1;">00:00</div>
-                            <div id="flight-time-of-takeoff" class="flight-time" style="flex: 1;">00:10</div>
-                            <div id="flight-time-of-landing" class="flight-time" style="flex: 1;">01:00</div>
-                            <div id="flight-time-of-arrival" class="flight-time" style="flex: 1;">01:10</div>
-                            <div style="flex: 1;"></div>
-                        </div>
-                        <div style="display: flex; flex-direction: column;">
-                            <div id="flight-payload-ferry" class="flight-type">Ferry flight</div>
-                            <div id="flight-payload-passenger">
-                                <div class="flight-type">Passenger flight</div>
-                                <div class="flight-passenger-count-layout">
-                                    <div class="flight-passenger-count"></div>
-                                    <div id="flight-payload-pax-sold" class="flight-passenger-count">Sold: <span id="flight-payload-pax-sold-count">-</span></div>
-                                    <div id="flight-payload-pax-checked-in" class="flight-passenger-count">Checked-in: <span id="flight-payload-pax-checked-in-count">-</span></div>
-                                    <div id="flight-payload-pax-on-board" class="flight-passenger-count">On board: <span id="flight-payload-pax-on-board-count">-</span></div>
-                                    <div class="flight-passenger-count"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="flight-not-found" class="hidden">
-                        <div class="stage-title">No active flight found</div>
-                    </div>
-
-                    <!-- one panel per flight status; its buttons are built from the actions of the status -->
-                    <div id="flight-stage-dispatched" class="hidden">
-                        <div class="stage-title">Before Start Flight</div>
-                        <div class="stage-content stage-checks"></div>
-                        <div class="stage-buttons stage-actions"></div>
-                    </div>
-                    <div id="flight-stage-preflight" class="hidden">
-                        <div class="stage-title">Preflight</div>
-                        <div class="stage-content stage-checks"></div>
-                        <div class="stage-buttons stage-actions"></div>
-                    </div>
-                    <div id="flight-stage-departure" class="hidden">
-                        <div class="stage-title">Departure</div>
-                        <div class="stage-content stage-checks"></div>
-                        <div class="stage-buttons stage-actions"></div>
-                    </div>
-                    <div id="flight-stage-flying" class="hidden">
-                        <div class="stage-title">Flying</div>
-                        <div class="stage-content stage-checks"></div>
-                        <div class="stage-buttons stage-actions"></div>
-                    </div>
-                    <div id="flight-stage-arrival" class="hidden">
-                        <div class="stage-title">Arrival</div>
-                        <div class="stage-content stage-checks"></div>
-                        <div class="stage-buttons stage-actions"></div>
-                    </div>
-                    <div id="flight-stage-postflight" class="hidden">
-                        <div class="stage-title">Postflight</div>
-                        <div class="stage-content stage-checks"></div>
-                        <div class="stage-buttons stage-actions"></div>
-                    </div>
-                    <div id="flight-stage-finished" class="hidden">
-                        <div class="stage-title">Finished</div>
-                    </div>
-                </div>
+<!-- A manual flight pays less than the contract says: before the manual start the pilot sees both numbers and decides -->
+<div class="modal fade" id="manualPayModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Start the flight in the manual mode?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <p>The contract promises you more than a manual flight pays. If you start this flight manually, nothing tracks it and the pay is reduced:</p>
+                <table class="table table-sm mb-0">
+                    <thead><tr><th></th><th class="text-end">Promised by the contract</th><th class="text-end">If started manually</th></tr></thead>
+                    <tbody>
+                    <tr><td>Pilot pay</td><td class="text-end" id="mp-flight-contract"></td><td class="text-end text-danger" id="mp-flight-manual"></td></tr>
+                    <tr><td>Income share</td><td class="text-end" id="mp-share-contract"></td><td class="text-end text-danger" id="mp-share-manual"></td></tr>
+                    <tr class="fw-bold"><td>Total</td><td class="text-end" id="mp-total-contract"></td><td class="text-end text-danger" id="mp-total-manual"></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="mp-confirm">Start manual flight</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // A flight goes in one of two modes, the pilot chooses it when he starts the flight and it does not change after that (status.mode, null before the start):
-    //   SIM_TRACKER - the sim tracker (G7 FlightBag etc.) does Blocks Off, Takeoff, Landing and Blocks On itself, here they are only shown as tracked automatically;
-    //   MANUAL      - nothing tracks the flight, the pilot presses a button for every step.
-    // Before the start both ways are offered while the sim reports come in (Start tracked flight / Start manual flight), without them only the manual one.
-    // What is offered now is in status.actions (name + allowed + checks), the same list for both modes.
+    // ---- what the server does not give yet: a red TODO on the screen and a line of the list at the bottom of the page
 
-    // The steps which are done by the tracker in the SIM_TRACKER mode. In MANUAL mode they are buttons.
+    const todos = new Set();
+
+    function todo(what) {
+        todos.add(what);
+        return '<span class="todo" title="' + esc(what) + '">TODO</span>';
+    }
+
+    // ---- the times of the flight: 'hh:mm' or 'hh:mm+1' (the next day) -> minutes
+
+    function minutesOf(t) {
+        const m = /^(\d\d):(\d\d)(?:\+(\d+))?$/.exec(t || '');
+        return m ? (m[3] ? Number(m[3]) * 1440 : 0) + Number(m[1]) * 60 + Number(m[2]) : null;
+    }
+
+    // blocks off, take off, landing and blocks on: planned or estimated (grey italic), or the time which has happened (bold)
+    function timeOf(f, key) {
+        const fact = {off: f.adep, tkf: f.atkf, ldg: f.aldg, on: f.aarr}[key];
+        const est = {off: null, tkf: f.etkf, ldg: f.eldg, on: f.earr}[key];
+        const plan = {off: f.pdep, tkf: null, ldg: null, on: f.parr}[key];
+        if (fact) {
+            return {text: fact, kind: 'fact', plan: plan};
+        }
+        return est ? {text: est, kind: 'plan', plan: null} : {text: plan, kind: 'plan', plan: null};
+    }
+
+    // the italic grey time is the planned one, the tooltip says so
+    const planTitle = t => t.kind === 'fact' ? '' : ' title="Planned time"';
+
+    const timeSpan = t => '<span class="' + (t.kind === 'fact' ? 't-fact' : 't-plan') + '"' + planTitle(t) + '>' + esc(t.text ?? '--:--') + '</span>';
+
+    const LABELS = {off: 'Blocks off', tkf: 'Take off', ldg: 'Landing', on: 'Blocks on'};
+
+    const timeTile = (f, key) => {
+        const t = timeOf(f, key);
+        return {label: LABELS[key], html: '<div class="stat-value big ' + (t.kind === 'fact' ? 't-fact' : 't-plan') + '"' + planTitle(t) + '>' + esc(t.text ?? '--:--') + '</div>',
+            hint: t.kind === 'fact' ? (t.plan && t.plan !== t.text ? 'planned ' + esc(t.plan) : 'actual') : 'planned'};
+    };
+
+    // the same times squeezed into two tiles
+    const departureTile = f => ({label: 'Departure', html: '<div class="time-lines"><div><span class="k">Blocks off</span>' + timeSpan(timeOf(f, 'off')) + '</div>'
+        + '<div><span class="k">Take off</span>' + timeSpan(timeOf(f, 'tkf')) + '</div></div>'});
+    const arrivalTile = f => ({label: 'Arrival', html: '<div class="time-lines"><div><span class="k">Landing</span>' + timeSpan(timeOf(f, 'ldg')) + '</div>'
+        + '<div><span class="k">Blocks on</span>' + timeSpan(timeOf(f, 'on')) + '</div></div>'});
+
+    // The three tiles which follow the payload while the flight goes from blocks off to blocks on. The time which is expected next (blocks off, take off,
+    // landing, blocks on) has a tile of its own, big, "Waiting for ..."; the times which have happened and the ones which are still far stay in the tiles
+    // Departure (blocks off, take off) and Arrival (landing, blocks on) without it. The tiles are in the order of their first time, so the tile of the next
+    // time jumps from place to place as the flight goes. Null when all four times have happened.
+    const FLOW_KEYS = ['off', 'tkf', 'ldg', 'on'];
+
+    function flowTiles(f) {
+        let done = 0;
+        while (done < FLOW_KEYS.length && timeOf(f, FLOW_KEYS[done]).kind === 'fact') {
+            done++;
+        }
+        if (done === FLOW_KEYS.length) {
+            return null;
+        }
+        const groupTile = (label, keys) => {
+            const own = keys.filter(k => k !== FLOW_KEYS[done]);
+            return own.length === 0 ? null : {first: FLOW_KEYS.indexOf(own[0]), tile: {label: label, html: '<div class="time-lines">'
+                + own.map(k => '<div><span class="k">' + LABELS[k] + '</span>' + timeSpan(timeOf(f, k)) + '</div>').join('') + '</div>'}};
+        };
+        const next = timeOf(f, FLOW_KEYS[done]);
+        const nextTile = {first: done, tile: {label: 'Waiting for ' + LABELS[FLOW_KEYS[done]].toLowerCase(), next: true,
+            html: '<div class="stat-value t-next">' + esc(next.text ?? '--:--') + '</div>', hint: FLOW_KEYS[done] === 'off' ? 'planned' : 'expected'}};
+        return [groupTile('Departure', ['off', 'tkf']), groupTile('Arrival', ['ldg', 'on']), nextTile]
+            .filter(x => x !== null).sort((a, b) => a.first - b.first).map(x => x.tile);
+    }
+
+    // ---- the tiles of the flight
+
+    const STAGE_NAMES = {Dispatched: 'Dispatched', Preflight: 'Preflight', Departure: 'Departure', Flying: 'Flying', Arrival: 'Arrival', Postflight: 'Postflight', Finished: 'Finished'};
+
+    const stageTile = f => ({label: 'Flight stage', value: esc(STAGE_NAMES[f.fmSt] ?? f.fmSt), cls: 'big'});
+    // The aircraft of the flight: the tail number and the type on one line
+    const aircraftTile = f => ({label: 'Aircraft', html: '<div class="stat-value big">' + esc(f.acRg ?? '---') + ' <span class="t-plan">' + esc(f.acTp ?? '') + '</span></div>'});
+
+    // Where the pilot is and whether it is right: the state of the pilot of the user (the same states which block the actions)
+    function pilotTile(status) {
+        const p = status.pilot;
+        if (!p) {
+            return {label: 'Pilot', value: '---', cls: 'big t-plan'};
+        }
+        const where = p.expectedAirport ?? p.expectedCity ?? '---';
+        switch (p.state) {
+            case 'OK':
+                // a flight is in progress: the pilot has no place in the world, he is in the aircraft
+                if (p.expectedAirport == null && p.expectedCity == null) {
+                    return {label: 'Pilot', value: 'In an aircraft', cls: 'big good'};
+                }
+                return {label: 'Pilot', value: esc(where), cls: 'big good', hint: 'the location is correct'};
+            case 'WRONG_AIRPORT':
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'the sim puts the aircraft at ' + esc(p.currentAirport ?? '?')};
+            case 'PERSON_IN_CITY':
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'in a city, not at an airport'};
+            case 'PERSON_NOT_AT_AIRPORT':
+                return {label: 'Pilot', value: '---', cls: 'big bad', hint: 'not at an airport'};
+            case 'PERSON_NOT_IDLE': {
+                // the status does not tell why the pilot is busy, /pilot does: a travelling pilot has the place where he is going
+                const travelTo = lastPilot && lastPilot.state === 'Travelling' ? (lastPilot.destinationIcao ?? lastPilot.destinationCity) : null;
+                if (travelTo) {
+                    return {label: 'Pilot', value: '→ ' + esc(travelTo), cls: 'big bad', hint: 'travelling, on the way there'};
+                }
+                if (lastPilot && lastPilot.state === 'Travelling') {
+                    return {label: 'Pilot', value: 'on the way', cls: 'big bad', hint: 'travelling'};
+                }
+                return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'busy (resting, travelling or on duty)'};
+            }
+            case 'NO_PERSON':
+                return {label: 'Pilot', value: 'no pilot', cls: 'big bad'};
+            case 'UNKNOWN':
+                // the pilot is at an airport of the world, the sim does not say where the aircraft is (not connected, or not on the ground at an airport)
+                // without the sim there is nothing to confirm, and a manual flight does not need it: the place of the pilot in the world is right
+                if (!status.sim || status.sim.status !== 'Connected') {
+                    return {label: 'Pilot', value: esc(where), cls: 'big good', hint: 'at the airport, no sim is connected'};
+                }
+                return {label: 'Pilot', value: esc(where), cls: 'big', hint: 'not confirmed by the sim'};
+            default:
+                return {label: 'Pilot', value: esc(where), cls: 'big', hint: esc(p.state)};
+        }
+    }
+
+    // The pilot tile is pale red when the pilot can not start a flight: no pilot, busy, not at an airport, in a city, at the wrong airport. UNKNOWN (the sim
+    // does not confirm the place) is not a problem.
+    function pilotHasProblem(status) {
+        return !status.pilot || BLOCKING_USER_STATES.includes(status.pilot.state) || status.pilot.state === 'PERSON_IN_CITY';
+    }
+
+    // Without a flight: the two tiles which say what to do. The pilot with the link to his page (to fix what is wrong), the flight with the link to the booking.
+    function noFlightRow(status) {
+        const pilot = pilotTile(status);
+        pilot.hint = (pilot.hint ? pilot.hint + '<br>' : '') + '<a href="pilot.html">Open the pilot page</a>';
+        pilot.span2 = true;
+        pilot.alert = pilotHasProblem(status);
+        return [{label: 'Flight', value: 'No active flight', cls: 'big t-plan', hint: 'Nothing to fly now. <a href="busy-birds.html">Book a mission</a>', span2: true, alert: true}, pilot];
+    }
+
+    // The double header of the page: the small title is the page, the big one is the route of the flight (the avatar is the pilot's)
+    function renderHeader(status) {
+        const f = status.flight;
+        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) : 'No active flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
+    }
+
+    // The first tile of the second row, always Payload. Ferry: Ferry flight. Revenue: until the end of the boarding the sold tickets and PAX as TBD, after
+    // the boarding PAX, in the deboarding Carried PAX.
+    function payloadTile(f) {
+        if (f.tfId === null || f.tfId === undefined) {
+            return {label: 'Payload', value: 'Ferry flight', cls: 'big ferry'};
+        }
+        const lines = list => ({label: 'Payload', html: '<div class="count-lines">' + list.map(l => '<div><span class="k">' + l[0] + '</span><b>' + l[1] + '</b></div>').join('') + '</div>'});
+        switch (f.tfSt) {
+            case 'Scheduled':
+            case 'CheckIn':
+            case 'WaitingForBoarding':
+            case 'Boarding':
+                // the progress of the check-in and of the boarding is in their own tiles, PAX is known only when the boarding is over
+                return {label: 'Payload', html: '<div class="count-lines"><div><span class="k">Sold tickets</span><b>' + f.stkts + '</b></div>'
+                        + '<div><span class="k">PAX</span><b class="t-tbd" title="Will be known at the end of the boarding">TBD</b></div></div>'};
+            case 'Deboarding':
+            case 'Finished':
+                // the number of those who were carried is not in the status: the checked-in ones are about it
+                return {label: 'Payload', html: '<div class="count-lines"><div><span class="k">Carried PAX</span><b>' + (f.ckdIn ?? 0) + '</b> '
+                        + todo('the exact number of the carried passengers (the status has the checked-in ones)') + '</div></div>'};
+            default:
+                return {label: 'Payload', html: '<div class="stat-value big">PAX ' + (f.ponBrd ?? 0) + '</div>'};
+        }
+    }
+
+    // The check-in goes by itself, the time is counted from the planned departure: it does not depend on the start of the flight. The tile is like the
+    // deboarding one: how many have checked in so far and when it ends (no number of the sold tickets, they are in the payload).
+    function checkInTile(f) {
+        if (f.tfSt === 'CheckIn') {
+            return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the check-in')};
+        }
+        if (f.tfSt !== 'Scheduled') {
+            return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big'};
+        }
+        return {label: 'Check-in', html: '<div class="stat-value big">' + todo('the time of the start of the check-in') + '</div>', hint: 'starts at'};
+    }
+
+    // The boarding can not begin before the start of the flight, the pilot starts it with the button.
+    function boardingTile(f) {
+        if (f.tfSt === 'Boarding') {
+            return {label: 'Boarding', value: (f.ponBrd ?? 0) + ' boarded', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the boarding')};
+        }
+        if (f.fmSt === 'Dispatched') {
+            return {label: 'Boarding', value: 'after the start', cls: 'big t-plan', hint: 'not before Start flight'};
+        }
+        return {label: 'Boarding', value: 'Waiting', cls: 'big t-wait', hint: 'start it when you are ready'};
+    }
+
+    function deboardingTile(f) {
+        if (f.tfSt === 'Deboarding') {
+            return {label: 'Deboarding', value: (f.ponBrd ?? 0) + ' left', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the deboarding')};
+        }
+        return {label: 'Deboarding', value: 'Waiting', cls: 'big t-wait', hint: 'starts at your discretion'};
+    }
+
+    // The mode of the tracking and the state of the sim: the last tile of the first row
+    function trackingTile(status) {
+        const sim = status.sim || {};
+        const f = status.flight;
+        const mode = status.mode === 'SIM_TRACKER' ? 'Sim tracker' : status.mode === 'MANUAL' ? 'Manual' : f ? (sim.status === 'Connected' ? 'Choose at start' : 'Manual only') : '---';
+        const details = [];
+        details.push('Sim ' + esc(sim.status ?? '---'));
+        if (sim.locationStatus) {
+            details.push(esc(sim.locationStatus) + (sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''));
+        }
+        if (sim.parkingBrake !== null && sim.parkingBrake !== undefined) {
+            details.push('P/B ' + (sim.parkingBrake ? 'SET' : 'OFF'));
+        }
+        if (sim.engineRunning !== null && sim.engineRunning !== undefined) {
+            details.push('ENG ' + (sim.engineRunning ? 'RUN' : 'OFF'));
+        }
+        if (sim.measuredGs) {
+            details.push('G/S ' + esc(sim.measuredGs));
+        }
+        const good = status.mode === 'SIM_TRACKER' && sim.status === 'Connected';
+        return {label: 'Tracking', value: mode, cls: 'big' + (good ? ' good' : ''), hint: details.join(' &middot; ') + '<div>updated ' + new Date().toISOString().slice(11, 19) + 'Z</div>'};
+    }
+
+    // all four times in one tile (a place is saved for the check-in)
+    const timesTile = f => ({label: 'Times', html: '<div class="time-lines">' + [['off', 'Blocks off'], ['tkf', 'Take off'], ['ldg', 'Landing'], ['on', 'Blocks on']]
+        .map(k => '<div><span class="k">' + k[1] + '</span>' + timeSpan(timeOf(f, k[0])) + '</div>').join('') + '</div>'});
+
+    const placeholder = () => ({label: '', value: '', placeholder: true});
+
+    // blocks off to blocks on, the times on two lines
+    function flightTimeTile(f) {
+        const a = minutesOf(f.adep), b = minutesOf(f.aarr);
+        return {label: 'Flight time', html: '<div class="stat-value big">' + (a !== null && b !== null ? formatClock(b - a) : '--:--') + '</div>'
+            + '<div class="time-lines"><div><span class="k">Blocks off</span>' + esc(f.adep ?? '--:--') + '</div><div><span class="k">Blocks on</span>' + esc(f.aarr ?? '--:--') + '</div></div>'};
+    }
+
+    // from Start flight to Finish flight, the times on two lines
+    function dutyTimeTile() {
+        return {label: 'Duty time', html: '<div class="stat-value big">' + todo('the times of the start and of the finish of the flight') + '</div>'
+            + '<div class="time-lines"><div><span class="k">Started</span>' + todo('the time of Start flight') + '</div><div><span class="k">Finished</span>' + todo('the time of Finish flight') + '</div></div>'};
+    }
+
+    // the limits of the pilot, they are shown before the start of the flight only
+    // (a tile over its limit stops the start of the flight, it is pale red as the other tiles with a problem)
+    const limitTiles = p => p ? [awakeTile(p, false), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)].map(t => Object.assign(t, {alert: t.over === true})) : [];
+
+    // The rows of the tiles for the stage of the flight. The first row: flight stage, aircraft, pilot, tracking (the route is in the header). The second row starts with the payload, the rest depends on the stage.
+    function buildRows(f, pilot, status) {
+        // the pilot who is not where the flight starts (the check of the start fails) has the pale red tile as without a flight
+        const pilotCell = Object.assign(pilotTile(status), {alert: pilotHasProblem(status)});
+        const rows = [[stageTile(f), aircraftTile(f), pilotCell, trackingTile(status)]];
+        const passenger = f.tfId !== null && f.tfId !== undefined;
+        const tf = f.tfSt;
+        const payload = payloadTile(f);
+
+        if (f.fmSt === 'Finished') {
+            rows.push([payload, departureTile(f), arrivalTile(f), flightTimeTile(f)]);
+            rows.push([dutyTimeTile()]);
+            return rows;
+        }
+
+        const afterArrival = f.fmSt === 'Postflight' || tf === 'WaitingForDeboarding' || tf === 'Deboarding';
+        const checkIn = passenger && (tf === 'Scheduled' || tf === 'CheckIn');
+        const boarding = passenger && (checkIn || tf === 'WaitingForBoarding' || tf === 'Boarding');
+        // after the blocks on there is nothing to wait for: the deboarding takes the place of the next time
+        const flow = f.fmSt === 'Postflight' ? null : flowTiles(f);
+        if (afterArrival && !flow) {
+            const row = [payload, departureTile(f), arrivalTile(f)];
+            row.push(passenger ? deboardingTile(f) : placeholder());
+            rows.push(row);
+        } else if (checkIn || boarding) {
+            // the payload and the check-in take places, with the check-in the four times are squeezed into one tile
+            const row = [payload];
+            if (checkIn) {
+                row.push(checkInTile(f), boardingTile(f), timesTile(f));
+            } else {
+                row.push(boardingTile(f), departureTile(f), arrivalTile(f));
+            }
+            rows.push(row);
+        } else if (flow) {
+            rows.push([payload, ...flow]);
+        } else {
+            rows.push([payload, departureTile(f), arrivalTile(f), placeholder()]);
+        }
+
+        if (f.fmSt === 'Dispatched' && pilot) {
+            rows.push(limitTiles(pilot));
+        }
+        return rows;
+    }
+
+    function tileHtml(t) {
+        return '<div class="' + (t.span2 ? 'tile-2' : '') + '"><div class="stat' + (t.placeholder ? ' stat-placeholder' : '') + (t.alert ? ' stat-alert' : '') + (t.next ? ' stat-next' : '') + '">'
+            + '<div class="stat-label">' + esc(t.label) + '</div>'
+            + (t.html !== undefined ? '<div class="stat-small">' + t.html + '</div>' : '<div class="stat-value ' + (t.cls || '') + '">' + t.value + '</div>')
+            + (t.hint ? '<div class="stat-hint">' + t.hint + '</div>' : '')
+            + '</div></div>';
+    }
+
+    const rowHtml = row => '<div class="tile-grid">' + row.map(tileHtml).join('') + '</div>';
+
+    // ---- the actions of the stage (the same rules as flight-dashboard-old.html)
+
+    // The steps which the tracker does itself in the SIM_TRACKER mode
     const TRACKED_ACTIONS = ['blocks-off', 'takeoff', 'landing', 'blocks-on'];
-
     const ACTION_LABELS = {
-        'start-flight': 'Start tracked flight',
-        'start-flight-manual': 'Start manual flight',
-        'start-boarding': 'Start Boarding',
-        'blocks-off': 'Blocks Off',
-        'takeoff': 'Takeoff',
-        'landing': 'Landing',
-        'blocks-on': 'Blocks On',
-        'start-deboarding': 'Start Deboarding',
-        'finish-flight': 'Finish Flight'
+        'start-flight': 'Start tracked flight', 'start-flight-manual': 'Start manual flight', 'start-boarding': 'Start Boarding', 'blocks-off': 'Blocks Off',
+        'takeoff': 'Takeoff', 'landing': 'Landing', 'blocks-on': 'Blocks On', 'start-deboarding': 'Start Deboarding', 'finish-flight': 'Finish Flight'
     };
-
-    // The actions which are only the buttons of the status, the stage of a flight shows them
-    const STAGE_BY_FLIGHT_STATUS = {
-        'Dispatched': 'dispatched',
-        'Preflight': 'preflight',
-        'Departure': 'departure',
-        'Flying': 'flying',
-        'Arrival': 'arrival',
-        'Postflight': 'postflight',
-        'Finished': 'finished'
-    };
-
-    // The server refuses the actions in these states of the pilot of the user (403), the buttons are disabled. The position of the sim means nothing
-    // for a manual flight, so WRONG_AIRPORT does not block the manual start.
-    const BLOCKING_USER_STATES = ['NO_PERSON', 'PERSON_NOT_IDLE', 'PERSON_NOT_AT_AIRPORT', 'WRONG_AIRPORT'];
-
-    // An action is sent to this request: the manual start is the same start with mode=manual, the tracked one with mode=tracker.
     const ACTION_REQUESTS = {
         'start-flight': {url: 'start-flight', params: {mode: 'tracker'}},
         'start-flight-manual': {url: 'start-flight', params: {mode: 'manual'}}
     };
-
-    let flightId = null;
-    let refreshTimerId = null;
-    let actionInProgress = false;
-    let lastStatus = null;
-    let loadErrorShown = false;
-
-    function escapeHtml(s) {
-        return String(s ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    function show(id) {
-        $(id).removeClass('hidden');
-    }
-
-    function hide(id) {
-        $(id).addClass('hidden');
-    }
-
-    // status.pilot: { state, expectedAirport, currentAirport } - the verdict about the pilot
-    function userStateMessage(pilot) {
-        const state = pilot?.state;
-        switch (state) {
-            case 'NO_PERSON':
-                return 'You have no pilot (person), flying is not available.';
-            case 'PERSON_NOT_IDLE':
-                return 'Your pilot is busy now (resting, travelling or on duty), flying is not available.';
-            case 'PERSON_NOT_AT_AIRPORT':
-                return 'Your pilot is not at an airport, flying is not available.';
-            case 'PERSON_IN_CITY':
-                return 'Your pilot is in ' + escapeHtml(pilot.expectedCity ?? 'a city') + '. Travel to the departure airport of the flight to start it.';
-            case 'WRONG_AIRPORT':
-                return 'Your pilot is expected at ' + escapeHtml(pilot.expectedAirport ?? '?')
-                    + ' but the simulator puts the aircraft at ' + escapeHtml(pilot.currentAirport ?? '?') + '.';
-            default:
-                return null;
-        }
-    }
+    const STAGE_TITLES = {
+        Dispatched: 'Before Start Flight', Preflight: 'Preflight', Departure: 'Departure', Flying: 'Flying', Arrival: 'Arrival', Postflight: 'Postflight', Finished: 'The flight is finished'
+    };
+    // The server refuses the actions in these states of the pilot of the user (403). PERSON_IN_CITY does not block the dashboard, but the start needs the airport.
+    const BLOCKING_USER_STATES = ['NO_PERSON', 'PERSON_NOT_IDLE', 'PERSON_NOT_AT_AIRPORT', 'WRONG_AIRPORT'];
 
     function isBlocked(status, actionName) {
-        const state = status?.pilot?.state;
+        const state = status.pilot && status.pilot.state;
         if (actionName === 'start-flight-manual' && state === 'WRONG_AIRPORT') {
             return false;
         }
         return BLOCKING_USER_STATES.includes(state);
     }
 
-    // One line which mirrors what the other dashboard (G7) sees: pilot, flight and transport flight statuses, when the status was loaded
-    function renderStatusLine(status) {
-        const parts = [];
-        const location = status.pilot;
-        if (location) {
-            parts.push("Pilot: " + location.state + (location.expectedAirport ? " at " + location.expectedAirport : location.expectedCity ? " in " + location.expectedCity : ""));
+    // The area under the tiles: the title of the stage, the conditions of the actions and the buttons.
+    function areaHtml(status) {
+        const f = status.flight;
+        if (f === null) {
+            return '';
         }
-        if (status.flight) {
-            parts.push("Flight: " + status.flight.fmSt + (status.flight.tfSt ? " / T/F: " + status.flight.tfSt : ""));
-        }
-        parts.push("updated " + new Date().toISOString().slice(11, 19) + "Z");
-        $("#status-line").text(parts.join("  |  "));
-    }
-
-    function restartRefreshTimer() {
-        if (refreshTimerId) {
-            clearInterval(refreshTimerId);
-        }
-        refreshTimerId = setInterval(function () {
-            if (!actionInProgress) {
-                loadStatus2();
-            }
-        }, 10000);
-    }
-
-    // The mode of the flight; before the start the sim reports tell what can be chosen
-    function trackingModeText(status) {
-        if (status.mode === 'SIM_TRACKER') {
-            return 'Sim tracker';
-        }
-        if (status.mode === 'MANUAL') {
-            return 'Manual';
-        }
-        if (status.flight === null) {
-            return '---';
-        }
-        return status.sim.status === 'Connected' ? 'Choose at start' : 'Manual only';
-    }
-
-    function renderStatus2(status) {
-        lastStatus = status;
-
-        $('#sim-status-status').text(status.sim.status);
-        $('#sim-status-location-status').text(status.sim.locationStatus ?? '---');
-        $('#sim-status-airport-icao').text(status.sim.airportIcao ?? '---');
-        $('#sim-status-parking-brake').text(status.sim.parkingBrake === null ? '' : status.sim.parkingBrake ? 'SET' : 'OFF');
-        $('#sim-status-engine-running').text(status.sim.engineRunning === null ? '' : status.sim.engineRunning ? 'RUN' : 'OFF');
-        $('#sim-status-measured-gs').text(status.sim.measuredGs ?? '');
-        $('#tracking-mode').text(trackingModeText(status));
-
-        renderStatusLine(status);
-
-        // a tracked flight without the reports of the sim: nothing happens by itself until they come back
-        if (status.mode === 'SIM_TRACKER' && status.sim.status !== 'Connected') {
-            $('#sim-warning').text('The sim tracker is not connected: there were no reports from the sim for a while.');
-            show('#sim-warning');
-        } else {
-            hide('#sim-warning');
+        if (f.fmSt === 'Finished') {
+            return '<div class="action-area"><div class="action-title">' + STAGE_TITLES.Finished + '</div>'
+                + '<div class="action-buttons"><a class="btn btn-outline-secondary" href="pilot.html">To the pilot</a> <a class="btn btn-primary" href="busy-birds.html">Book another mission</a></div></div>';
         }
 
-        const warning = userStateMessage(status.pilot);
-        if (warning) {
-            $('#user-state-warning').html(warning);
-            show('#user-state-warning');
-        } else {
-            hide('#user-state-warning');
-        }
-
-        hide('#flight-info');
-        hide('#flight-not-found');
-
-        hide('#flight-payload-ferry');
-        hide('#flight-payload-passenger');
-        hide('#flight-payload-pax-sold');
-        hide('#flight-payload-pax-checked-in');
-        hide('#flight-payload-pax-on-board');
-
-        Object.values(STAGE_BY_FLIGHT_STATUS).forEach(stage => hide('#flight-stage-' + stage));
-
-        if (status.flight === null) {
-            flightId = null;
-            show('#flight-not-found');
-            return;
-        }
-
-        show('#flight-info');
-
-        flightId = status.flight.fmId;
-
-        $('#flight-route-departure-icao').text(status.flight.dep);
-        $('#flight-route-destination-icao').text(status.flight.dest);
-
-        renderFlightTimeField('#flight-time-of-departure', status, 'dep');
-        renderFlightTimeField('#flight-time-of-takeoff', status, 'tkf');
-        renderFlightTimeField('#flight-time-of-landing', status, 'ldg');
-        renderFlightTimeField('#flight-time-of-arrival', status, 'arr');
-
-        if (status.flight.tfId !== null) {
-            show('#flight-payload-passenger');
-        } else {
-            show('#flight-payload-ferry');
-        }
-
-        const tfSt = status.flight.tfSt;
-        if (tfSt === 'Scheduled'
-            || tfSt === 'CheckIn'
-            || tfSt === 'WaitingForBoarding'
-            || tfSt === 'Boarding') {
-            show('#flight-payload-pax-sold');
-            $('#flight-payload-pax-sold-count').text(status.flight.stkts);
-        }
-        if (tfSt === 'CheckIn' || tfSt === 'WaitingForBoarding' || tfSt === 'Boarding') {
-            show('#flight-payload-pax-checked-in');
-            $('#flight-payload-pax-checked-in-count').text(status.flight.ckdIn);
-        }
-        if (tfSt === 'Boarding'
-            || tfSt === 'WaitingForDeparture'
-            || tfSt === 'Departure'
-            || tfSt === 'Flying'
-            || tfSt === 'Arrival'
-            || tfSt === 'WaitingForDeboarding'
-            || tfSt === 'Deboarding') {
-            show('#flight-payload-pax-on-board');
-            $('#flight-payload-pax-on-board-count').text(status.flight.ponBrd);
-        }
-
-        const stage = STAGE_BY_FLIGHT_STATUS[status.flight.fmSt];
-        if (stage) {
-            show('#flight-stage-' + stage);
-            if (stage !== 'finished') {
-                renderStage(stage, status);
-            }
-        }
-    }
-
-    // The buttons of a stage are built from the actions of the status: a button for an action which the pilot does, a note for a step which
-    // the tracker does. The disabled (red) button is an action which is offered but its checks do not pass yet.
-    function renderStage(stage, status) {
-        const $stage = $('#flight-stage-' + stage);
-        const $buttons = $stage.find('.stage-actions').empty();
-        const $checks = $stage.find('.stage-checks').empty();
         const manual = status.mode === 'MANUAL';
-        const actions = status.actions ?? [];
+        const actions = (status.actions ?? []).filter(a => a.name !== 'reschedule');
         const bothStarts = actions.some(a => a.name === 'start-flight') && actions.some(a => a.name === 'start-flight-manual');
+        let checks = '';
+        let buttons = '';
 
-        actions.forEach(action => {
-            if (action.name === 'reschedule') {
-                return; // no dashboard button for it yet
-            }
-
-            if (TRACKED_ACTIONS.includes(action.name) && !manual) {
-                $buttons.append('<button class="btn btn-outline-primary m-2 disabled">' + ACTION_LABELS[action.name] + ' will be tracked automatically</button>');
+        actions.forEach(a => {
+            if (TRACKED_ACTIONS.includes(a.name) && !manual) {
+                buttons += '<button class="btn btn-outline-primary disabled">' + esc(ACTION_LABELS[a.name]) + ' will be tracked automatically</button>';
                 return;
             }
-
-            const label = ACTION_LABELS[action.name] ?? action.name;
-            if (action.allowed && !isBlocked(status, action.name)) {
-                // when the pilot may choose, the manual start is the quiet one
-                const style = action.name === 'start-flight-manual' && bothStarts ? 'btn-outline-success' : 'btn-success';
-                const $button = $('<button class="btn m-2 ' + style + '"></button>').text(label);
-                $button.on('click', function () {
-                    if (action.name === 'start-flight-manual') {
-                        startManualFlightAfterTheQuestion();
-                    } else {
-                        sendAction(action.name);
-                    }
-                });
-                $buttons.append($button);
-            } else {
-                $buttons.append($('<button class="btn btn-outline-danger m-2 disabled"></button>').text(label));
-                (action.checks ?? []).filter(c => !c.result).forEach(c => {
-                    $checks.append('<div class="text-danger small">' + escapeHtml(c.name) + '</div>');
-                });
+            const label = ACTION_LABELS[a.name] ?? a.name;
+            const allowed = a.allowed && !isBlocked(status, a.name);
+            const style = allowed ? (a.name === 'start-flight-manual' && bothStarts ? 'btn-outline-success' : 'btn-success') : 'btn-outline-danger disabled';
+            buttons += '<button class="btn action-button ' + style + '" data-action="' + esc(a.name) + '"' + (allowed ? '' : ' disabled') + '>' + esc(label) + '</button>';
+            // the conditions of an action which cannot be done now, and of a start in any case
+            const list = a.checks ?? [];
+            if (list.length > 0 && (!allowed || a.name === 'start-flight' || a.name === 'start-flight-manual')) {
+                checks += '<li class="fw-semibold">' + esc(label) + '</li>' + list.map(c => '<li class="' + (c.result ? 'ok' : 'no') + '">' + esc(c.name) + '</li>').join('');
             }
         });
-
         if (bothStarts) {
-            $checks.append('<div class="text-secondary small">Tracked: Blocks Off, Takeoff, Landing and Blocks On follow the sim. Manual: you press the buttons.</div>');
+            checks += '<li class="text-secondary">Tracked: Blocks Off, Takeoff, Landing and Blocks On follow the sim. Manual: you press the buttons.</li>';
         }
-
-        // The setting of the pilot (auto finish): the server finishes the flight itself, so there is no Finish Flight button, only the note.
-        if (stage === 'postflight' && status.flight.autoFinish) {
-            $buttons.append('<button class="btn btn-outline-primary m-2 disabled">The flight will be finished automatically after the passengers have got off</button>');
+        if (f.fmSt === 'Postflight' && f.autoFinish) {
+            buttons += '<button class="btn btn-outline-primary disabled">The flight will be finished automatically after the passengers have got off</button>';
         }
-
-        // In the sim tracker mode the steps done by the tracker are not in the list of actions before their time, but the pilot has to know that
-        // they are not done by a button: the stage says it.
-        if (status.mode === 'SIM_TRACKER' && $buttons.children().length === 0) {
-            const note = {
-                'departure': 'Takeoff will be tracked automatically',
-                'flying': 'Landing will be tracked automatically',
-                'arrival': 'Blocks On will be tracked automatically'
-            }[stage];
+        if (status.mode === 'SIM_TRACKER' && buttons === '') {
+            const note = {Departure: 'Takeoff will be tracked automatically', Flying: 'Landing will be tracked automatically', Arrival: 'Blocks On will be tracked automatically'}[f.fmSt];
             if (note) {
-                $buttons.append('<button class="btn btn-outline-primary m-2 disabled">' + note + '</button>');
+                buttons += '<button class="btn btn-outline-primary disabled">' + note + '</button>';
             }
         }
+
+        return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div>'
+            + (checks ? '<ul class="checks">' + checks + '</ul>' : '')
+            + '<div class="action-buttons">' + buttons + '</div></div>';
     }
 
-    function renderFlightTimeField(id, status, time) {
-        $(id).removeClass('time-planned').removeClass('time-estimated').removeClass('time-actual');
+    // ---- the page
 
-        const planned = status.flight[`p${time}`];
-        const estimated = status.flight[`e${time}`];
-        const actual = status.flight[`a${time}`];
+    let lastStatus = null;
+    let lastPilot = null;
+    let flightId = null;
+    let actionInProgress = false;
+    let actionMessage = null;
+    // the last reading of the status failed: the banner is there until the next reading succeeds (it is not a message of an action, which stays until the next action)
+    let statusLoadFailed = false;
+    let stub = null;
 
-        if (actual) {
-            $(id).text(actual).addClass('time-actual');
-        } else if (estimated) {
-            $(id).text(estimated).addClass('time-estimated');
-        } else {
-            $(id).text(planned).addClass('time-planned');
-        }
-    }
-
-    function showActionMessage(text, isError) {
-        if (!text) {
-            hide('#action-message');
+    function render() {
+        const status = lastStatus;
+        if (!status) {
             return;
         }
-        $('#action-message')
-            .removeClass('alert-secondary alert-danger')
-            .addClass(isError ? 'alert-danger' : 'alert-secondary')
-            .text(text);
-        show('#action-message');
-    }
+        todos.clear();
+        flightId = status.flight ? status.flight.fmId : null;
 
-    function loadStatus2() {
-        airwaysAuth('GET', '/flight-dashboard/status', {}, function (response) {
-            if (loadErrorShown) {
-                loadErrorShown = false;
-                showActionMessage(null);
+        let banners = '';
+        if (status.mode === 'SIM_TRACKER' && status.sim && status.sim.status !== 'Connected') {
+            banners += '<div class="alert alert-warning py-2">The sim tracker is not connected: there were no reports from the sim for a while.</div>';
+        }
+        // the state of the pilot has no banner: the red tile of the pilot and the failed conditions under the tiles say it
+        if (statusLoadFailed) {
+            banners += '<div class="alert alert-danger py-2">Failed to load the status</div>';
+        }
+        if (actionMessage) {
+            banners += '<div class="alert alert-' + (actionMessage.error ? 'danger' : 'secondary') + ' py-2">' + esc(actionMessage.text) + '</div>';
+        }
+        $('#banners').html(banners);
+        renderHeader(status);
+
+        $('#tiles').html(status.flight === null ? rowHtml(noFlightRow(status)) : buildRows(status.flight, lastPilot, status).map(rowHtml).join(''));
+        $('#area').html(areaHtml(status));
+        $('#todoList').html(todos.size === 0 ? '' : '<div class="todo">TODO for the server:</div><ul class="todo mb-0">' + [...todos].map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>');
+
+        $('.action-button').on('click', function () {
+            const name = $(this).data('action');
+            if (name === 'start-flight-manual') {
+                startManualFlightAfterTheQuestion();
+            } else {
+                sendAction(name);
             }
-            renderStatus2(response);
-        }, function (e) {
-            loadErrorShown = true;
-            showActionMessage('Failed to load the status (check token in localStorage: airwaysToken)', true);
         });
     }
 
-    // 123456 -> '123,456'
-    function pay(n) {
-        return Number(n).toLocaleString('en-US');
+    function loadStatus() {
+        airwaysAuth('GET', '/flight-dashboard/status', {}, function (response) {
+            lastStatus = response;
+            statusLoadFailed = false;
+            render();
+        }, function () {
+            statusLoadFailed = true;
+            render();
+        });
     }
 
-    // A manual flight pays less than the contract says (the pay is reduced, see PilotPay). Before the manual start the pilot sees both numbers and decides.
-    // A flight without a contract has nothing to show, it is just started. If the numbers are not available (the server does not answer), it is started too:
-    // the question is not a reason to block the start.
-    function startManualFlightAfterTheQuestion() {
-        if (actionInProgress || flightId === null) {
+    function loadPilot() {
+        airwaysAuth('GET', '/pilot', {}, function (p) {
+            lastPilot = p;
+            render();
+        }, function () { /* the limits are not shown without the pilot */ });
+    }
+
+    // POST /flight-dashboard/<action>, the answer is the whole new status
+    function sendAction(actionName) {
+        if (actionInProgress || flightId === null || stub !== null) {
             return;
         }
-        airwaysAuth('GET', '/flight-dashboard/manual-pay', {flightId: flightId}, function (response) {
-            if (!response || !response.hasContract) {
+        actionInProgress = true;
+        actionMessage = {text: (ACTION_LABELS[actionName] ?? actionName) + '...', error: false};
+        render();
+        const request = ACTION_REQUESTS[actionName] ?? {url: actionName, params: {}};
+        airwaysAuth('POST', '/flight-dashboard/' + request.url, Object.assign({flightId: flightId}, request.params), function (response) {
+            actionInProgress = false;
+            actionMessage = null;
+            lastStatus = response;
+            statusLoadFailed = false;
+            render();
+            loadPilot();
+        }, function (e) {
+            actionInProgress = false;
+            const code = e && e.status ? 'HTTP ' + e.status : 'no connection';
+            const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
+            actionMessage = {text: 'The action was refused (' + code + reason + ')', error: true};
+            loadStatus();
+        });
+    }
+
+    const pay = n => Number(n).toLocaleString('en-US');
+    let manualPayModal;
+
+    function startManualFlightAfterTheQuestion() {
+        if (actionInProgress || flightId === null || stub !== null) {
+            return;
+        }
+        airwaysAuth('GET', '/flight-dashboard/manual-pay', {flightId: flightId}, function (r) {
+            if (!r || !r.hasContract) {
                 sendAction('start-flight-manual');
                 return;
             }
-            showManualPayDialog(response);
+            $('#mp-flight-contract').text(pay(r.byContract.flightPay));
+            $('#mp-flight-manual').text(pay(r.ifManual.flightPay));
+            $('#mp-share-contract').text(pay(r.byContract.incomeShare));
+            $('#mp-share-manual').text(pay(r.ifManual.incomeShare));
+            $('#mp-total-contract').text(pay(r.byContract.total));
+            $('#mp-total-manual').text(pay(r.ifManual.total));
+            manualPayModal.show();
         }, function () {
             sendAction('start-flight-manual');
         });
     }
 
-    function showManualPayDialog(response) {
-        $('#manual-pay-flight-contract').text(pay(response.byContract.flightPay));
-        $('#manual-pay-flight-manual').text(pay(response.ifManual.flightPay));
-        $('#manual-pay-share-contract').text(pay(response.byContract.incomeShare));
-        $('#manual-pay-share-manual').text(pay(response.ifManual.incomeShare));
-        $('#manual-pay-total-contract').text(pay(response.byContract.total));
-        $('#manual-pay-total-manual').text(pay(response.ifManual.total));
-        show('#manual-pay-dialog');
-    }
+    // ---- stub data of the stages (?stub=before-start), shaped like the answers of the server: the page shows them without the server
 
-    // POST /flight-dashboard/<action>, the response is the whole new status
-    function sendAction(actionName) {
-        if (actionInProgress || flightId === null) {
-            return;
+    function stubStatus(name) {
+        if (name === 'no-flight') {
+            return {mode: null, actions: [], sim: {status: 'Connected'}, flight: null, pilot: {state: 'PERSON_NOT_IDLE'}};
         }
-        actionInProgress = true;
-        $('.stage-actions button').addClass('disabled');
-        showActionMessage((ACTION_LABELS[actionName] ?? actionName) + '...', false);
-
-        const request = ACTION_REQUESTS[actionName] ?? {url: actionName, params: {}};
-        airwaysAuth('POST', `/flight-dashboard/${request.url}`, Object.assign({
-            flightId: flightId,
-        }, request.params), function (response) {
-            actionInProgress = false;
-            showActionMessage(null);
-            renderStatus2(response);
-            restartRefreshTimer();
-        }, function (e) {
-            actionInProgress = false;
-            const code = e && e.status ? 'HTTP ' + e.status : 'no connection';
-            const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
-            showActionMessage('The action was refused (' + code + reason + ')', true);
-            loadStatus2(); // the world may have moved on, show how it is now
-        });
+        const f = {dep: 'KAUS', dest: 'MMMX', fmId: '1', fmSt: 'Dispatched', tfId: 't1', tfSt: 'Scheduled', pdep: '19:05', parr: '20:51', etkf: '19:15', eldg: '20:41', earr: '20:51',
+            acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true};
+        const dutyOk = name !== 'over-limit';
+        const limits = [{name: 'The awake time is within the limit (the pilot is not overtired)', result: true},
+            {name: 'The duty time in 24 hours is within the limit', result: dutyOk},
+            {name: 'The flight time in 30 days is within the limit', result: true},
+            {name: 'The flight time in 365 days is within the limit', result: true}];
+        let actions = [{name: 'start-flight', allowed: dutyOk, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, {name: 'The aircraft is idle at the departure airport KAUS', result: true}, ...limits]},
+            {name: 'start-flight-manual', allowed: dutyOk, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, ...limits]}];
+        let mode = null;
+        switch (name) {
+            case 'check-in':
+                Object.assign(f, {fmSt: 'Preflight', tfSt: 'CheckIn', ckdIn: 87});
+                actions = [{name: 'start-boarding', allowed: true, checks: []}];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'boarding':
+                Object.assign(f, {fmSt: 'Preflight', tfSt: 'Boarding', ckdIn: 151, ponBrd: 112});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'departure':
+                Object.assign(f, {fmSt: 'Departure', tfSt: 'WaitingForDeparture', ckdIn: 151, ponBrd: 151, adep: '19:07'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'ready':
+                // the boarding is over, the pilot has not pressed blocks off yet
+                Object.assign(f, {fmSt: 'Departure', tfSt: 'WaitingForDeparture', ckdIn: 151, ponBrd: 151});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'landed':
+                Object.assign(f, {fmSt: 'Arrival', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', aldg: '20:51'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'flying':
+                Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'ferry':
+                Object.assign(f, {fmSt: 'Flying', tfId: null, tfSt: null, dep: 'KEDC', dest: 'KAUS', adep: '10:06', atkf: '10:17', pdep: '10:05', parr: '10:39', etkf: '10:15', eldg: '10:29', earr: '10:39'});
+                actions = [];
+                mode = 'MANUAL';
+                break;
+            case 'arrived':
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                actions = [{name: 'start-deboarding', allowed: true, checks: []}];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'deboarding':
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Deboarding', ckdIn: 151, ponBrd: 64, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'finished':
+                Object.assign(f, {fmSt: 'Finished', tfSt: 'Finished', ckdIn: 151, ponBrd: 0, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            default:
+                break;
+        }
+        return {mode: mode, actions: actions, sim: {status: 'Connected', locationStatus: 'At airport', airportIcao: 'KAUS', parkingBrake: true, engineRunning: false, measuredGs: '0'},
+            flight: f, pilot: name === 'travelling' ? {state: 'PERSON_NOT_IDLE'}
+                : (['flying', 'landed', 'ferry'].includes(name) ? {state: 'OK'} : {state: 'OK', expectedAirport: 'KAUS', currentAirport: 'KAUS'})};
     }
 
-    $(document).ready(function () {
-        $('#manual-pay-cancel').on('click', function () {
-            hide('#manual-pay-dialog');
-        });
-        $('#manual-pay-confirm').on('click', function () {
-            hide('#manual-pay-dialog');
+    const STUB_PILOT = {state: 'Idle', awake: {creditMinutes: 600, sleeping: false}, duty: {last24HoursMinutes: 200, limitMinutes: 840},
+        flightTime: {last30DaysMinutes: 745, limit30DaysMinutes: 4800, last365DaysMinutes: 14406, limit365DaysMinutes: 48000}};
+
+    $(function () {
+        initSiteMenu('flight-dashboard');
+        manualPayModal = new bootstrap.Modal(document.getElementById('manualPayModal'));
+        $('#mp-confirm').on('click', function () {
+            manualPayModal.hide();
             sendAction('start-flight-manual');
         });
 
-        loadStatus2();
-        restartRefreshTimer();
+        stub = new URLSearchParams(location.search).get('stub');
+        if (stub !== null) {
+            lastStatus = stubStatus(stub);
+            // over-limit: before the start, the duty time is over its limit (the awake and the flight time are fine)
+            lastPilot = stub === 'over-limit' ? Object.assign({}, STUB_PILOT, {duty: {last24HoursMinutes: 890, limitMinutes: 840}})
+                : (stub === 'travelling' ? Object.assign({}, STUB_PILOT, {state: 'Travelling', destinationIcao: 'KAUS'}) : STUB_PILOT);
+            render();
+            return;
+        }
+        loadStatus();
+        loadPilot();
+        setInterval(function () {
+            if (!actionInProgress) {
+                loadStatus();
+            }
+        }, 10000);
+        // /pilot is read again only where its numbers change and are shown: before the start of a flight (the awake time falls, the limits of the start),
+        // without a flight, while the pilot travels (the place of the arrival), and when it has not been loaded. During the flight nothing of it is shown.
+        setInterval(function () {
+            const flight = lastStatus && lastStatus.flight;
+            const flightInProgress = flight && flight.fmSt !== 'Dispatched';
+            const travelling = lastPilot && lastPilot.state === 'Travelling';
+            if (!lastPilot || !flightInProgress || travelling) {
+                loadPilot();
+            }
+        }, 30000);
     });
-
 </script>
-
-
-<div id="manual-pay-dialog" class="dialog-overlay hidden">
-    <div class="dialog-card">
-        <h5 class="mb-2">Start the flight in the manual mode?</h5>
-        <p class="mb-3">The contract promises you more than a manual flight pays. If you start this flight manually, nothing tracks it and the pay is reduced:</p>
-        <table class="table table-sm mb-3">
-            <thead>
-            <tr>
-                <th></th>
-                <th class="text-end">Promised by the contract</th>
-                <th class="text-end">If started manually</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr>
-                <td>Pilot pay</td>
-                <td class="text-end" id="manual-pay-flight-contract"></td>
-                <td class="text-end text-danger" id="manual-pay-flight-manual"></td>
-            </tr>
-            <tr>
-                <td>Income share</td>
-                <td class="text-end" id="manual-pay-share-contract"></td>
-                <td class="text-end text-danger" id="manual-pay-share-manual"></td>
-            </tr>
-            <tr class="fw-bold">
-                <td>Total</td>
-                <td class="text-end" id="manual-pay-total-contract"></td>
-                <td class="text-end text-danger" id="manual-pay-total-manual"></td>
-            </tr>
-            </tbody>
-        </table>
-        <div class="text-end">
-            <button type="button" id="manual-pay-cancel" class="btn btn-outline-secondary m-1">Cancel</button>
-            <button type="button" id="manual-pay-confirm" class="btn btn-success m-1">Start manual flight</button>
-        </div>
-    </div>
-</div>
-
 </body>
 </html>

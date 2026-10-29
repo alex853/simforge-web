@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / shadowJet</title>
+
+    <script>
+        document.documentElement.dataset.bsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/details.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/requests.js"></script>
+    <script src="../js/flags.js"></script>
+    <script src="js/details.js"></script>
+    <script src="js/roster-demo.js"></script>
+    <style>
+        /* an input inside a tile which looks like the value of a tile: big and bold */
+        .tile-input { font-size: 1.9rem; font-weight: 700; line-height: 1.25; padding: .1rem .5rem; margin-top: .15rem; }
+        /* the codes of the airports are a little smaller than the other big values of the tiles */
+        .tile-input.tile-input-icao { font-size: 1.5rem; padding-top: .3rem; padding-bottom: .3rem; }
+        /* the day and the time are in one line: two dropdowns (departure), a text in the same size (arrival) */
+        .time-line { display: flex; gap: .4rem; margin-top: .25rem; }
+        .tile-input.tile-input-time { font-size: 1.05rem; padding: .3rem 1.5rem .3rem .45rem; margin-top: 0; min-width: 0; background-position: right .4rem center; background-size: 12px 10px; }
+        .time-line #departureDay { flex: 1.6 1 0; }
+        .time-line #departureSelect { flex: 1 1 0; }
+        .tile-static { font-size: 1.15rem; font-weight: 700; line-height: 1.25; padding: .3rem 0; border: 1px solid transparent; border-width: 1px 0; margin-top: .25rem; white-space: nowrap; }
+        /* the name of the airport under the code: twice as big as a hint, it may take two lines */
+        .airport-hint { font-size: 1.7rem; line-height: 1.15; min-height: 1.15em; margin-top: .3rem; white-space: normal; overflow: visible; text-overflow: clip; }
+        .airport-hint { display: flex; align-items: flex-start; gap: .4rem; }
+        .airport-hint .flag { flex: none; margin-top: .1rem; }
+        .tile-input.icao { text-transform: uppercase; letter-spacing: .08em; }
+        .tile-input::placeholder { font-weight: 400; letter-spacing: 0; text-transform: none; opacity: .5; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="index.html">simforge / airways</a>
+    </div>
+</nav>
+
+<main class="container-lg py-4">
+    <div id="pageHeader"></div>
+
+    <p class="text-secondary mb-4">Choose an aircraft type, the route and the time of the departure.</p>
+
+    <!-- the first row: the aircraft type; the rest of the row (the aircraft and the terms of the pilot on the type) appears when a type is chosen -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label" id="typeLabel">Aircraft type</div>
+                <select id="typeSelect" class="form-select form-select-lg tile-input" aria-label="Aircraft type">
+                    <option value="">Choose…</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-12 col-md-3 type-tile" style="display: none;">
+            <div class="stat">
+                <div class="stat-label" id="aircraftLabel">Aircraft</div>
+                <div class="stat-small" id="aircraftValue">Will be selected automatically</div>
+                <div class="stat-hint" id="aircraftHint"></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 type-tile" style="display: none;">
+            <div class="stat">
+                <div class="stat-label">Hourly rate</div>
+                <div class="stat-value" id="hourlyValue">&mdash;</div>
+                <div class="stat-hint" id="hourlyHint"></div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 type-tile" style="display: none;">
+            <div class="stat">
+                <div class="stat-label">Income share</div>
+                <div class="stat-value" id="shareValue">&mdash;</div>
+                <div class="stat-hint">Of the flight income</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- the second row appears together with the rest of the first one: where from, where to, when, and the arrival which is calculated -->
+    <div class="row g-3 mb-4 type-tile" style="display: none;">
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label" id="fromLabel">From</div>
+                <input type="text" id="icaoFrom" class="form-control form-control-lg tile-input tile-input-icao icao" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO" aria-label="Airport from">
+                <div class="stat-hint airport-hint" id="fromHint"></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label">To</div>
+                <input type="text" id="icaoTo" class="form-control form-control-lg tile-input tile-input-icao icao" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO" aria-label="Airport to">
+                <div class="stat-hint airport-hint" id="toHint"></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label">Departure time, UTC</div>
+                <div class="time-line">
+                    <select id="departureDay" class="form-select tile-input tile-input-time" aria-label="Departure day"></select>
+                    <select id="departureSelect" class="form-select tile-input tile-input-time" aria-label="Departure time"></select>
+                </div>
+                <div class="stat-hint" id="departureHint"></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label">Arrival time, UTC</div>
+                <div class="tile-static" id="arrivalValue">&mdash;</div>
+                <div class="stat-hint">Calculated</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <button type="button" id="btnBook" class="btn btn-primary btn-lg px-5" disabled>Book Flight</button>
+        <a class="btn btn-link" href="pilot-roster.html">Back to the roster</a>
+        <div class="form-text" id="bookHint"></div>
+    </div>
+</main>
+
+<script>
+
+    const QUARTER_MILLIS = 15 * 60 * 1000;
+
+    // the time up to the next quarter of an hour, the time which is on a quarter stays
+    function ceilToQuarter(millis) {
+        return Math.ceil(millis / QUARTER_MILLIS) * QUARTER_MILLIS;
+    }
+
+    // 'Today', 'Tomorrow', '31 Oct': the day (UTC) of the time
+    function dayLabel(millis, nowMillis) {
+        const days = Math.floor(millis / 86400000) - Math.floor(nowMillis / 86400000);
+        if (days <= 0) {
+            return 'Today';
+        }
+        return days === 1 ? 'Tomorrow' : new Date(millis).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'});
+    }
+
+    function timeOfDay(millis) {
+        const d = new Date(millis);
+        return pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
+    }
+
+    // the whole time in one line: '10:00' today, 'Tomorrow at 10:00', '31 Oct at 10:00'
+    function departureLabel(millis, nowMillis) {
+        const day = dayLabel(millis, nowMillis);
+        return day === 'Today' ? timeOfDay(millis) : day + ' at ' + timeOfDay(millis);
+    }
+
+    // the arrival is calculated from the departure; TODO the server plans it (the distance and the type), now it is a fixed duration
+    function updateArrival() {
+        const dep = parseInt($('#departureSelect').val(), 10);
+        $('#arrivalValue').text(dep ? dayLabel(dep + DEMO_FLIGHT_MILLIS, Date.now()) + ' ' + timeOfDay(dep + DEMO_FLIGHT_MILLIS) : '\u2014');
+    }
+
+    // The possible departures: from the current time up to the quarter of an hour (the first one) to 24 hours after it, every 15 minutes.
+    // The default is the current time plus one hour, up to the quarter of an hour. When the booking goes on after a booked flight, the times begin at
+    // notBefore (up to the quarter of an hour) and the default is the first one.
+    let departureTimes = [];
+    let departureDefault = 0;
+
+    function fillDepartureTimes(notBefore) {
+        const now = Date.now();
+        const first = ceilToQuarter(Math.max(now, notBefore || 0));
+        departureDefault = notBefore ? first : ceilToQuarter(now + 60 * 60 * 1000);
+        departureTimes = [];
+        for (let t = first; t <= first + 24 * 60 * 60 * 1000; t += QUARTER_MILLIS) {
+            departureTimes.push(t);
+        }
+        // the days which the times are on: the first dropdown; the second one has the times of the chosen day
+        const $day = $('#departureDay');
+        $day.empty();
+        const seen = new Set();
+        departureTimes.forEach(function (t) {
+            const dayStart = Math.floor(t / 86400000) * 86400000;
+            if (!seen.has(dayStart)) {
+                seen.add(dayStart);
+                $day.append($('<option></option>').attr('value', dayStart).text(dayLabel(t, now)));
+            }
+        });
+        $day.val(String(Math.floor(departureDefault / 86400000) * 86400000));
+        fillTimesOfDay();
+    }
+
+    // the times of the chosen day; the default time is chosen if it is on this day, otherwise the first time of the day
+    function fillTimesOfDay() {
+        const dayStart = parseInt($('#departureDay').val(), 10);
+        const $sel = $('#departureSelect');
+        $sel.empty();
+        departureTimes.filter(function (t) { return Math.floor(t / 86400000) * 86400000 === dayStart; }).forEach(function (t) {
+            $sel.append($('<option></option>').attr('value', t).text(timeOfDay(t)).prop('selected', t === departureDefault));
+        });
+        updateArrival();
+    }
+
+    // The airport of an ICAO code: the flag and the name below the field when the code is right (GET /map/airport/info, it is public), a note when it is not.
+    // The answer of an old request must not replace the one of the code which is in the field now.
+    const airportCache = {};
+    const airportKnown = {from: false, to: false};
+
+    function showAirport(side, icao) {
+        const $hint = $(side === 'from' ? '#fromHint' : '#toHint');
+        airportKnown[side] = false;
+        updateBookState();
+        if (icao.length !== 4) {
+            $hint.empty();
+            return;
+        }
+        const render = function (info) {
+            if ((side === 'from' ? $('#icaoFrom') : $('#icaoTo')).val().toUpperCase() !== icao) {
+                return;
+            }
+            airportKnown[side] = !!info;
+            $hint.html(info ? flagImg(info.country, 32) + '<span>' + esc(info.name) + '</span>' : '<span class="text-danger">Unknown airport</span>');
+            updateBookState();
+        };
+        if (icao in airportCache) {
+            render(airportCache[icao]);
+            return;
+        }
+        airwaysGet('/map/airport/info?icao=' + encodeURIComponent(icao), function (info) {
+            airportCache[icao] = info;
+            render(info);
+        }, function () {
+            airportCache[icao] = null;
+            render(null);
+        });
+    }
+
+    // The reference of the aircraft types (GET /shadow-jet/aircraft-types). The type of the address (the booking goes on after a booked flight) is chosen and locked
+    // when the reference has it.
+    function loadTypes(presetType) {
+        const $sel = $('#typeSelect');
+        airwaysAuth('GET', '/shadow-jet/aircraft-types', {}, function (types) {
+            types.forEach(function (type) {
+                $sel.append($('<option></option>').attr('value', type.icao).text(type.icao));
+            });
+            if (presetType) {
+                $sel.val(presetType);
+                if ($sel.val() === presetType) {
+                    $sel.prop('disabled', true);
+                    $('#typeLabel').html('Aircraft type &#128274;');
+                }
+            }
+            updateTerms();
+            updateBookState();
+        }, function () {
+            $sel.find('option').first().text('Unavailable');
+            $sel.prop('disabled', true);
+        });
+    }
+
+    // the aircraft, the terms of the pilot and the second row appear when a type is chosen
+    function updateTerms() {
+        const type = $('#typeSelect').val();
+        $('.type-tile').toggle(!!type);
+        // TODO the numbers come from the server when the method for them exists
+        $('#hourlyHint').text(type ? 'Per flight hour, ' + type : '');
+    }
+
+    // What stops the booking: the first thing which is not right, null when the flight can be booked
+    function bookProblem() {
+        if (!$('#typeSelect').val()) {
+            return 'Choose the aircraft type.';
+        }
+        const from = $('#icaoFrom').val().toUpperCase();
+        const to = $('#icaoTo').val().toUpperCase();
+        if (from.length !== 4 || to.length !== 4) {
+            return 'Enter the ICAO codes of both airports.';
+        }
+        if (!airportKnown.from || !airportKnown.to) {
+            return 'The airport is not known.';
+        }
+        if (from === to) {
+            return 'The airports of the departure and of the arrival are the same.';
+        }
+        if (!parseInt($('#departureSelect').val(), 10)) {
+            return 'Choose the time of the departure.';
+        }
+        return null;
+    }
+
+    // the button is disabled while the flight cannot be booked, the hint under it says why
+    function updateBookState() {
+        const problem = bookProblem();
+        $('#btnBook').prop('disabled', problem !== null);
+        $('#bookHint').text(problem || '');
+    }
+
+    // The booking. TODO the server books the flight, finds the aircraft of the type at the airport (or brings one from a near airport) and plans the time of the
+    // arrival; now the flight goes to the demo roster of this browser and the page goes back to the roster.
+    function book() {
+        if (bookProblem() !== null) {
+            return;
+        }
+        const type = $('#typeSelect').val();
+        const from = $('#icaoFrom').val().toUpperCase();
+        const to = $('#icaoTo').val().toUpperCase();
+        const dep = parseInt($('#departureSelect').val(), 10);
+        const reg = new URLSearchParams(location.search).get('aircraft') || 'G-SJ' + pad2(Math.floor(Math.random() * 100));
+        demoRosterAdd({operator: 'ShadowJet', from: from, to: to, dep: dep, arr: dep + DEMO_FLIGHT_MILLIS, reg: reg, type: type});
+        location.href = 'pilot-roster.html';
+    }
+
+    // undefined - not loaded yet, null - failed or there is no pilot
+    let pilotInfo;
+
+    function renderHeader() {
+        $('#pageHeader').html(pilotHeader({kind: 'shadowJet', title: 'Book Flight', avatarImage: pilotInfo ? pilotInfo.avatarImage : null}));
+    }
+
+    function loadPilot() {
+        airwaysAuth('GET', '/pilot', {}, function (p) {
+            pilotInfo = p;
+            renderHeader();
+        }, function () {
+            if (pilotInfo === undefined) {
+                pilotInfo = null;
+                renderHeader();
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        initSiteMenu('shadow-jet');
+        renderHeader();
+        const params = new URLSearchParams(location.search);
+        loadTypes(params.get('type'));
+        const notBefore = parseInt(params.get('notBefore'), 10) || 0;
+        fillDepartureTimes(notBefore);
+        loadPilot();
+
+        // The booking goes on after a booked flight: the airport of the departure, the type and the aircraft are the ones of the sequence, the time has its minimum.
+        // TODO the server must check the same (the expected position of the pilot), the address is only a prefill
+        if (params.get('from')) {
+            $('#icaoFrom').val(params.get('from').toUpperCase().slice(0, 4)).prop('disabled', true);
+            $('#fromLabel').html('From &#128274;');
+            $('#icaoTo').trigger('focus');
+        }
+        if (params.get('aircraft')) {
+            $('#aircraftValue').attr('class', 'stat-value').text(params.get('aircraft'));
+            $('#aircraftLabel').html('Aircraft &#128274;');
+            $('#aircraftHint').text('The same as the flights before');
+        }
+        if (notBefore) {
+            $('#departureHint').text('Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), notBefore)), Date.now()));
+        }
+
+        // The booked flights bind the booking even when the address has nothing: the earliest time comes from the last flight (a new flight is not bound by the place)
+        if (!notBefore) {
+            loadRosterFlights(function (flights) {
+                const c = rosterContinuation(flights, false);
+                if (c) {
+                    fillDepartureTimes(c.notBefore);
+                    $('#departureHint').text('Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), c.notBefore)), Date.now()));
+                }
+            });
+        }
+
+        $('#typeSelect').on('change', function () {
+            updateTerms();
+            updateBookState();
+        });
+        $('#departureSelect').on('change', function () {
+            updateArrival();
+            updateBookState();
+        });
+        updateArrival();
+        updateTerms();
+        $('#btnBook').on('click', book);
+        $('#departureDay').on('change', fillTimesOfDay);
+        $('.icao').on('input', function () {
+            this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            showAirport(this.id === 'icaoFrom' ? 'from' : 'to', this.value);
+        });
+        showAirport('from', $('#icaoFrom').val().toUpperCase());
+        updateBookState();
+        setInterval(function () {
+            if (!document.hidden) {
+                loadPilot();
+            }
+        }, 60 * 1000);
+    });
+</script>
+</body>
+</html>

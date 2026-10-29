@@ -159,9 +159,10 @@ const SITE_MENU_ITEMS = [
     {key: 'pilot', label: 'Pilot', href: 'pilot.html'},
     {key: 'qualifications', label: 'Qualifications', href: 'pilot-qualifications.html'},
     {key: 'logbook', label: 'Logbook', href: 'pilot-logbook.html'},
+    {key: 'pilot-roster', label: 'Roster', href: 'pilot-roster.html'},
     {divider: true},
     {key: 'flight-dashboard', label: 'Flight dashboard', href: 'flight-dashboard.html'},
-    {key: 'flight-dashboard-tile', label: 'Flight Dashboard Tile', href: 'flight-dashboard-tile.html'},
+    {key: 'shadow-jet', label: 'Book ShadowJet', href: 'shadow-jet.html'},
     {key: 'busy-birds', label: 'Book busyBirds', href: 'busy-birds.html'}
 ];
 
