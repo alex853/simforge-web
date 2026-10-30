@@ -43,6 +43,8 @@
 
         /* a time which is only planned or estimated is grey and italic, a time which has happened is plain and bold */
         .t-plan { color: var(--bs-secondary-color); font-style: italic; }
+        /* a planned time in a big value: italic and thin, as the planned times of the list (Blocks off 17:00), not bold */
+        .stat-value.t-plan.t-time { font-weight: 400; }
         .t-fact { font-weight: 700; }
         .time-lines { font-size: 1.15rem; line-height: 1.55; }
         .time-lines .k, .count-lines .k { display: inline-block; min-width: 6.4rem; color: var(--bs-secondary-color); font-size: .85rem; text-transform: uppercase; letter-spacing: .08em; }
@@ -143,7 +145,7 @@
 
     const timeTile = (f, key) => {
         const t = timeOf(f, key);
-        return {label: LABELS[key], html: '<div class="stat-value big ' + (t.kind === 'fact' ? 't-fact' : 't-plan') + '"' + planTitle(t) + '>' + esc(t.text ?? '--:--') + '</div>',
+        return {label: LABELS[key], html: '<div class="stat-value big ' + (t.kind === 'fact' ? 't-fact' : 't-plan t-time') + '"' + planTitle(t) + '>' + esc(t.text ?? '--:--') + '</div>',
             hint: t.kind === 'fact' ? (t.plan && t.plan !== t.text ? 'planned ' + esc(t.plan) : 'actual') : 'planned'};
     };
 
@@ -287,7 +289,7 @@
         if (f.tfSt !== 'Scheduled') {
             return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big'};
         }
-        return {label: 'Check-in', html: '<div class="stat-value big">' + (f.cinStart ?? todo('the time of the start of the check-in')) + '</div>', hint: 'the check-in starts'};
+        return {label: 'Check-in', html: '<div class="stat-value big t-plan t-time">starts at ' + (f.cinStart ?? todo('the time of the start of the check-in')) + '</div>'};
     }
 
     // The boarding can not begin before the start of the flight, the pilot starts it with the button. The plan: the end is 10 minutes before the planned departure, the start is
@@ -298,7 +300,7 @@
         }
         if (f.fmSt === 'Dispatched') {
             if (f.brdStart) {
-                return {label: 'Boarding', value: f.brdStart, cls: 'big t-plan', hint: 'planned start, not before Start flight'};
+                return {label: 'Boarding', value: 'starts at ' + f.brdStart, cls: 'big t-plan t-time', hint: 'but not before Start flight'};
             }
             return {label: 'Boarding', value: 'after the start', cls: 'big t-plan', hint: 'not before Start flight'};
         }
