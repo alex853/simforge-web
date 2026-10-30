@@ -21,7 +21,7 @@
     <script src="js/pilot-tiles.js"></script>
 
     <style>
-        /* The flight dashboard in tiles (the page of the flight, the old one is flight-dashboard-old.html). The rows of tiles change with the stage of the flight, the big
+        /* The flight dashboard in tiles (the page of the flight). The rows of tiles change with the stage of the flight, the big
            area under them has the messages, the conditions and the buttons. ?stub=<stage> shows stub data of a stage without the server. */
         .tile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1rem; }
         .tile-grid .tile-2 { grid-column: span 2; }
@@ -424,7 +424,7 @@
 
     const rowHtml = row => '<div class="tile-grid">' + row.map(tileHtml).join('') + '</div>';
 
-    // ---- the actions of the stage (the same rules as flight-dashboard-old.html)
+    // ---- the actions of the stage
 
     // The steps which the tracker does itself in the SIM_TRACKER mode
     const TRACKED_ACTIONS = ['blocks-off', 'takeoff', 'landing', 'blocks-on'];
