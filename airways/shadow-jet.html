@@ -124,7 +124,7 @@
                     <select id="departureDay" class="form-select tile-input tile-input-time" aria-label="Departure day"></select>
                     <select id="departureSelect" class="form-select tile-input tile-input-time" aria-label="Departure time"></select>
                 </div>
-                <div class="stat-hint" id="departureHint"></div>
+                <div class="stat-hint hint-wrap" id="departureHint"></div>
             </div>
         </div>
         <div class="col-12 col-md-3">
@@ -150,8 +150,9 @@
         <div class="col-12 col-md-3">
             <div class="stat">
                 <div class="stat-label">Expected load</div>
-                <div class="stat-value"><span class="todo" title="the load which the flight can reach and the approximate income come from the server later">TODO</span></div>
-                <div class="stat-hint hint-wrap">The load the flight can reach and the approximate income</div>
+                <div class="stat-value" id="loadValue">&mdash;</div>
+                <div class="stat-hint hint-wrap">The sales team hopes to gather it; the real load is known at the end of the booking</div>
+                <div class="stat-hint">Approximate income: <span class="todo" title="the income of such a load is not calculated yet">TODO</span></div>
             </div>
         </div>
     </div>
@@ -162,6 +163,7 @@
         <div class="col-12 col-md-6">
             <button type="button" id="btnBook" class="btn btn-primary btn-lg px-5" disabled>Book Flight</button>
             <a class="btn btn-link" href="pilot-roster.html">Back to the roster</a>
+            <div id="bookError" class="mt-2"></div>
             <div class="form-text" id="bookHint"></div>
         </div>
     </div>
@@ -233,37 +235,37 @@
         $('#timeBeforeValue').text('in ' + (parts.length ? parts.join(' ') : '0 min'));
     }
 
-    // The duration of the flight (blocks off to blocks on) is calculated by the server from the type and the route (GET /shadow-jet/calculate-flight-duration), the same
-    // way as the planned arrival of the flight which is booked. The arrival is the departure plus the duration. It is asked when the type and both airports are
-    // known; until then there is no arrival, only the explanation.
-    // durationKey is what the duration is asked for, flightDurationMillis is the answer (null while it is not here), durationFailed says the server has not given it.
-    let durationKey = null;
-    let flightDurationMillis = null;
-    let durationFailed = false;
+    // What the server says when the type, the route and the time of the departure are known (GET /shadow-jet/plan-flight): the arrival, whether the slot is free (the flight
+    // does not cross another planned flight of the pilot) and the expected load (null for now). Until everything is known there is no arrival, only the explanation.
+    // planKey is what the plan is asked for, plan is the answer (null while it is not here), planFailed says the server has not given it.
+    let planKey = null;
+    let plan = null;
+    let planFailed = false;
 
-    function loadFlightDuration() {
+    function loadPlan() {
         const type = $('#typeSelect').val();
         const from = $('#icaoFrom').val().toUpperCase();
         const to = $('#icaoTo').val().toUpperCase();
-        const ready = type && airportKnown.from && airportKnown.to && from !== to;
-        const key = ready ? type + ' ' + from + ' ' + to : null;
-        if (key === durationKey) {
+        const dep = parseInt($('#departureSelect').val(), 10);
+        const ready = type && airportKnown.from && airportKnown.to && from !== to && dep;
+        const key = ready ? type + ' ' + from + ' ' + to + ' ' + dep : null;
+        if (key === planKey) {
             return;
         }
-        durationKey = key;
-        flightDurationMillis = null;
-        durationFailed = false;
+        planKey = key;
+        plan = null;
+        planFailed = false;
         if (!key) {
             return;
         }
-        airwaysAuth('GET', '/shadow-jet/calculate-flight-duration', {type: type, from: from, to: to}, function (r) {
-            if (durationKey === key) {
-                flightDurationMillis = r.durationSeconds * 1000;
+        airwaysAuth('GET', '/shadow-jet/plan-flight', {type: type, from: from, to: to, departureTime: dep}, function (r) {
+            if (planKey === key) {
+                plan = r;
                 updateBookState();
             }
         }, function () {
-            if (durationKey === key) {
-                durationFailed = true;
+            if (planKey === key) {
+                planFailed = true;
                 updateBookState();
             }
         });
@@ -271,29 +273,58 @@
 
     function updateArrival() {
         updateTimeBefore();
-        const dep = parseInt($('#departureSelect').val(), 10);
         const $value = $('#arrivalValue');
-        if (!durationKey || !dep) {
+        if (!planKey) {
             $value.addClass('arrival-wait').text('Enter airports to get the arrival time');
-        } else if (durationFailed) {
+        } else if (planFailed) {
             $value.addClass('arrival-wait').text('The arrival time is not available');
-        } else if (flightDurationMillis === null) {
+        } else if (plan === null) {
             $value.addClass('arrival-wait').text('Calculating the arrival time\u2026');
         } else {
-            const arrival = dep + flightDurationMillis;
-            $value.removeClass('arrival-wait').text(dayLabel(arrival, Date.now()) + ' ' + timeOfDay(arrival));
+            $value.removeClass('arrival-wait').text(dayLabel(plan.arrivalTime, Date.now()) + ' ' + timeOfDay(plan.arrivalTime));
         }
     }
 
-    // The possible departures: from the current time up to the quarter of an hour (the first one) to 24 hours after it, every 15 minutes.
+    // what the sales team hopes to gather by how long before the departure the flight is booked (the answer of plan-flight): '20\u201325%'
+    function updateLoad() {
+        const load = plan ? plan.expectedLoad : null;
+        $('#loadValue').text(load ? (load.loadFromPercent === load.loadToPercent ? load.loadFromPercent : load.loadFromPercent + '\u2013' + load.loadToPercent) + '%' : '\u2014');
+    }
+
+    // the hint under the departure: the flight which takes the slot (red), otherwise the earliest time of the booking
+    let departureHintBase = '';
+
+    function updateDepartureHint() {
+        const slot = plan ? plan.slot : null;
+        if (slot && !slot.free) {
+            $('#departureHint').html('<span class="text-danger">' + esc(slotProblem(slot)) + '</span>');
+        } else {
+            $('#departureHint').text(departureHintBase);
+        }
+    }
+
+    // Why the slot is not good: too soon (less than 30 minutes from now), or too close to a flight of the pilot (less than 30 minutes between them):
+    // 'The flight EGLL -> EGKK (Tomorrow at 10:00 - 11:30) is too close: there must be at least 30 minutes between the flights.'
+    function slotProblem(slot) {
+        const now = Date.now();
+        if (slot.conflict) {
+            const c = slot.conflict;
+            return 'Your flight ' + c.from + ' \u2192 ' + c.to + ' (' + departureLabel(c.departureTime, now) + ' \u2013 ' + departureLabel(c.arrivalTime, now)
+                + ') is too close: there must be at least 30 minutes between the flights.';
+        }
+        return 'The departure is too soon: not earlier than ' + departureLabel(slot.earliestDepartureTime, now) + ' (30 minutes from now).';
+    }
+
+    // The possible departures: from 30 minutes after the current time, up to the quarter of an hour (the first one), to 24 hours after it, every 15 minutes.
     // The default is the current time plus one hour, up to the quarter of an hour. When the booking goes on after a booked flight, the times begin at
-    // notBefore (up to the quarter of an hour) and the default is the first one.
+    // notBefore (the arrival of the last flight plus 30 minutes, up to the quarter of an hour) and the default is the first one.
     let departureTimes = [];
     let departureDefault = 0;
 
     function fillDepartureTimes(notBefore) {
         const now = Date.now();
-        const first = ceilToQuarter(Math.max(now, notBefore || 0));
+        // not earlier than the least gap (30 minutes) from now, up to the quarter of an hour: 35 to 45 minutes from now; and not earlier than notBefore (the last flight and the gap)
+        const first = ceilToQuarter(Math.max(now + MIN_GAP_MILLIS, notBefore || 0));
         departureDefault = notBefore ? first : ceilToQuarter(now + 60 * 60 * 1000);
         departureTimes = [];
         for (let t = first; t <= first + 24 * 60 * 60 * 1000; t += QUARTER_MILLIS) {
@@ -447,37 +478,70 @@
         if (!parseInt($('#departureSelect').val(), 10)) {
             return 'Choose the time of the departure.';
         }
-        if (durationFailed) {
-            return 'The duration of the flight is not available, try again later.';
+        if (planFailed) {
+            return 'The flight cannot be planned now, try again later.';
         }
-        if (flightDurationMillis === null) {
+        if (plan === null) {
             return 'Calculating the arrival time…';
+        }
+        if (!plan.slot.free) {
+            return slotProblem(plan.slot);
         }
         return null;
     }
 
     // the button is disabled while the flight cannot be booked, the hint under it says why
     function updateBookState() {
-        loadFlightDuration();
+        loadPlan();
         updateArrival();
+        updateDepartureHint();
+        updateLoad();
         const problem = bookProblem();
         $('#btnBook').prop('disabled', problem !== null);
         $('#bookHint').text(problem || '');
     }
 
-    // The booking. TODO the server books the flight, finds the aircraft of the type at the airport (or brings one from a near airport) and plans the time of the
-    // arrival; now the flight goes to the demo roster of this browser and the page goes back to the roster.
+    // The booking (PUT /shadow-jet/flight/book): the server reserves the aircraft, makes the flight of the pilot, the contract and the transport flight with the passengers.
+    // Then the page goes to the roster, where the flight is. A refusal (the pilot is not idle, the time is taken) is an answer with status "failure" and the reasons: they are
+    // shown on the page and nothing is booked.
+    let booking = false;
+
     function book() {
-        if (bookProblem() !== null) {
+        if (booking || bookProblem() !== null) {
             return;
         }
-        const type = $('#typeSelect').val();
-        const from = $('#icaoFrom').val().toUpperCase();
-        const to = $('#icaoTo').val().toUpperCase();
-        const dep = parseInt($('#departureSelect').val(), 10);
-        const reg = new URLSearchParams(location.search).get('aircraft') || 'G-SJ' + pad2(Math.floor(Math.random() * 100));
-        demoRosterAdd({operator: 'ShadowJet', from: from, to: to, dep: dep, arr: dep + flightDurationMillis, reg: reg, type: type});
-        location.href = 'pilot-roster.html';
+        booking = true;
+        $('#bookError').empty();
+        $('#btnBook').prop('disabled', true);
+        const params = {
+            type: $('#typeSelect').val(),
+            from: $('#icaoFrom').val().toUpperCase(),
+            to: $('#icaoTo').val().toUpperCase(),
+            departureTime: parseInt($('#departureSelect').val(), 10)
+        };
+        // the flight goes on after a flight of the pilot on the same aircraft (the tile "Book the next flight" of the roster)
+        const aircraft = new URLSearchParams(location.search).get('aircraft');
+        if (aircraft) {
+            params.aircraft = aircraft;
+        }
+        airwaysAuth('PUT', '/shadow-jet/flight/book', params, function (response) {
+            if (response && response.status === 'success') {
+                location.href = 'pilot-roster.html';
+                return;
+            }
+            bookingFailed((response && response.messages) || ['The flight is not booked.']);
+        }, function (xhr) {
+            const j = xhr && xhr.responseJSON;
+            bookingFailed([j && j.message ? j.message : 'The flight is not booked, try again later.']);
+        });
+    }
+
+    function bookingFailed(messages) {
+        booking = false;
+        $('#bookError').html('<div class="alert alert-danger mb-2">' + messages.map(esc).join('<br>') + '</div>');
+        // the plan is asked again: the slot or the time could have changed
+        planKey = null;
+        updateBookState();
     }
 
     // undefined - not loaded yet, null - failed or there is no pilot
@@ -532,7 +596,8 @@
             $('#aircraftHint').text('The same as the flights before');
         }
         if (notBefore) {
-            $('#departureHint').text('Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), notBefore)), Date.now()));
+            departureHintBase = 'Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), notBefore)), Date.now());
+            updateDepartureHint();
         }
 
         // The booked flights bind the booking even when the address has nothing: the earliest time comes from the last flight (a new flight is not bound by the place)
@@ -541,7 +606,8 @@
                 const c = rosterContinuation(flights, false);
                 if (c) {
                     fillDepartureTimes(c.notBefore);
-                    $('#departureHint').text('Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), c.notBefore)), Date.now()));
+                    departureHintBase = 'Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), c.notBefore)), Date.now());
+                    updateDepartureHint();
                 }
             });
         }

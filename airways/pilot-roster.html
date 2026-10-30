@@ -98,19 +98,25 @@
         return sameDay ? hhmm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ' + hhmm;
     }
 
-    // TODO the actions are disabled until the server has them (fly = start the flight, reschedule, cancel)
+    // The id of the first flight of the roster which is not over: only it has the button Fly (the green one), it goes to the flight dashboard, where the pilot starts the
+    // flight. The other flights have no Fly (its place is kept, the buttons do not jump). TODO Reschedule and Cancel are disabled until the server has them.
+    let firstFlightToFlyId = null;
+
     function actionsHtml(fl) {
         // a flight which is over has no buttons
         if (!isRosterFlightActive(fl)) {
             return '';
         }
-        return '<div class="flight-actions">' +
-            '<button type="button" class="btn btn-outline-secondary" disabled>Fly</button>' +
+        const fly = fl.id === firstFlightToFlyId
+            ? '<a class="btn btn-success" href="flight-dashboard.html">Fly</a>'
+            : '<span class="btn btn-outline-secondary invisible" aria-hidden="true">Fly</span>';
+        return '<div class="flight-actions">' + fly +
             '<button type="button" class="btn btn-outline-secondary" disabled>Reschedule</button>' +
             '<button type="button" class="btn btn-outline-secondary" disabled>Cancel</button></div>';
     }
 
-    // The tickets come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight). The income of the flight is not in my-flights yet.
+    // The tickets and the income come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight; the income is the sum of the
+    // price of the journeys of the flight, 0 for the flights which were before the income and for the journeys without a price).
     function salesHtml(fl) {
         // a flight without a transport flight is a ferry flight (no passengers, so no tickets and no income)
         if (fl.ferry) {
@@ -123,16 +129,19 @@
             : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
               '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>';
         return '<div class="flight-sales' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '">' + tickets +
-            '<div><span class="sales-label">Income</span><span class="todo" title="the income of the flight is not counted yet">TODO</span></div></div>';
+            '<div><span class="sales-label">Income</span><span class="fw-semibold">' + (fl.income === null || fl.income === undefined ? '&mdash;' : moneyHtml(fl.income)) + '</span></div></div>';
     }
 
+    // todo ak1 (near future, 2026-10-30) the state of the check-in in the tile of a flight: "the check-in starts at 14:30", "the check-in goes" (how many have checked in, my-flights has
+    // checkedIn), "the check-in is closed". The check-in of the next flight often starts before the previous flight lands, so it is good to see it. my-flights has no time of
+    // the start of the check-in yet (TransportFlightHelper.calcCheckinStartTime), it must be given as a new field. The boarding and the deboarding later, the same way.
     // A booked flight, a double tile in the middle. The operator, the type and the aircraft are in the tile of the aircraft next to it. Only the last flight of
     // the roster can be cancelled.
     function flightTile(fl, isLast) {
         return '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
-            '<div class="stat-label">' + fl.status + (fl.demo ? ' &middot; demo' : '') + '</div>' +
+            '<div class="stat-label">' + fl.status + '</div>' +
             '<div class="flight-route">' + fl.from + ' &rarr; ' + fl.to + '</div>' +
             '<div class="stat-hint">' + timeLabel(fl.dep) + ' &rarr; ' + timeLabel(fl.arr) + '</div>' +
             '</div>';
@@ -207,6 +216,8 @@
         rosterFlights = allFlights;
         renderFilter();
         const flights = rosterFilter === 'recent' ? allFlights.filter(isRecent) : allFlights;
+        const firstToFly = allFlights.find(isRosterFlightActive);
+        firstFlightToFlyId = firstToFly ? firstToFly.id : null;
         const $body = $('#rosterBody');
         // the booking goes on after the last flight of all the flights, also when the old ones are not shown: a new flight (not the continuation) is bound by the booked
         // flights: any place and aircraft, not earlier than 2 hours after the last arrival
