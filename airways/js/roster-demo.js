@@ -62,11 +62,16 @@ function myFlightToRosterFlight(m) {
 }
 
 // The flights of the roster from my-flights, by the departure; callback(flights), an empty list when my-flights is not loaded
-function loadRosterFlights(callback) {
+// errorCallback is optional: a page which reloads the list keeps the old one when the request fails; without it the list is empty
+function loadRosterFlights(callback, errorCallback) {
     airwaysAuth('GET', '/flight-dashboard/my-flights', {}, function (response) {
         // TODO all the flights of my-flights are shown, the old ones too: the roster must show a part of the history only (the flights of the last days) when there are many
         callback((response.flights || []).map(myFlightToRosterFlight).sort(function (a, b) { return a.dep - b.dep; }));
     }, function () {
-        callback([]);
+        if (errorCallback) {
+            errorCallback();
+        } else {
+            callback([]);
+        }
     });
 }

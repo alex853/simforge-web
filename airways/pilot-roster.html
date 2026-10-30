@@ -69,10 +69,14 @@
     <!-- the line of the subtitle: on the right the switch of the flights which are shown -->
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
         <p class="text-secondary mb-0">The flights you have booked, in the order you fly them.</p>
-        <div class="btn-group btn-group-sm" role="group" aria-label="Which flights are shown" id="flightsFilter">
-            <button type="button" class="btn btn-outline-secondary" data-filter="recent"
-                    title="The flights which are not over and the ones which ended not earlier than 12 hours ago">Recent flights</button>
-            <button type="button" class="btn btn-outline-secondary" data-filter="all" title="All the flights, the old ones too">All flights</button>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary small" id="reloadedAt"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="reloadRoster" title="Load the flights again; it is done by itself once a minute">Reload</button>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Which flights are shown" id="flightsFilter">
+                <button type="button" class="btn btn-outline-secondary" data-filter="recent"
+                        title="The flights which are not over and the ones which ended not earlier than 12 hours ago">Recent flights</button>
+                <button type="button" class="btn btn-outline-secondary" data-filter="all" title="All the flights, the old ones too">All flights</button>
+            </div>
         </div>
     </div>
 
@@ -252,11 +256,44 @@
         }, function () { /* the header stays without the avatar */ });
     }
 
+    // The list is loaded again by the button and once a minute (not while the page is hidden). A failed reload keeps the list which is shown.
+    const RELOAD_PERIOD_MILLIS = 60 * 1000;
+    let reloading = false;
+
+    function reloadRoster() {
+        if (reloading) {
+            return;
+        }
+        reloading = true;
+        $('#reloadRoster').prop('disabled', true);
+        loadRosterFlights(function (flights) {
+            reloading = false;
+            $('#reloadRoster').prop('disabled', false);
+            renderRoster(flights);
+            $('#reloadedAt').text('Updated ' + pad2(new Date().getUTCHours()) + ':' + pad2(new Date().getUTCMinutes()) + ' UTC');
+        }, function () {
+            reloading = false;
+            $('#reloadRoster').prop('disabled', false);
+            $('#reloadedAt').text('Reload failed');
+        });
+    }
+
     $(document).ready(function () {
         initSiteMenu('pilot-roster');
         renderHeader();
         loadPilot();
-        loadRosterFlights(renderRoster);
+        reloadRoster();
+        $('#reloadRoster').on('click', reloadRoster);
+        setInterval(function () {
+            if (!document.hidden) {
+                reloadRoster();
+            }
+        }, RELOAD_PERIOD_MILLIS);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                reloadRoster();
+            }
+        });
         $('#flightsFilter').on('click', '.btn', function () {
             rosterFilter = $(this).attr('data-filter');
             try {
