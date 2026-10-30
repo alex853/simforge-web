@@ -277,27 +277,32 @@
         }
     }
 
-    // The check-in goes by itself, the time is counted from the planned departure: it does not depend on the start of the flight. The tile is like the
-    // deboarding one: how many have checked in so far and when it ends (no number of the sold tickets, they are in the payload).
+    // The check-in goes by itself, its window is fixed and counted from the planned departure (it starts 120 minutes before it and ends 30 minutes before it, cinStart and cinEnd of
+    // the status): it does not depend on the start of the flight or on the aircraft. The tile is like the deboarding one: how many have checked in so far and when it ends (no number
+    // of the sold tickets, they are in the payload).
     function checkInTile(f) {
         if (f.tfSt === 'CheckIn') {
-            return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the check-in')};
+            return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big good', hint: f.cinEnd ? 'ends at ' + f.cinEnd : ''};
         }
         if (f.tfSt !== 'Scheduled') {
             return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big'};
         }
-        return {label: 'Check-in', html: '<div class="stat-value big">' + todo('the time of the start of the check-in') + '</div>', hint: 'starts at'};
+        return {label: 'Check-in', html: '<div class="stat-value big">' + (f.cinStart ?? todo('the time of the start of the check-in')) + '</div>', hint: 'the check-in starts'};
     }
 
-    // The boarding can not begin before the start of the flight, the pilot starts it with the button.
+    // The boarding can not begin before the start of the flight, the pilot starts it with the button. The plan: the end is 10 minutes before the planned departure, the start is
+    // the end minus the duration by the cabin layout (brdStart, brdEnd of the status). Nothing ends the boarding by the planned end: it is only a plan.
     function boardingTile(f) {
         if (f.tfSt === 'Boarding') {
-            return {label: 'Boarding', value: (f.ponBrd ?? 0) + ' boarded', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the boarding')};
+            return {label: 'Boarding', value: (f.ponBrd ?? 0) + ' boarded', cls: 'big good', hint: f.brdEnd ? 'ends at ' + f.brdEnd : ''};
         }
         if (f.fmSt === 'Dispatched') {
+            if (f.brdStart) {
+                return {label: 'Boarding', value: f.brdStart, cls: 'big t-plan', hint: 'planned start, not before Start flight'};
+            }
             return {label: 'Boarding', value: 'after the start', cls: 'big t-plan', hint: 'not before Start flight'};
         }
-        return {label: 'Boarding', value: 'Waiting', cls: 'big t-wait', hint: 'start it when you are ready'};
+        return {label: 'Boarding', value: 'Waiting', cls: 'big t-wait', hint: (f.brdStart ? 'planned start at ' + f.brdStart + ', ' : '') + 'start it when you are ready'};
     }
 
     function deboardingTile(f) {
@@ -606,7 +611,7 @@
             return {mode: null, actions: [], sim: {status: 'Connected'}, flight: null, pilot: {state: 'PERSON_NOT_IDLE'}};
         }
         const f = {dep: 'KAUS', dest: 'MMMX', fmId: '1', fmSt: 'Dispatched', tfId: 't1', tfSt: 'Scheduled', pdep: '19:05', parr: '20:51', etkf: '19:15', eldg: '20:41', earr: '20:51',
-            acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true};
+            acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true, brdStart: '18:36', brdEnd: '18:55', cinStart: '17:05', cinEnd: '18:35'};
         const dutyOk = name !== 'over-limit';
         const limits = [{name: 'The awake time is within the limit (the pilot is not overtired)', result: true},
             {name: 'The duty time in 24 hours is within the limit', result: dutyOk},
