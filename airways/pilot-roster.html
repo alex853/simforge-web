@@ -38,6 +38,8 @@
             .flight-sales.no-actions { right: 1.1rem; }
         }
         .flight-sales > div { display: flex; justify-content: space-between; gap: 1rem; }
+        /* with the line of the state the four lines are pressed a bit, so the block is not higher than the tile */
+        .flight-sales.has-state { line-height: 1.3; }
         .flight-sales .sales-label { color: var(--bs-secondary-color); }
         .flight-tile:last-child { margin-bottom: 0 !important; }
         /* the tile of the aircraft: to the left of the flights of the aircraft, half a tile wide and as high as they are, next to them */
@@ -103,20 +105,15 @@
     }
 
     // The id of the first flight of the roster which is not over: only it has the button Fly (the green one), it goes to the flight dashboard, where the pilot starts the
-    // flight. The other flights have no Fly (its place is kept, the buttons do not jump). TODO Reschedule and Cancel are disabled until the server has them.
+    // flight. The other flights have no buttons. TODO Reschedule and Cancel are not shown until the server has them (they were disabled buttons, removed 2026-10-30).
     let firstFlightToFlyId = null;
 
     function actionsHtml(fl) {
-        // a flight which is over has no buttons
-        if (!isRosterFlightActive(fl)) {
+        // only the first flight which is not over has a button
+        if (fl.id !== firstFlightToFlyId || !isRosterFlightActive(fl)) {
             return '';
         }
-        const fly = fl.id === firstFlightToFlyId
-            ? '<a class="btn btn-success" href="flight-dashboard.html">Fly</a>'
-            : '<span class="btn btn-outline-secondary invisible" aria-hidden="true">Fly</span>';
-        return '<div class="flight-actions">' + fly +
-            '<button type="button" class="btn btn-outline-secondary" disabled>Reschedule</button>' +
-            '<button type="button" class="btn btn-outline-secondary" disabled>Cancel</button></div>';
+        return '<div class="flight-actions"><a class="btn btn-success" href="flight-dashboard.html">Fly</a></div>';
     }
 
     // The tickets and the income come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight; the income is the sum of the
@@ -132,7 +129,10 @@
             ? '<div><span class="sales-label">Carried PAX</span><span class="fw-semibold">' + num(fl.carried) + '</span></div>'
             : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
               '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>';
-        return '<div class="flight-sales' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '">' + tickets +
+        // the state of the transport flight over the numbers: now only the open check-in (a green bold line), the other states come later (todo ak1 below)
+        const checkInOpen = fl.tfStatus === 'CheckIn';
+        return '<div class="flight-sales' + (isRosterFlightActive(fl) ? '' : ' no-actions') + (checkInOpen ? ' has-state' : '') + '">' +
+            (checkInOpen ? '<div><span class="text-success fw-bold">Check-in open</span></div>' : '') + tickets +
             '<div><span class="sales-label">Income</span><span class="fw-semibold">' + (fl.income === null || fl.income === undefined ? '&mdash;' : moneyHtml(fl.income)) + '</span></div></div>';
     }
 

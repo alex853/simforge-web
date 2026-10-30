@@ -270,9 +270,8 @@
                         + '<div><span class="k">PAX</span><b class="t-tbd" title="Will be known at the end of the boarding">TBD</b></div></div>'};
             case 'Deboarding':
             case 'Finished':
-                // the number of those who were carried is not in the status: the checked-in ones are about it
-                return {label: 'Payload', html: '<div class="count-lines"><div><span class="k">Carried PAX</span><b>' + (f.ckdIn ?? 0) + '</b> '
-                        + todo('the exact number of the carried passengers (the status has the checked-in ones)') + '</div></div>'};
+                // crdPax is the number of those who were on board at the takeoff, it is not sent until then (and for a flight which was not carried anybody)
+                return {label: 'Payload', html: '<div class="count-lines"><div><span class="k">Carried PAX</span><b>' + (f.crdPax ?? 0) + '</b></div></div>'};
             default:
                 return {label: 'Payload', html: '<div class="stat-value big">PAX ' + (f.ponBrd ?? 0) + '</div>'};
         }
@@ -471,7 +470,8 @@
             checks += '<li class="text-secondary">Tracked: Blocks Off, Takeoff, Landing and Blocks On follow the sim. Manual: you press the buttons.</li>';
         }
         if (f.fmSt === 'Postflight' && f.autoFinish) {
-            buttons += '<button class="btn btn-outline-primary disabled">The flight will be finished automatically after the passengers have got off</button>';
+            // a note, not a button: it is a text of the conditions, like the notes of the preflight
+            checks += '<li class="text-secondary">The flight will be finished automatically after the passengers have got off</li>';
         }
         if (status.mode === 'SIM_TRACKER' && buttons === '') {
             const note = {Departure: 'Takeoff will be tracked automatically', Flying: 'Landing will be tracked automatically', Arrival: 'Blocks On will be tracked automatically'}[f.fmSt];
@@ -653,17 +653,17 @@
                 mode = 'MANUAL';
                 break;
             case 'arrived':
-                Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
                 actions = [{name: 'start-deboarding', allowed: true, checks: []}];
                 mode = 'SIM_TRACKER';
                 break;
             case 'deboarding':
-                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Deboarding', ckdIn: 151, ponBrd: 64, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Deboarding', ckdIn: 151, ponBrd: 64, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
                 actions = [];
                 mode = 'SIM_TRACKER';
                 break;
             case 'finished':
-                Object.assign(f, {fmSt: 'Finished', tfSt: 'Finished', ckdIn: 151, ponBrd: 0, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                Object.assign(f, {fmSt: 'Finished', tfSt: 'Finished', ckdIn: 151, ponBrd: 0, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
                 actions = [];
                 mode = 'SIM_TRACKER';
                 break;

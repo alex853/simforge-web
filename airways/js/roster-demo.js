@@ -57,7 +57,7 @@ function myFlightToRosterFlight(m) {
     return {
         id: f.id, from: f.depIcao, to: f.destIcao, dep: dep, arr: arr, reg: m.aircraft.regNo, type: m.aircraft.type, status: f.status,
         operatorName: m.aircraft.operatorName, sold: t ? t.soldSeats : null, remained: t ? t.totalSeats - t.soldSeats : null,
-        carried: t ? t.carriedPax : null, income: t ? t.income : null, ferry: !t
+        carried: t ? t.carriedPax : null, income: t ? t.income : null, ferry: !t, tfStatus: t ? t.status : null
     };
 }
 
