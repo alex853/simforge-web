@@ -307,9 +307,18 @@
         return {label: 'Boarding', value: 'Waiting', cls: 'big t-wait', hint: (f.brdStart ? 'planned start at ' + f.brdStart + ', ' : '') + 'start it when you are ready'};
     }
 
+    // The deboarding: Waiting (the orange one, as the boarding has; at the gate the pilot starts it when he is ready), the number who are left and when it ends (debEnd, an
+    // estimate of the server), and Completed when everybody is off (the transport flight is finished, the flight itself is still in the postflight until it is finished). The
+    // deboarding is its own story: nothing is said about the finish of the flight here.
     function deboardingTile(f) {
         if (f.tfSt === 'Deboarding') {
-            return {label: 'Deboarding', value: (f.ponBrd ?? 0) + ' left', cls: 'big good', hint: 'ends at ' + todo('the time of the end of the deboarding')};
+            return {label: 'Deboarding', value: (f.ponBrd ?? 0) + ' left', cls: 'big good', hint: f.debEnd ? 'ends at ' + f.debEnd : ''};
+        }
+        if (f.tfSt === 'WaitingForDeboarding') {
+            return {label: 'Deboarding', value: 'Waiting', cls: 'big t-wait', hint: 'start it when you are ready'};
+        }
+        if (f.tfSt === 'Finished') {
+            return {label: 'Deboarding', value: 'Completed', cls: 'big good'};
         }
         return {label: 'Deboarding', value: 'Waiting', cls: 'big t-wait', hint: 'starts at your discretion'};
     }
@@ -665,7 +674,12 @@
                 mode = 'SIM_TRACKER';
                 break;
             case 'deboarding':
-                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Deboarding', ckdIn: 151, ponBrd: 64, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Deboarding', ckdIn: 151, ponBrd: 64, crdPax: 151, debEnd: '21:03', adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'deboarded':
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Finished', ckdIn: 151, ponBrd: 0, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59'});
                 actions = [];
                 mode = 'SIM_TRACKER';
                 break;
