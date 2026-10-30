@@ -118,13 +118,6 @@
         return '<span class="todo" title="' + esc(what) + '">TODO</span>';
     }
 
-    // ---- the times of the flight: 'hh:mm' or 'hh:mm+1' (the next day) -> minutes
-
-    function minutesOf(t) {
-        const m = /^(\d\d):(\d\d)(?:\+(\d+))?$/.exec(t || '');
-        return m ? (m[3] ? Number(m[3]) * 1440 : 0) + Number(m[1]) * 60 + Number(m[2]) : null;
-    }
-
     // blocks off, take off, landing and blocks on: planned or estimated (grey italic), or the time which has happened (bold)
     function timeOf(f, key) {
         const fact = {off: f.adep, tkf: f.atkf, ldg: f.aldg, on: f.aarr}[key];
@@ -352,19 +345,6 @@
 
     const placeholder = () => ({label: '', value: '', placeholder: true});
 
-    // blocks off to blocks on, the times on two lines
-    function flightTimeTile(f) {
-        const a = minutesOf(f.adep), b = minutesOf(f.aarr);
-        return {label: 'Flight time', html: '<div class="stat-value big">' + (a !== null && b !== null ? formatClock(b - a) : '--:--') + '</div>'
-            + '<div class="time-lines"><div><span class="k">Blocks off</span>' + esc(f.adep ?? '--:--') + '</div><div><span class="k">Blocks on</span>' + esc(f.aarr ?? '--:--') + '</div></div>'};
-    }
-
-    // from Start flight to Finish flight, the times on two lines
-    function dutyTimeTile() {
-        return {label: 'Duty time', html: '<div class="stat-value big">' + todo('the times of the start and of the finish of the flight') + '</div>'
-            + '<div class="time-lines"><div><span class="k">Started</span>' + todo('the time of Start flight') + '</div><div><span class="k">Finished</span>' + todo('the time of Finish flight') + '</div></div>'};
-    }
-
     // the limits of the pilot, they are shown before the start of the flight only
     // (a tile over its limit stops the start of the flight, it is pale red as the other tiles with a problem)
     const limitTiles = p => p ? [awakeTile(p, false), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)].map(t => Object.assign(t, {alert: t.over === true})) : [];
@@ -379,8 +359,8 @@
         const payload = payloadTile(f);
 
         if (f.fmSt === 'Finished') {
-            rows.push([payload, departureTile(f), arrivalTile(f), flightTimeTile(f)]);
-            rows.push([dutyTimeTile()]);
+            // the page of a finished flight is shown only for a moment: the next flight becomes the current one
+            rows.push([payload, departureTile(f), arrivalTile(f), placeholder()]);
             return rows;
         }
 
