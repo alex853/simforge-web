@@ -64,6 +64,10 @@
         .checks .ok::before { content: "\2713\00a0"; color: var(--bs-success); font-weight: 700; }
         .checks .no::before { content: "\2717\00a0"; color: var(--bs-danger); font-weight: 700; }
         .action-buttons .btn { margin: 0 .5rem .5rem 0; }
+        /* the outline orange button: Finish Boarding, the step which cannot be taken back, with the note next to it */
+        .btn-outline-orange { --bs-btn-color: #fd7e14; --bs-btn-border-color: #fd7e14; --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #fd7e14; --bs-btn-hover-border-color: #fd7e14;
+            --bs-btn-active-color: #fff; --bs-btn-active-bg: #e8590c; --bs-btn-active-border-color: #e8590c; --bs-btn-disabled-color: #fd7e14; --bs-btn-disabled-border-color: #fd7e14; }
+        .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
         .todo-list { margin-top: 1.5rem; font-size: .85rem; }
     </style>
 </head>
@@ -84,6 +88,22 @@
 </main>
 
 <!-- A manual flight pays less than the contract says: before the manual start the pilot sees both numbers and decides -->
+<div class="modal fade" id="finishBoardingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Finish the boarding?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <p class="mb-0">The boarding stops right now. The passengers who have not boarded yet will not be carried, so the income of the flight can be lower than planned. The boarding cannot be resumed.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-orange" id="fb-confirm">Finish boarding</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="manualPayModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -409,7 +429,7 @@
     // The steps which the tracker does itself in the SIM_TRACKER mode
     const TRACKED_ACTIONS = ['blocks-off', 'takeoff', 'landing', 'blocks-on'];
     const ACTION_LABELS = {
-        'start-flight': 'Start tracked flight', 'start-flight-manual': 'Start manual flight', 'start-boarding': 'Start Boarding', 'blocks-off': 'Blocks Off',
+        'start-flight': 'Start tracked flight', 'start-flight-manual': 'Start manual flight', 'start-boarding': 'Start Boarding', 'finish-boarding': 'Finish Boarding', 'blocks-off': 'Blocks Off',
         'takeoff': 'Takeoff', 'landing': 'Landing', 'blocks-on': 'Blocks On', 'start-deboarding': 'Start Deboarding', 'finish-flight': 'Finish Flight'
     };
     const ACTION_REQUESTS = {
@@ -454,8 +474,11 @@
             }
             const label = ACTION_LABELS[a.name] ?? a.name;
             const allowed = a.allowed && !isBlocked(status, a.name);
-            const style = allowed ? (a.name === 'start-flight-manual' && bothStarts ? 'btn-outline-success' : 'btn-success') : 'btn-outline-danger disabled';
+            const style = allowed ? (a.name === 'finish-boarding' ? 'btn-outline-orange' : (a.name === 'start-flight-manual' && bothStarts ? 'btn-outline-success' : 'btn-success')) : 'btn-outline-danger disabled';
             buttons += '<button class="btn action-button ' + style + '" data-action="' + esc(a.name) + '"' + (allowed ? '' : ' disabled') + '>' + esc(label) + '</button>';
+            if (a.name === 'finish-boarding') {
+                buttons += '<span class="action-note">Stops the boarding right now. Not all the passengers may board, so the income can be lower than planned. It cannot be undone.</span>';
+            }
             // the conditions of an action which cannot be done now, and of a start in any case
             const list = a.checks ?? [];
             if (list.length > 0 && (!allowed || a.name === 'start-flight' || a.name === 'start-flight-manual')) {
@@ -522,6 +545,9 @@
             const name = $(this).data('action');
             if (name === 'start-flight-manual') {
                 startManualFlightAfterTheQuestion();
+            } else if (name === 'finish-boarding') {
+                // it cannot be taken back: the pilot is asked first
+                finishBoardingModal.show();
             } else {
                 sendAction(name);
             }
@@ -573,6 +599,7 @@
 
     const pay = n => Number(n).toLocaleString('en-US');
     let manualPayModal;
+    let finishBoardingModal;
 
     function startManualFlightAfterTheQuestion() {
         if (actionInProgress || flightId === null || stub !== null) {
@@ -619,7 +646,7 @@
                 break;
             case 'boarding':
                 Object.assign(f, {fmSt: 'Preflight', tfSt: 'Boarding', ckdIn: 151, ponBrd: 112});
-                actions = [];
+                actions = [{name: 'finish-boarding', allowed: true, checks: []}];
                 mode = 'SIM_TRACKER';
                 break;
             case 'departure':
@@ -681,6 +708,11 @@
 
     $(function () {
         initSiteMenu('flight-dashboard');
+        finishBoardingModal = new bootstrap.Modal(document.getElementById('finishBoardingModal'));
+        $('#fb-confirm').on('click', function () {
+            finishBoardingModal.hide();
+            sendAction('finish-boarding');
+        });
         manualPayModal = new bootstrap.Modal(document.getElementById('manualPayModal'));
         $('#mp-confirm').on('click', function () {
             manualPayModal.hide();
