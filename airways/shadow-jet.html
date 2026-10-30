@@ -30,7 +30,6 @@
         .tile-input.tile-input-time { font-size: 1.05rem; padding: .3rem 1.5rem .3rem .45rem; margin-top: 0; min-width: 0; background-position: right .4rem center; background-size: 12px 10px; }
         .time-line #departureDay { flex: 1.6 1 0; }
         .time-line #departureSelect { flex: 1 1 0; }
-        .tile-static.arrival-wait { font-size: .95rem; font-weight: 400; white-space: normal; color: var(--bs-secondary-color); }
         .tile-static { font-size: 1.15rem; font-weight: 700; line-height: 1.25; padding: .3rem 0; border: 1px solid transparent; border-width: 1px 0; margin-top: .25rem; white-space: nowrap; }
         /* the name of the airport under the code: twice as big as a hint, it may take two lines */
         /* a button in the bottom right corner of a tile (Details), as on the page of busyBirds */
@@ -41,6 +40,8 @@
         .terms-result { border-top: 1px solid var(--bs-border-color); margin-top: 0.5rem; padding-top: 0.5rem; }
         /* a value which the server does not give yet */
         .todo { color: #dc3545; font-weight: 700; }
+        /* the mark of an information: the text is in its tooltip */
+        .info-mark { cursor: help; color: var(--bs-secondary-color); font-size: .95em; text-transform: none; letter-spacing: 0; }
         .hint-wrap { white-space: normal; overflow: visible; text-overflow: clip; }
         .airport-hint { flex: 1; min-width: 0; font-size: 1.2rem; line-height: 1.15; white-space: normal; overflow: visible; text-overflow: clip; margin: 0; }
         .airport-hint { display: flex; align-items: center; gap: .5rem; }
@@ -62,7 +63,7 @@
 
     <p class="text-secondary mb-4">Choose an aircraft type, the route and the time of the departure.</p>
 
-    <!-- the first row: the aircraft type; the rest of the row (the aircraft and the terms of the pilot on the type) appears when a type is chosen -->
+    <!-- all the tiles are on the page from the start; the rates come when a type is chosen, the arrival, the load and the money when the airports are entered -->
     <div class="row g-3 mb-4">
         <div class="col-12 col-md-3">
             <div class="stat">
@@ -72,54 +73,41 @@
                 </select>
             </div>
         </div>
-        <div class="col-12 col-md-3 type-tile" style="display: none;">
+        <div class="col-12 col-md-3">
             <div class="stat">
                 <div class="stat-label" id="aircraftLabel">Aircraft</div>
                 <div class="stat-small" id="aircraftValue">Will be selected automatically</div>
                 <div class="stat-hint" id="aircraftHint"></div>
             </div>
         </div>
-        <div class="col-6 col-md-3 type-tile" style="display: none;">
+        <div class="col-6 col-md-3">
             <div class="stat has-corner-bottom">
-                <div class="stat-label">Hourly rate</div>
+                <div class="stat-label" id="hourlyLabel">Hourly rate</div>
                 <div class="stat-value money" id="hourlyValue">&mdash;</div>
                 <div class="stat-hint" id="hourlyHint"></div>
                 <div class="stat-corner-bottom"><button type="button" class="btn btn-sm btn-outline-secondary" id="hourlyDetails" disabled>Details</button></div>
             </div>
         </div>
-        <div class="col-6 col-md-3 type-tile" style="display: none;">
+        <div class="col-6 col-md-3">
             <div class="stat has-corner-bottom">
                 <div class="stat-label">Income share</div>
                 <div class="stat-value money" id="shareValue">&mdash;</div>
-                <div class="stat-hint">Of the flight income</div>
+                <div class="stat-hint" id="shareHint">Of the flight income</div>
                 <div class="stat-corner-bottom"><button type="button" class="btn btn-sm btn-outline-secondary" id="shareDetails" disabled>Details</button></div>
             </div>
         </div>
     </div>
 
-    <!-- the second row appears together with the rest of the first one: where from, where to, when, and the arrival which is calculated -->
-    <div class="row g-3 mb-4 type-tile" style="display: none;">
+    <!-- the second row: the departure (the airport and the time), the destination (the airport and the arrival which is
+         calculated), and on the right what the departure time gives (the time before it, the expected load) -->
+    <div class="row g-3 mb-4">
         <div class="col-12 col-md-3">
             <div class="stat">
-                <div class="stat-label" id="fromLabel">From</div>
+                <div class="stat-label" id="fromLabel">Departure</div>
                 <div class="airport-row">
                     <input type="text" id="icaoFrom" class="form-control tile-input tile-input-icao icao" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO" aria-label="Airport from">
                     <div class="stat-hint airport-hint" id="fromHint"></div>
                 </div>
-            </div>
-        </div>
-        <div class="col-12 col-md-3">
-            <div class="stat">
-                <div class="stat-label">To</div>
-                <div class="airport-row">
-                    <input type="text" id="icaoTo" class="form-control tile-input tile-input-icao icao" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO" aria-label="Airport to">
-                    <div class="stat-hint airport-hint" id="toHint"></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-md-3">
-            <div class="stat">
-                <div class="stat-label">Departure time, UTC</div>
                 <div class="time-line">
                     <select id="departureDay" class="form-select tile-input tile-input-time" aria-label="Departure day"></select>
                     <select id="departureSelect" class="form-select tile-input tile-input-time" aria-label="Departure time"></select>
@@ -129,38 +117,33 @@
         </div>
         <div class="col-12 col-md-3">
             <div class="stat">
-                <div class="stat-label">Arrival time, UTC</div>
+                <div class="stat-label">Destination</div>
+                <div class="airport-row">
+                    <input type="text" id="icaoTo" class="form-control tile-input tile-input-icao icao" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO" aria-label="Airport to">
+                    <div class="stat-hint airport-hint" id="toHint"></div>
+                </div>
                 <div class="tile-static" id="arrivalValue">&mdash;</div>
-                <div class="stat-hint">Calculated</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- the third row is half filled: only the right two tiles. Both are for what the departure time gives, it is shown with the second row -->
-    <div class="row g-3 mb-4 type-tile" style="display: none;">
-        <div class="col-md-3 d-none d-md-block"></div>
-        <div class="col-md-3 d-none d-md-block"></div>
-        <div class="col-12 col-md-3">
-            <div class="stat">
-                <div class="stat-label">Time before departure</div>
-                <div class="stat-small fw-bold" style="font-size: 1.15rem; padding-top: .3rem;" id="timeBeforeValue">&mdash;</div>
-                <div class="stat-hint hint-wrap">The earlier the booking, the more passengers</div>
             </div>
         </div>
         <div class="col-12 col-md-3">
             <div class="stat">
-                <div class="stat-label">Expected load</div>
+                <div class="stat-label">Expected load <span class="info-mark" tabindex="0" data-bs-toggle="tooltip" data-bs-title="The sales team hopes to gather it; the real load is known at the end of the booking">&#9432;</span></div>
                 <div class="stat-value" id="loadValue">&mdash;</div>
-                <div class="stat-hint hint-wrap">The sales team hopes to gather it; the real load is known at the end of the booking</div>
-                <div class="stat-hint">Approximate income: <span class="todo" title="the income of such a load is not calculated yet">TODO</span></div>
+                <div class="stat-hint hint-wrap">Depends on the time before departure: <span class="fw-semibold" id="timeBeforeValue">&mdash;</span> <span class="info-mark" tabindex="0" data-bs-toggle="tooltip" data-bs-title="The earlier the booking, the more passengers">&#9432;</span></div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="stat">
+                <div class="stat-label">Approximate income</div>
+                <div class="stat-value money" id="incomeValue">&mdash;</div>
+                <div class="stat-hint hint-wrap">The exact income will be known only at the end of the boarding</div>
             </div>
         </div>
     </div>
 
-    <!-- the buttons are on the right side, under the two right tiles -->
+    <!-- the buttons are in the middle of the page, under the tiles -->
     <div class="row g-3 mb-4">
-        <div class="col-md-6 d-none d-md-block"></div>
-        <div class="col-12 col-md-6">
+        <div class="col-12 text-center">
             <button type="button" id="btnBook" class="btn btn-primary btn-lg px-5" disabled>Book Flight</button>
             <a class="btn btn-link" href="pilot-roster.html">Back to the roster</a>
             <div id="bookError" class="mt-2"></div>
@@ -275,13 +258,13 @@
         updateTimeBefore();
         const $value = $('#arrivalValue');
         if (!planKey) {
-            $value.addClass('arrival-wait').text('Enter airports to get the arrival time');
+            $value.text('—');
         } else if (planFailed) {
-            $value.addClass('arrival-wait').text('The arrival time is not available');
+            $value.text('—');
         } else if (plan === null) {
-            $value.addClass('arrival-wait').text('Calculating the arrival time\u2026');
+            $value.text('—');
         } else {
-            $value.removeClass('arrival-wait').text(dayLabel(plan.arrivalTime, Date.now()) + ' ' + timeOfDay(plan.arrivalTime));
+            $value.text(dayLabel(plan.arrivalTime, Date.now()) + ' ' + timeOfDay(plan.arrivalTime));
         }
     }
 
@@ -289,6 +272,37 @@
     function updateLoad() {
         const load = plan ? plan.expectedLoad : null;
         $('#loadValue').text(load ? (load.loadFromPercent === load.loadToPercent ? load.loadFromPercent : load.loadFromPercent + '\u2013' + load.loadToPercent) + '%' : '\u2014');
+        // a rough income of such a load (the seats by the middle of the load by the price of an economy ticket), with a tilde: ~v6,500
+        $('#incomeValue').html(load && load.income !== null && load.income !== undefined ? '~' + moneyHtml(load.income) : '&mdash;');
+        updatePay();
+    }
+
+    // What the pilot gets, in the two top tiles. While the duration of the flight (plan-flight) is not known they show the terms: the hourly rate and the share in percents.
+    // When it is known, the big figure is the money of this flight and the terms go to the small line: the hourly rate by the duration of the flight, the share of the
+    // approximate income of the expected load (with a tilde, the income is a rough number).
+    function updatePay() {
+        const t = currentTerms;
+        const type = $('#typeSelect').val();
+        const load = plan ? plan.expectedLoad : null;
+        const hasIncome = load && load.income !== null && load.income !== undefined;
+        if (t && plan) {
+            const hours = plan.durationSeconds / 3600;
+            const minutes = Math.round(plan.durationSeconds / 60);
+            $('#hourlyLabel').text('Flight pay');
+            $('#hourlyValue').html(moneyHtml(Math.round(t.effectiveHourlyRate * hours)));
+            $('#hourlyHint').html(moneyHtml(t.effectiveHourlyRate) + '/h × ' + Math.floor(minutes / 60) + ' h ' + pad2(minutes % 60) + ' min');
+        } else {
+            $('#hourlyLabel').text('Hourly rate');
+            $('#hourlyValue').html(t ? moneyHtml(t.effectiveHourlyRate) : '&mdash;');
+            $('#hourlyHint').text(type ? 'Per flight hour, ' + type : '');
+        }
+        if (t && hasIncome) {
+            $('#shareValue').html('~' + moneyHtml(Math.round(load.income * t.effectiveIncomeSharePercent / 100)));
+            $('#shareHint').html(formatNumber(t.effectiveIncomeSharePercent) + '% of ~' + moneyHtml(load.income));
+        } else {
+            $('#shareValue').text(t ? formatNumber(t.effectiveIncomeSharePercent) + '%' : '—');
+            $('#shareHint').text('Of the flight income');
+        }
     }
 
     // the hint under the departure: the flight which takes the slot (red), otherwise the earliest time of the booking
@@ -361,6 +375,23 @@
     const airportCache = {};
     const airportKnown = {from: false, to: false};
 
+    // The name of the airport takes up to two lines: when it does not fit in two lines, its font gets smaller (but not smaller than the least size)
+    const AIRPORT_NAME_MAX_PX = 19.2;
+    const AIRPORT_NAME_MIN_PX = 11;
+
+    function fitAirportName($hint) {
+        const name = $hint.children('span').not('.text-danger')[0];
+        if (!name) {
+            return;
+        }
+        let size = AIRPORT_NAME_MAX_PX;
+        name.style.fontSize = size + 'px';
+        while (size > AIRPORT_NAME_MIN_PX && name.getBoundingClientRect().height > size * 1.15 * 2 + 1) {
+            size -= 0.5;
+            name.style.fontSize = size + 'px';
+        }
+    }
+
     function showAirport(side, icao) {
         const $hint = $(side === 'from' ? '#fromHint' : '#toHint');
         airportKnown[side] = false;
@@ -375,6 +406,7 @@
             }
             airportKnown[side] = !!info;
             $hint.html(info ? flagImg(info.country, 32) + '<span>' + esc(info.name) + '</span>' : '<span class="text-danger">Unknown airport</span>');
+            fitAirportName($hint);
             updateBookState();
         };
         if (icao in airportCache) {
@@ -425,6 +457,7 @@
         $('#hourlyValue').html(t ? moneyHtml(t.effectiveHourlyRate) : '&mdash;');
         $('#shareValue').text(t ? formatNumber(t.effectiveIncomeSharePercent) + '%' : '\u2014');
         $('#hourlyDetails, #shareDetails').prop('disabled', !t);
+        updatePay();
     }
 
     function loadTerms() {
@@ -451,11 +484,10 @@
         termsModal.show();
     }
 
-    // the aircraft, the terms of the pilot and the second row appear when a type is chosen
+    // the terms of the pilot (the rates) appear when a type is chosen; all the tiles are on the page from the start
     function updateTerms() {
         const type = $('#typeSelect').val();
-        $('.type-tile').toggle(!!type);
-        $('#hourlyHint').text(type ? 'Per flight hour, ' + type : '');
+        updatePay();
         loadTerms();
     }
 
@@ -587,7 +619,7 @@
         // TODO the server must check the same (the expected position of the pilot), the address is only a prefill
         if (params.get('from')) {
             $('#icaoFrom').val(params.get('from').toUpperCase().slice(0, 4)).prop('disabled', true);
-            $('#fromLabel').html('From &#128274;');
+            $('#fromLabel').html('Departure &#128274;');
             $('#icaoTo').trigger('focus');
         }
         if (params.get('aircraft')) {
@@ -600,14 +632,24 @@
             updateDepartureHint();
         }
 
-        // The booked flights bind the booking even when the address has nothing: the earliest time comes from the last flight (a new flight is not bound by the place)
-        if (!notBefore) {
+        // The booked flights bind the booking even when the address has nothing: the earliest time comes from the last flight (a new flight is not bound by the place).
+        // The airport of the departure is only a suggestion (the flight does not go on after another flight on the same aircraft, that is the case of the address with from):
+        // it is the airport where the pilot is expected to be, the airport of the arrival of the last flight of the roster, the finished one too (the pilot stayed there), not the
+        // cancelled one. The field is free: it is filled in and the pilot changes it as he likes. A pilot who has no flights gets nothing.
+        if (!params.get('from')) {
             loadRosterFlights(function (flights) {
-                const c = rosterContinuation(flights, false);
-                if (c) {
-                    fillDepartureTimes(c.notBefore);
-                    departureHintBase = 'Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), c.notBefore)), Date.now());
-                    updateDepartureHint();
+                if (!notBefore) {
+                    const c = rosterContinuation(flights, false);
+                    if (c) {
+                        fillDepartureTimes(c.notBefore);
+                        departureHintBase = 'Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), c.notBefore)), Date.now());
+                        updateDepartureHint();
+                    }
+                }
+                const last = flights.filter(function (fl) { return fl.status !== 'Cancelled'; }).pop();
+                // the pilot may have typed already while the roster was loading
+                if (last && !$('#icaoFrom').val()) {
+                    $('#icaoFrom').val(last.to).trigger('input');
                 }
             });
         }
@@ -628,6 +670,8 @@
             this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
             showAirport(this.id === 'icaoFrom' ? 'from' : 'to', this.value);
         });
+        $('[data-bs-toggle="tooltip"]').each(function () { new bootstrap.Tooltip(this, {trigger: 'hover focus'}); });
+        $(window).on('resize', function () { fitAirportName($('#fromHint')); fitAirportName($('#toHint')); });
         showAirport('from', $('#icaoFrom').val().toUpperCase());
         updateBookState();
         setInterval(function () {
