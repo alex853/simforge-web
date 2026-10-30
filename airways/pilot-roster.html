@@ -116,6 +116,15 @@
         return '<div class="flight-actions"><a class="btn btn-success" href="flight-dashboard.html">Fly</a></div>';
     }
 
+    // the flight is in the air or on the way to it and from it: the status is written in blue (Departure, Flying, Arrival and the postflight)
+    function isFlying(fl) {
+        return fl.status === 'Departure' || fl.status === 'Flying' || fl.status === 'Arrival';
+    }
+
+    function isInProgress(fl) {
+        return isFlying(fl) || fl.status === 'Postflight';
+    }
+
     // The tickets and the income come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight; the income is the sum of the
     // price of the journeys of the flight, 0 for the flights which were before the income and for the journeys without a price).
     function salesHtml(fl) {
@@ -124,11 +133,14 @@
             return '<div class="flight-sales is-ferry' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '"><div><span class="text-primary fw-semibold">Ferry flight</span></div></div>';
         }
         const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
-        // a finished flight has the passengers it carried instead of the tickets which were sold and remained
-        const tickets = fl.status === 'Finished'
+        // by the state of the flight: before the departure the tickets which were sold and remained; in the departure, the flying and the arrival the passengers on board; in
+        // the postflight (the deboarding makes the number on board go down) and in the end the passengers carried
+        const tickets = (fl.status === 'Postflight' || fl.status === 'Finished')
             ? '<div><span class="sales-label">Carried PAX</span><span class="fw-semibold">' + num(fl.carried) + '</span></div>'
-            : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
-              '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>';
+            : (isFlying(fl)
+                ? '<div><span class="sales-label">On board</span><span class="fw-semibold">' + num(fl.onBoard) + '</span></div>'
+                : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
+                  '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>');
         // the state of the transport flight over the numbers: now only the open check-in (a green bold line), the other states come later (todo ak1 below)
         const checkInOpen = fl.tfStatus === 'CheckIn';
         return '<div class="flight-sales' + (isRosterFlightActive(fl) ? '' : ' no-actions') + (checkInOpen ? ' has-state' : '') + '">' +
@@ -145,7 +157,7 @@
         return '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
-            '<div class="stat-label">' + fl.status + '</div>' +
+            '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status + '</div>' +
             '<div class="flight-route">' + fl.from + ' &rarr; ' + fl.to + '</div>' +
             '<div class="stat-hint">' + timeLabel(fl.dep) + ' &rarr; ' + timeLabel(fl.arr) + '</div>' +
             '</div>';
