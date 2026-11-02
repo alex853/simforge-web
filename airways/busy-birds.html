@@ -310,55 +310,66 @@
         return num.toLocaleString();
     }
 
-    // ---- missions, filtered by the 'from' and 'to' cities
+    // ---- missions of the chosen cities. The list of all missions is huge, so the page loads the cities for the dropdowns and the missions only
+    // between the chosen ones (at least one of the two); with no city chosen the table is empty.
 
-    function missionMatches(m) {
-        return (!filterFrom || m.fromCityName === filterFrom) && (!filterTo || m.toCityName === filterTo);
-    }
+    let allCities = null; // [{id, name}] by name; null until loaded
+    let missionsRequest = 0;
 
-    // the options of a dropdown are the cities which are possible together with the choice made in the other one
-    function fillCitySelect($sel, list, key, current) {
-        const counts = new Map();
-        list.forEach(function (m) {
-            const city = m[key] ?? '';
-            if (city) {
-                counts.set(city, (counts.get(city) ?? 0) + 1);
-            }
-        });
+    function fillCitySelect($sel, current) {
         $sel.empty();
-        $sel.append($('<option></option>').attr('value', '').text('All cities'));
-        Array.from(counts.keys()).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (city) {
-            $sel.append($('<option></option>').attr('value', city).text(city + ' · ' + counts.get(city)));
+        $sel.append($('<option></option>').attr('value', '').text('Select city\u2026'));
+        (allCities || []).forEach(function (c) {
+            $sel.append($('<option></option>').attr('value', c.id).text(c.name));
         });
-        $sel.prop('disabled', counts.size === 0);
-        const value = counts.has(current) ? current : '';
-        $sel.val(value);
-        return value;
+        $sel.prop('disabled', !allCities);
+        $sel.val(current);
     }
 
     function renderCityFilters() {
-        filterFrom = fillCitySelect($('#cityFrom'),
-            missions.filter(function (m) { return !filterTo || m.toCityName === filterTo; }),
-            'fromCityName', filterFrom);
-        filterTo = fillCitySelect($('#cityTo'),
-            missions.filter(function (m) { return !filterFrom || m.fromCityName === filterFrom; }),
-            'toCityName', filterTo);
+        fillCitySelect($('#cityFrom'), filterFrom);
+        fillCitySelect($('#cityTo'), filterTo);
         $('#btnResetFilters').toggle(!!(filterFrom || filterTo));
     }
 
+    // the missions between the chosen cities; the answer of an old request is dropped
+    function loadMissions() {
+        const request = ++missionsRequest;
+        if (!filterFrom && !filterTo) {
+            setMissions([]);
+            return;
+        }
+        $('#missionsBody').html('<tr><td colspan="6" class="text-secondary text-center">Loading\u2026</td></tr>');
+        airwaysAuth('GET', '/busy-birds/mission/to-book', {fromCityId: filterFrom, toCityId: filterTo}, function (data) {
+            if (request === missionsRequest) {
+                setMissions(data);
+            }
+        }, function () {
+            if (request === missionsRequest) {
+                $('#missionsBody').html('<tr><td colspan="6" class="text-danger text-center">Failed to load missions</td></tr>');
+            }
+        });
+    }
+
+    // a choice in a dropdown or a reset: the missions are loaded for the new choice
+    function filtersChanged() {
+        renderCityFilters();
+        loadMissions();
+    }
+
     function renderMissions() {
-        const visible = missions.filter(missionMatches);
+        const visible = missions;
         const $tb = $('#missionsBody');
         $tb.empty();
 
-        $('#missionsCount').text(visible.length === missions.length ? String(missions.length) : (visible.length + ' / ' + missions.length));
+        $('#missionsCount').text(String(visible.length));
 
         if (pickedMissionId !== null && !visible.some(function (m) { return sameId(m.id, pickedMissionId); })) {
             pickedMissionId = null;
         }
 
-        if (missions.length === 0) {
-            $tb.append('<tr><td colspan="6" class="text-secondary text-center">No missions</td></tr>');
+        if (!filterFrom && !filterTo) {
+            $tb.append('<tr><td colspan="6" class="text-secondary text-center">Choose a city from or a city to to see the missions</td></tr>');
             return;
         }
         if (visible.length === 0) {
@@ -384,12 +395,6 @@
         });
     }
 
-    function renderMissionsAndFilters() {
-        renderCityFilters();
-        renderMissions();
-        updateQuoteButton();
-    }
-
     // Get quote needs a picked mission and a chosen aircraft
     function updateQuoteButton() {
         $('#btnQuote').prop('disabled', !(getSelectedMissionId() && getSelectedAircraftId()));
@@ -397,12 +402,12 @@
 
     function setMissions(data) {
         missions = Array.isArray(data) ? data : [];
-        renderMissionsAndFilters();
-        applyDefaultFromCity();
+        renderMissions();
+        updateQuoteButton();
     }
 
-    // "City from" starts at the biggest city of the airport of the pilot which has missions, as long as the user has not picked a city
-    // (the same as the tab of G7 does). The cities of an airport come from the public /map/airport/info, biggest first, matched by id.
+    // "City from" starts at the current city of the pilot: its own city, or the biggest city of its airport (the same as the tab of G7 does), as long as the
+    // user has not picked a city. The cities of an airport come from the public /map/airport/info, biggest first, matched by id.
     let fromCityChosen = false;
     let airportCityIds = null; // city ids of the airport of the pilot, biggest first; null until loaded
 
@@ -418,33 +423,30 @@
             .catch(function (e) {
                 console.warn('could not load the cities of ' + icao, e);
                 airportCityIds = [];
+                applyDefaultFromCity();
             });
     }
 
     function applyDefaultFromCity() {
-        if (fromCityChosen || missions.length === 0) {
+        if (fromCityChosen || !allCities || pilotInfo === undefined) {
             return;
         }
-        // a pilot in a city: the missions from this city first
+        let city = null;
         if (pilotInfo && !pilotInfo.airportIcao && pilotInfo.cityName) {
-            const mission = missions.find(function (m) { return m.fromCityName === pilotInfo.cityName; });
-            if (mission) {
-                filterFrom = mission.fromCityName;
-                renderMissionsAndFilters();
+            city = allCities.find(function (c) { return c.name === pilotInfo.cityName; });
+        } else if (pilotInfo && pilotInfo.airportIcao) {
+            if (!airportCityIds) {
+                return; // the cities of the airport are not loaded yet
             }
-            return;
-        }
-        if (!airportCityIds) {
-            return;
-        }
-        for (let i = 0; i < airportCityIds.length; i++) {
-            const mission = missions.find(function (m) { return sameId(m.fromCityId, airportCityIds[i]); });
-            if (mission) {
-                filterFrom = mission.fromCityName;
-                renderMissionsAndFilters();
-                return;
+            for (let i = 0; i < airportCityIds.length && !city; i++) {
+                city = allCities.find(function (c) { return sameId(c.id, airportCityIds[i]); });
             }
         }
+        if (city) {
+            filterFrom = String(city.id);
+            fromCityChosen = true;
+        }
+        filtersChanged();
     }
 
     // All free aircraft of busyBirds as the server gave them; the dropdown shows only the ones at the airport of the pilot
@@ -948,6 +950,7 @@
             pilotInfo = null;
             renderPilotBlock();
             updateAircraftDropdown();
+            applyDefaultFromCity();
         });
         airwaysAuth('GET', '/busy-birds/booking-status', {}, function (s) {
             bookingStatus = s;
@@ -957,10 +960,12 @@
             renderPilotBlock();
         });
 
-        airwaysAuth('GET', '/busy-birds/mission/to-book', {}, function (data) {
-            setMissions(data);
+        renderMissions();
+        airwaysAuth('GET', '/busy-birds/cities', {}, function (list) {
+            allCities = Array.isArray(list) ? list : [];
+            renderCityFilters();
+            applyDefaultFromCity();
         }, function () {
-            $('#missionsBody').html('<tr><td colspan="6" class="text-danger text-center">Failed to load missions</td></tr>');
             $('#cityFrom, #cityTo').empty().append('<option value="">Unavailable</option>');
         });
 
@@ -997,17 +1002,17 @@
         $('#cityFrom').on('change', function () {
             fromCityChosen = true;
             filterFrom = $(this).val() || '';
-            renderMissionsAndFilters();
+            filtersChanged();
         });
         $('#cityTo').on('change', function () {
             filterTo = $(this).val() || '';
-            renderMissionsAndFilters();
+            filtersChanged();
         });
         $('#btnResetFilters').on('click', function () {
             fromCityChosen = true;
             filterFrom = '';
             filterTo = '';
-            renderMissionsAndFilters();
+            filtersChanged();
         });
 
         // a click on a row picks the mission

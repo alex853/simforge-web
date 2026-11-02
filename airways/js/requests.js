@@ -162,8 +162,8 @@ const SITE_MENU_ITEMS = [
     {key: 'logbook', label: 'Logbook', href: 'pilot-logbook.html'},
     {divider: true},
     {key: 'flight-dashboard', label: 'Flight dashboard', href: 'flight-dashboard.html'},
-    {key: 'shadow-jet', label: 'Book ShadowJet', href: 'shadow-jet.html'},
-    {key: 'busy-birds', label: 'Book busyBirds', href: 'busy-birds.html'}
+    {key: 'shadow-jet', label: 'Book ShadowJet flight', href: 'shadow-jet.html'},
+    {key: 'busy-birds', label: 'Book busyBirds flight', href: 'busy-birds.html'}
 ];
 
 // the items of the list, the page which is open is marked
