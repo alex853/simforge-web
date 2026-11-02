@@ -524,6 +524,28 @@
         {name: 'cancel-transport', style: 'btn-outline-danger', text: f => 'The passengers get off here and make their own way. It is expensive for the company: nobody pays for the trip, and it is noted in your record.'}
     ];
 
+    // The flying stage: two columns, a button and under it what it does and its conditions. Landing on the left (or the note that the tracker lands by itself), Divert on the right:
+    // landing somewhere else than at the destination is declared in the flight, whoever tracks it.
+    function flyingHtml(status, actions, manual) {
+        const f = status.flight;
+        const landing = actions.find(a => a.name === 'landing');
+        let left = '';
+        if (landing && manual) {
+            const allowed = landing.allowed && !isBlocked(status, 'landing');
+            const list = landing.checks ?? [];
+            left = '<button class="btn action-button w-100 ' + (allowed ? 'btn-success' : 'btn-outline-danger') + '" data-action="landing"' + (allowed ? '' : ' disabled') + '>' + esc(ACTION_LABELS['landing']) + '</button>'
+                + '<div class="action-note mt-2">Lands the aircraft at ' + esc(f.div ?? f.dest) + '.</div>'
+                + (!allowed && list.length > 0 ? '<ul class="checks mt-2 mb-0">' + list.map(c => '<li class="' + (c.result ? 'ok' : 'no') + '">' + esc(c.name) + '</li>').join('') + '</ul>' : '');
+        } else if (status.mode === 'SIM_TRACKER') {
+            left = '<button class="btn btn-outline-primary w-100 disabled">Landing will be tracked automatically</button>'
+                + '<div class="action-note mt-2">The sim tracker lands the aircraft where you land it.</div>';
+        }
+        const right = '<button class="btn btn-outline-orange w-100" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
+            + '<div class="action-note mt-2">Land at another airport instead of ' + esc(f.dest) + '.</div>';
+        return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div>'
+            + '<div class="row g-3">' + (left ? '<div class="col-12 col-md-4">' + left + '</div>' : '') + '<div class="col-12 col-md-4">' + right + '</div></div></div>';
+    }
+
     function wrongLandingHtml(status, actions) {
         const f = status.flight;
         const columns = WRONG_LANDING_COLUMNS.map(c => {
@@ -553,6 +575,9 @@
         const bothStarts = actions.some(a => a.name === 'start-flight') && actions.some(a => a.name === 'start-flight-manual');
         if (actions.some(a => a.name === 'continue-to-destination')) {
             return wrongLandingHtml(status, actions);
+        }
+        if (f.fmSt === 'Flying') {
+            return flyingHtml(status, actions, manual);
         }
         let checks = '';
         let buttons = '';
@@ -587,12 +612,6 @@
             if (note) {
                 buttons += '<button class="btn btn-outline-primary disabled">' + note + '</button>';
             }
-        }
-
-        if (f.fmSt === 'Flying') {
-            // landing somewhere else than at the destination is declared in the flight, whoever tracks it
-            buttons += '<button class="btn btn-outline-orange" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
-                + '<span class="action-note">Land at another airport instead of ' + esc(f.dest) + '.</span>';
         }
 
         return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div>'
