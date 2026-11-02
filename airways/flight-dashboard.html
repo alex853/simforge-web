@@ -69,8 +69,8 @@
             --bs-btn-active-color: #fff; --bs-btn-active-bg: #e8590c; --bs-btn-active-border-color: #e8590c; --bs-btn-disabled-color: #fd7e14; --bs-btn-disabled-border-color: #fd7e14; }
         .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
         .todo-list { margin-top: 1.5rem; font-size: .85rem; }
-        /* the alternate after the route in the header: one and a half times smaller, dark grey, a gap of the size of the destination code (4 characters of the big font = 6 of this one) */
-        .route-alt { font-size: .667em; font-weight: 400; margin-left: 6ch; color: var(--bs-secondary-color); white-space: nowrap; }
+        /* the alternate right after the route in the header: one and a half times smaller, dark grey, a gap of about 2-3 spaces of the big font */
+        .route-alt { font-size: .667em; font-weight: 400; margin-left: 1em; color: var(--bs-secondary-color); white-space: nowrap; }
         .route-alt a { color: inherit; text-decoration: underline dotted; }
         .route-alt a:hover { color: var(--bs-body-color); }
     </style>
@@ -295,7 +295,7 @@
 
     function alternateHtml(f) {
         const text = esc(f.alt ?? 'Not set');
-        return '<span class="route-alt">Alt ' + (ALTERNATE_EDITABLE.includes(f.fmSt) ? '<a href="#" id="altLink">' + text + '</a>' : text) + '</span>';
+        return '<span class="route-alt"><span title="Alternate airport">Alt</span> ' + (ALTERNATE_EDITABLE.includes(f.fmSt) ? '<a href="#" id="altLink">' + text + '</a>' : text) + '</span>';
     }
 
     // The first tile of the second row, always Payload. Ferry: Ferry flight. Revenue: until the end of the boarding the sold tickets and PAX as TBD, after
