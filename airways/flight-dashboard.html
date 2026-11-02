@@ -73,6 +73,10 @@
         .route-alt { font-size: .667em; font-weight: 400; margin-left: 1em; color: var(--bs-secondary-color); white-space: nowrap; }
         .route-alt a { color: inherit; text-decoration: underline dotted; }
         .route-alt a:hover { color: var(--bs-body-color); }
+        /* after a divert: the new airport in dark red, the destination of the plan struck through and grey */
+        .route-div { color: var(--bs-danger-text-emphasis); }
+        .route-was { color: var(--bs-secondary-color); text-decoration: line-through; }
+        .divert-table tbody tr { cursor: pointer; }
     </style>
 </head>
 <body>
@@ -120,6 +124,27 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" id="alt-clear">Clear the alternate</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- The divert of the flight: the departure, the declared alternate and the nearest airports to the aircraft, the pilot chooses one (in flight only) -->
+<div class="modal fade" id="divertModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Divert</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <p class="text-body-secondary small">Choose the airport to land at instead of <span id="div-dest"></span>. The distance is from the aircraft. The declared alternate is shown in green, the departure airport in blue.</p>
+                <table class="table table-sm table-hover divert-table mb-0">
+                    <thead><tr><th>Airport</th><th class="text-end">Distance</th><th>Type</th></tr></thead>
+                    <tbody id="div-list"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="div-clear">Take the divert back</button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
             </div>
         </div>
@@ -287,11 +312,19 @@
     // The double header of the page: the small title is the page, the big one is the route of the flight (the avatar is the pilot's)
     function renderHeader(status) {
         const f = status.flight;
-        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + esc(f.dest) + alternateHtml(f) : 'No active flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
+        $('#pageHeader').html(pilotHeader({kind: 'Flight Dashboard', title: f ? esc(f.dep) + ' → ' + routeEndHtml(f) : 'No active flight', avatarImage: lastPilot ? lastPilot.avatarImage : null}));
     }
 
     // The alternate is chosen before blocks off, then it is only shown (not a link any more)
     const ALTERNATE_EDITABLE = ['Dispatched', 'Preflight'];
+
+    // The end of the route: the destination with the alternate, or after a divert the new airport and the destination of the plan struck through (the alternate is gone then)
+    function routeEndHtml(f) {
+        if (f.div) {
+            return '<span class="route-div">' + esc(f.div) + '</span> <span class="route-was">' + esc(f.dest) + '</span>';
+        }
+        return esc(f.dest) + alternateHtml(f);
+    }
 
     function alternateHtml(f) {
         const text = esc(f.alt ?? 'Not set');
@@ -461,7 +494,7 @@
     const ACTION_LABELS = {
         'start-flight': 'Start tracked flight', 'start-flight-manual': 'Start manual flight', 'start-boarding': 'Start Boarding', 'finish-boarding': 'Finish Boarding', 'blocks-off': 'Blocks Off',
         'takeoff': 'Takeoff', 'landing': 'Landing', 'blocks-on': 'Blocks On', 'start-deboarding': 'Start Deboarding', 'finish-flight': 'Finish Flight',
-        'alternate': 'Setting the alternate'
+        'alternate': 'Setting the alternate', 'divert': 'Setting the divert'
     };
     const ACTION_REQUESTS = {
         'start-flight': {url: 'start-flight', params: {mode: 'tracker'}},
@@ -528,6 +561,12 @@
             if (note) {
                 buttons += '<button class="btn btn-outline-primary disabled">' + note + '</button>';
             }
+        }
+
+        if (f.fmSt === 'Flying') {
+            // landing somewhere else than at the destination is declared in the flight, whoever tracks it
+            buttons += '<button class="btn btn-outline-orange" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
+                + '<span class="action-note">Land at another airport instead of ' + esc(f.dest) + '.</span>';
         }
 
         return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div>'
@@ -651,6 +690,33 @@
         });
     }
 
+    let divertModal;
+    const DIVERT_KINDS = {
+        Departure: {label: 'Departure', cls: 'table-info'},
+        DeclaredAlternate: {label: 'Declared alternate', cls: 'table-success'},
+        CloseOption: {label: 'Close option', cls: ''}
+    };
+
+    // The dialog of the divert: the airports with the distance from the aircraft, the nearest first; a click on a row declares it, the answer is the whole new status
+    function openDivertDialog() {
+        if (actionInProgress || flightId === null || stub !== null || !lastStatus || !lastStatus.flight || lastStatus.flight.fmSt !== 'Flying') {
+            return;
+        }
+        airwaysAuth('GET', '/flight-dashboard/divert-candidates', {flightId: flightId}, function (r) {
+            $('#div-dest').text(lastStatus.flight.dest);
+            $('#div-list').html(r.candidates.map(c => {
+                const kind = DIVERT_KINDS[c.kind] ?? {label: c.kind, cls: ''};
+                return '<tr class="' + kind.cls + (c.icao === r.chosen ? ' fw-bold' : '') + '" data-icao="' + esc(c.icao) + '"><td><b>' + esc(c.icao) + '</b> ' + esc(c.name ?? '') + '</td>'
+                    + '<td class="text-end text-nowrap">' + esc(c.distanceNm) + ' nm</td><td>' + esc(kind.label) + '</td></tr>';
+            }).join(''));
+            $('#div-clear').prop('disabled', !r.chosen);
+            divertModal.show();
+        }, function () {
+            actionMessage = {text: 'The list of the airports could not be loaded', error: true};
+            render();
+        });
+    }
+
     function startManualFlightAfterTheQuestion() {
         if (actionInProgress || flightId === null || stub !== null) {
             return;
@@ -714,6 +780,9 @@
                 Object.assign(f, {fmSt: 'Arrival', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', aldg: '20:51'});
                 actions = [];
                 mode = 'SIM_TRACKER';
+                break;
+            case 'diverted':
+                Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', alt: null, div: 'KSAT'});
                 break;
             case 'flying':
                 Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18'});
@@ -782,6 +851,17 @@
         $('#alt-clear').on('click', function () {
             alternateModal.hide();
             sendAction('alternate', {icao: ''});
+        });
+
+        divertModal = new bootstrap.Modal(document.getElementById('divertModal'));
+        $(document).on('click', '#divertBtn', openDivertDialog);
+        $('#div-list').on('click', 'tr', function () {
+            divertModal.hide();
+            sendAction('divert', {icao: $(this).data('icao')});
+        });
+        $('#div-clear').on('click', function () {
+            divertModal.hide();
+            sendAction('divert', {icao: ''});
         });
 
         stub = new URLSearchParams(location.search).get('stub');
