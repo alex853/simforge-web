@@ -128,9 +128,13 @@
     // The tickets and the income come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight; the income is the sum of the
     // price of the journeys of the flight, 0 for the flights which were before the income and for the journeys without a price).
     function salesHtml(fl) {
-        // a flight without a transport flight is a ferry flight (no passengers, so no tickets and no income)
+        // a flight without a transport flight is a ferry flight (no passengers, so no tickets and no income); the one which landed at another airport and whose passengers went on in
+        // another flight is not a ferry flight but a diverted one, in dark red as the new airport of the divert in the dashboard
         if (fl.ferry) {
-            return '<div class="flight-sales is-ferry' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '"><div><span class="text-primary fw-semibold">Ferry flight</span></div></div>';
+            const label = fl.diverted
+                ? '<span class="fw-semibold" style="color: var(--bs-danger-text-emphasis)">Diverted flight</span>'
+                : '<span class="text-primary fw-semibold">Ferry flight</span>';
+            return '<div class="flight-sales is-ferry' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '"><div>' + label + '</div></div>';
         }
         const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
         // by the state of the flight: before the departure the tickets which were sold and remained; in the departure, the flying and the arrival the passengers on board; in
