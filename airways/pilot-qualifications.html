@@ -142,6 +142,7 @@
         lastResponse = q;
         const t = q.totals;
         const c = q.criteria;
+        const ls = q.landingStats;
         // the window of the recent landings in days, it comes from the server (90 days)
         const recentLandings = Math.round(q.recentLandingsWindowHours / 24) + ' d';
         const recentFlights = q.recentFlightsWindowDays >= 360 ? '12 months' : q.recentFlightsWindowDays + ' d';
@@ -212,7 +213,9 @@
                 {label: 'Night', value: t.nightTime.toFixed(1), hint: 'hours'},
                 {label: 'IFR', value: t.ifrTime.toFixed(1), hint: 'hours'},
                 {label: 'Takeoffs', value: `${t.dayTakeoffs} / ${t.nightTakeoffs}`, hint: 'day / night'},
-                {label: 'Landings', value: `${t.dayLandings} / ${t.nightLandings}`, hint: 'day / night'}
+                {label: 'Landings', value: `${t.dayLandings} / ${t.nightLandings}`, hint: 'day / night'},
+                {label: `Diverts, ${ls.windowDays} d`, value: `${ls.declaredDiverts} / ${ls.unplannedDiverts}`, hint: 'declared / unplanned'},
+                {label: `Cancelled, ${ls.windowDays} d`, value: fmtNumber(ls.cancelledFlights), hint: 'flights'}
             ])}
 
             ${section('Aircraft type currency', table, {count: q.types.length, tools: q.types.length > 1 ? sortToggle() : ''})}

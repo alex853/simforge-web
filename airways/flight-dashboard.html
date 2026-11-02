@@ -494,7 +494,8 @@
     const ACTION_LABELS = {
         'start-flight': 'Start tracked flight', 'start-flight-manual': 'Start manual flight', 'start-boarding': 'Start Boarding', 'finish-boarding': 'Finish Boarding', 'blocks-off': 'Blocks Off',
         'takeoff': 'Takeoff', 'landing': 'Landing', 'blocks-on': 'Blocks On', 'start-deboarding': 'Start Deboarding', 'finish-flight': 'Finish Flight',
-        'alternate': 'Setting the alternate', 'divert': 'Setting the divert'
+        'alternate': 'Setting the alternate', 'divert': 'Setting the divert',
+        'continue-to-destination': 'Continue to the destination', 'continue-later': 'Plan a feeder flight', 'cancel-transport': 'Cancel the transportation'
     };
     const ACTION_REQUESTS = {
         'start-flight': {url: 'start-flight', params: {mode: 'tracker'}},
@@ -514,6 +515,28 @@
         return BLOCKING_USER_STATES.includes(state);
     }
 
+    // The aircraft has landed not at the destination and stands at the gate: three columns, a button and under it what it does. The server offers these actions instead of the
+    // deboarding, the buttons are the ordinary action buttons (the click sends the action).
+    const WRONG_LANDING_COLUMNS = [
+        {name: 'continue-to-destination', style: 'btn-success', text: f => 'The passengers stay on board and the same aircraft flies on to ' + f.dest + ' soon, in a new flight which you start when you are ready. '
+                + 'This flight is closed and you are paid for it. The passengers pay for the whole trip when they get to ' + f.dest + '.'},
+        {name: 'continue-later', style: 'btn-outline-secondary', text: f => 'The passengers get off and a delivery flight to ' + f.dest + ' is planned into your roster for later. It is not available yet.'},
+        {name: 'cancel-transport', style: 'btn-outline-danger', text: f => 'The passengers get off here and make their own way. It is expensive for the company: nobody pays for the trip, and it is noted in your record.'}
+    ];
+
+    function wrongLandingHtml(status, actions) {
+        const f = status.flight;
+        const columns = WRONG_LANDING_COLUMNS.map(c => {
+            const action = actions.find(a => a.name === c.name);
+            const allowed = !!action && action.allowed && !isBlocked(status, c.name);
+            return '<div class="col-12 col-md-4"><button class="btn action-button w-100 ' + c.style + '" data-action="' + c.name + '"' + (allowed ? '' : ' disabled') + '>' + esc(ACTION_LABELS[c.name]) + '</button>'
+                + '<div class="action-note mt-2">' + esc(c.text(f)) + '</div></div>';
+        }).join('');
+        return '<div class="action-area"><div class="action-title">Landed at ' + esc(f.aldgA ?? f.aldg ?? '?') + ', not at ' + esc(f.dest) + '</div>'
+            + '<p class="text-body-secondary">What happens to the passengers?</p>'
+            + '<div class="row g-3">' + columns + '</div></div>';
+    }
+
     // The area under the tiles: the title of the stage, the conditions of the actions and the buttons.
     function areaHtml(status) {
         const f = status.flight;
@@ -528,6 +551,9 @@
         const manual = status.mode === 'MANUAL';
         const actions = (status.actions ?? []).filter(a => a.name !== 'reschedule');
         const bothStarts = actions.some(a => a.name === 'start-flight') && actions.some(a => a.name === 'start-flight-manual');
+        if (actions.some(a => a.name === 'continue-to-destination')) {
+            return wrongLandingHtml(status, actions);
+        }
         let checks = '';
         let buttons = '';
 
@@ -792,6 +818,12 @@
             case 'ferry':
                 Object.assign(f, {fmSt: 'Flying', tfId: null, tfSt: null, dep: 'KEDC', dest: 'KAUS', adep: '10:06', atkf: '10:17', pdep: '10:05', parr: '10:39', etkf: '10:15', eldg: '10:29', earr: '10:39'});
                 actions = [];
+                mode = 'MANUAL';
+                break;
+            case 'wrong-landing':
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59', aldgA: 'KSAT'});
+                actions = [{name: 'continue-to-destination', allowed: true, checks: []}, {name: 'continue-later', allowed: false, checks: [{name: 'It is not available yet', result: false}]},
+                    {name: 'cancel-transport', allowed: true, checks: []}];
                 mode = 'MANUAL';
                 break;
             case 'arrived':
