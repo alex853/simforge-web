@@ -542,8 +542,13 @@
         }
         const right = '<button class="btn btn-outline-orange w-100" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
             + '<div class="action-note mt-2">Land at another airport instead of ' + esc(f.dest) + '.</div>';
+        // after a divert the pilot can go back to the destination of the plan
+        const cancel = f.div
+            ? '<div class="col-12 col-md-4"><button class="btn btn-outline-secondary w-100" id="divertCancelBtn"' + (actionInProgress ? ' disabled' : '') + '>Cancel divert</button>'
+                + '<div class="action-note mt-2">Take the divert back: fly to ' + esc(f.dest) + ' as planned.</div></div>'
+            : '';
         return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div>'
-            + '<div class="row g-3">' + (left ? '<div class="col-12 col-md-4">' + left + '</div>' : '') + '<div class="col-12 col-md-4">' + right + '</div></div></div>';
+            + '<div class="row g-3">' + (left ? '<div class="col-12 col-md-4">' + left + '</div>' : '') + '<div class="col-12 col-md-4">' + right + '</div>' + cancel + '</div></div>';
     }
 
     function wrongLandingHtml(status, actions) {
@@ -909,6 +914,9 @@
         $('#div-list').on('click', 'tr', function () {
             divertModal.hide();
             sendAction('divert', {icao: $(this).data('icao')});
+        });
+        $(document).on('click', '#divertCancelBtn', function () {
+            sendAction('divert', {icao: ''});
         });
         $('#div-clear').on('click', function () {
             divertModal.hide();
