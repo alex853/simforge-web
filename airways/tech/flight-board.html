@@ -197,7 +197,7 @@
         });
     });
 
-    function adminCancel(id) { // todo ak0 hide it in Cancelled/Finished statuses
+    function adminCancel(id) { // todo ak3 hide it in Cancelled/Finished statuses
         if (!confirm("Do you want to cancel this flight including transport flight?")) return;
         airwaysAuthAdmin('GET', '/admin/flight/cancel?id=' + id, {}, function (response) {
             alert(response);
