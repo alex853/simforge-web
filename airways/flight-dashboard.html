@@ -564,8 +564,40 @@
             + '<div class="row g-3">' + columns + '</div></div>';
     }
 
-    // The area under the tiles: the title of the stage, the conditions of the actions and the buttons.
+    // What the flight does to the next flights of the pilot (status.scheduleWarning, null when there is nothing to tell):
+    // late: the next flight cannot start by its plan, always a conflict; divert: the airline expects the passengers at the destination all the same, a conflict is when the
+    // next flight starts before the earliest time the aircraft can be there. The conflict is resolved in the roster, not here.
+    function scheduleWarningHtml(status) {
+        const w = status.scheduleWarning;
+        if (!w) {
+            return '';
+        }
+        const next = w.nextFlightRoute ? ' (' + esc(w.nextFlightRoute) + ' at ' + esc(w.nextFlightDeparture) + ' UTC)' : '';
+        const rosterButton = ' <a class="btn btn-sm btn-outline-danger ms-2" href="pilot-roster.html">Open the roster</a>';
+        if (w.kind === 'late') {
+            return '<div class="alert alert-danger py-2"><b>You are late.</b> This flight lands at about ' + esc(w.blocksOn) + ' UTC, and the next flight' + next
+                + ' cannot start by its plan: the gap of 30 minutes between the flights is short by ' + w.shortfallMinutes + ' min. Go to the roster and resolve the conflict.' + rosterButton + '</div>';
+        }
+        // two different messages: the divert is a caution (information), the conflict under it is the one to deal with
+        let html = '<div class="alert alert-warning py-2"><b>Divert.</b> The passengers are on board: the airline expects you to deliver them to '
+            + esc(w.destinationIcao) + ' after the problem is solved.</div>';
+        if (w.conflict) {
+            html += '<div class="alert alert-danger py-2"><b>Conflict with the next flight.</b> By our estimate you will not be at ' + esc(w.destinationIcao) + ' before ' + esc(w.blocksOn)
+                + ' UTC (the flight to the divert airport, an hour on the ground there, the planned flight to ' + esc(w.destinationIcao) + ', an hour on the ground at the destination), and the next flight' + next
+                + ' starts earlier. Go to the roster and resolve the conflict.' + rosterButton + '</div>';
+        }
+        return html;
+    }
+
+    // The area under the tiles: the title of the stage, the warning about the next flights, the conditions of the actions and the buttons.
     function areaHtml(status) {
+        const html = areaStageHtml(status);
+        const warning = scheduleWarningHtml(status);
+        // the warning goes right under the title of the stage, above the buttons
+        return warning ? html.replace(/(<div class="action-title">.*?<\/div>)/, '$1' + warning.replace(/\$/g, '$$$$')) : html;
+    }
+
+    function areaStageHtml(status) {
         const f = status.flight;
         if (f === null) {
             return '';
@@ -804,6 +836,7 @@
         let actions = [{name: 'start-flight', allowed: dutyOk, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, {name: 'The aircraft is idle at the departure airport KAUS', result: true}, ...limits]},
             {name: 'start-flight-manual', allowed: dutyOk, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, ...limits]}];
         let mode = null;
+        let scheduleWarning = null;
         switch (name) {
             case 'check-in':
                 Object.assign(f, {fmSt: 'Preflight', tfSt: 'CheckIn', ckdIn: 87});
@@ -838,6 +871,23 @@
                 Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18'});
                 actions = [];
                 mode = 'SIM_TRACKER';
+                break;
+            case 'late':
+                // the next flight cannot start by its plan
+                Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18'});
+                actions = [];
+                mode = 'SIM_TRACKER';
+                scheduleWarning = {kind: 'late', conflict: true, destinationIcao: null, blocksOn: '21:35', nextFlightRoute: 'MMMX - KAUS', nextFlightDeparture: '21:50', shortfallMinutes: 15};
+                break;
+            case 'divert-reminder':
+                Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', alt: null, div: 'KSAT'});
+                mode = 'MANUAL';
+                scheduleWarning = {kind: 'divert', conflict: false, destinationIcao: 'MMMX', blocksOn: '22:40', nextFlightRoute: null, nextFlightDeparture: null, shortfallMinutes: 0};
+                break;
+            case 'divert-conflict':
+                Object.assign(f, {fmSt: 'Flying', tfSt: 'Flying', ckdIn: 151, ponBrd: 151, adep: '19:07', atkf: '19:18', alt: null, div: 'KSAT'});
+                mode = 'MANUAL';
+                scheduleWarning = {kind: 'divert', conflict: true, destinationIcao: 'MMMX', blocksOn: '22:40', nextFlightRoute: 'MMMX - KAUS', nextFlightDeparture: '23:10', shortfallMinutes: 30};
                 break;
             case 'ferry':
                 Object.assign(f, {fmSt: 'Flying', tfId: null, tfSt: null, dep: 'KEDC', dest: 'KAUS', adep: '10:06', atkf: '10:17', pdep: '10:05', parr: '10:39', etkf: '10:15', eldg: '10:29', earr: '10:39'});
@@ -874,8 +924,9 @@
                 break;
         }
         return {mode: mode, actions: actions, sim: {status: 'Connected', locationStatus: 'At airport', airportIcao: 'KAUS', parkingBrake: true, engineRunning: false, measuredGs: '0'},
+            scheduleWarning: scheduleWarning,
             flight: f, pilot: name === 'travelling' ? {state: 'PERSON_NOT_IDLE'}
-                : (['flying', 'landed', 'ferry'].includes(name) ? {state: 'OK'} : {state: 'OK', expectedAirport: 'KAUS', currentAirport: 'KAUS'})};
+                : (['flying', 'landed', 'ferry', 'late', 'divert-reminder', 'divert-conflict'].includes(name) ? {state: 'OK'} : {state: 'OK', expectedAirport: 'KAUS', currentAirport: 'KAUS'})};
     }
 
     const STUB_PILOT = {state: 'Idle', awake: {creditMinutes: 600, sleeping: false}, duty: {last24HoursMinutes: 200, limitMinutes: 840},

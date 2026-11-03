@@ -22,20 +22,21 @@
         .flight-over { opacity: .65; }
         /* a value which the server does not give yet */
         .todo { color: #dc3545; font-weight: 700; }
-        /* the tickets of the flight: to the left of the corner of the tile, where the buttons will be (like Sleep and Travel on the page of the pilot) */
-        /* the buttons of the flight: a column in the right edge of the tile, they are not working yet */
-        .flight-actions { position: absolute; top: .45rem; right: .6rem; bottom: .45rem; width: 6rem; display: flex; flex-direction: column; justify-content: space-between; }
-        .flight-actions .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .85rem; line-height: 1.3; }
-        .flight-sales { position: absolute; bottom: .9rem; right: 9.5rem; width: 10.5rem; font-size: .9rem; line-height: 1.5; }
-        /* a ferry flight has one line: it is at the level of the centres of the letters of the airports */
-        .flight-sales.is-ferry { top: 2.2rem; bottom: auto; height: 2.4rem; display: flex; align-items: center; }
-        /* a flight which is over has no buttons, the numbers go to the right edge */
-        .flight-sales.no-actions { right: 1.1rem; }
-        /* a narrow tile (a narrow window): the route and the numbers are smaller, so they do not run into each other and into the buttons */
+        /* the numbers of the flight (tickets, income) are in the bottom right corner of the tile in any state of the flight, they do not move */
+        .flight-tile { min-height: 7.5rem; }
+        .flight-sales { position: absolute; bottom: .75rem; right: 1.1rem; width: 10.5rem; font-size: .9rem; line-height: 1.5; }
+        /* a ferry flight has one line: it is at the level of the centres of the letters of the airports, at the right edge */
+        .flight-sales.is-ferry { top: 2.4rem; bottom: auto; height: 2.4rem; display: flex; align-items: center; }
+        .flight-sales.is-ferry > div { justify-content: flex-end; }
+        /* the actions of the flight: a small square button with three dots in the top right corner, the actions are in its menu */
+        .flight-menu { position: absolute; top: .4rem; right: .5rem; z-index: 2; }
+        .flight-menu-btn { width: 1.7rem; height: 1.7rem; padding: 0; line-height: 1; font-size: 1rem; }
+        /* the menu goes over the tiles below: the tile with an open menu is over its neighbours (the tile is a container, so it is a stacking context of its own) */
+        .flight-tile:has(.dropdown-menu.show) { z-index: 5; }
+        /* a narrow tile (a narrow window): the route and the numbers are smaller, so they do not run into each other */
         @container (max-width: 540px) {
             .flight-tile .flight-route { font-size: 1.3rem; }
-            .flight-sales { right: 7.4rem; width: 8.6rem; font-size: .8rem; }
-            .flight-sales.no-actions { right: 1.1rem; }
+            .flight-sales { width: 8.6rem; font-size: .8rem; }
         }
         .flight-sales > div { display: flex; justify-content: space-between; gap: 1rem; }
         /* with the line of the state the four lines are pressed a bit, so the block is not higher than the tile */
@@ -55,6 +56,15 @@
         /* the two big buttons of the page of the pilot: as wide as a tile and a quarter as high */
         .fly-button { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 1; padding: .4rem; font-size: 1.2rem; font-weight: 700;
             line-height: 1.2; text-align: center; white-space: normal; border-radius: .75rem; }
+        /* a flight which is in conflict with the previous one: a red edge, the box with the reason and the buttons right under the tile */
+        .flight-conflict { border-left: .4rem solid var(--bs-danger) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
+        .flight-affected { border-left: .4rem solid var(--bs-warning) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
+        .conflict-box { padding: .6rem .9rem; margin-bottom: 1rem; border: 1px solid var(--bs-danger-border-subtle); border-top: 0; border-left: .4rem solid var(--bs-danger);
+            border-radius: 0 0 .75rem .75rem; background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+        .conflict-box.is-caution { border-color: var(--bs-warning-border-subtle); border-left-color: var(--bs-warning); background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
+        .conflict-box .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .55rem; --bs-btn-font-size: .85rem; }
+        .time-was { color: var(--bs-secondary-color); text-decoration: line-through; }
+        .time-late { color: var(--bs-warning-text-emphasis); font-weight: 600; }
     </style>
 </head>
 <body>
@@ -104,8 +114,8 @@
         return sameDay ? hhmm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ' + hhmm;
     }
 
-    // The id of the first flight of the roster which is not over: only it has the button Fly (the green one), it goes to the flight dashboard, where the pilot starts the
-    // flight. The other flights have no buttons. TODO Reschedule and Cancel are not shown until the server has them (they were disabled buttons, removed 2026-10-30).
+    // The id of the first flight of the roster which is not over: only it has the menu (the square button with three dots in the corner of its tile) with the action Fly, it goes
+    // to the flight dashboard, where the pilot starts the flight. The other flights have no menu. TODO Reschedule and Cancel are not shown until the server has them (they were disabled buttons, removed 2026-10-30).
     let firstFlightToFlyId = null;
 
     function actionsHtml(fl) {
@@ -113,7 +123,9 @@
         if (fl.id !== firstFlightToFlyId || !isRosterFlightActive(fl)) {
             return '';
         }
-        return '<div class="flight-actions"><a class="btn btn-success" href="flight-dashboard.html">Fly</a></div>';
+        return '<div class="dropdown flight-menu"><button type="button" class="btn btn-outline-secondary flight-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" ' +
+            'aria-label="Actions of the flight" title="Actions">&#8942;</button>' +
+            '<ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item fw-semibold text-success" href="flight-dashboard.html">Fly</a></li></ul></div>';
     }
 
     // the flight is in the air or on the way to it and from it: the status is written in blue (Departure, Flying, Arrival and the postflight)
@@ -134,7 +146,7 @@
             const label = fl.diverted
                 ? '<span class="fw-semibold" style="color: var(--bs-danger-text-emphasis)">Diverted flight</span>'
                 : '<span class="text-primary fw-semibold">Ferry flight</span>';
-            return '<div class="flight-sales is-ferry' + (isRosterFlightActive(fl) ? '' : ' no-actions') + '"><div>' + label + '</div></div>';
+            return '<div class="flight-sales is-ferry"><div>' + label + '</div></div>';
         }
         const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
         // by the state of the flight: before the departure the tickets which were sold and remained; in the departure, the flying and the arrival the passengers on board; in
@@ -147,7 +159,7 @@
                   '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>');
         // the state of the transport flight over the numbers: now only the open check-in (a green bold line), the other states come later (todo ak1 below)
         const checkInOpen = fl.tfStatus === 'CheckIn';
-        return '<div class="flight-sales' + (isRosterFlightActive(fl) ? '' : ' no-actions') + (checkInOpen ? ' has-state' : '') + '">' +
+        return '<div class="flight-sales' + (checkInOpen ? ' has-state' : '') + '">' +
             (checkInOpen ? '<div><span class="text-success fw-bold">Check-in open</span></div>' : '') + tickets +
             '<div><span class="sales-label">Income</span><span class="fw-semibold">' + (fl.income === null || fl.income === undefined ? '&mdash;' : moneyHtml(fl.income)) + '</span></div></div>';
     }
@@ -157,14 +169,63 @@
     // the start of the check-in yet (TransportFlightHelper.calcCheckinStartTime), it must be given as a new field. The boarding and the deboarding later, the same way.
     // A booked flight, a double tile in the middle. The operator, the type and the aircraft are in the tile of the aircraft next to it. Only the last flight of
     // the roster can be cancelled.
+    // The forecast of the flight (fl.forecast, from the server; null when there is nothing to tell): the expected times, the divert, the conflict with the flight before it.
+    // The planned time is crossed out and the expected one is next to it when the flight is expected to leave or to land later than planned; a diverted flight lands 'not before'.
+    function timesHtml(fl) {
+        const f = fl.forecast;
+        const dep = f && f.expDep ? '<span class="time-was">' + timeLabel(fl.dep) + '</span> <span class="time-late">' + timeLabel(f.expDep) + '</span>' : timeLabel(fl.dep);
+        let arr = timeLabel(fl.arr);
+        if (f && f.expArr) {
+            arr = '<span class="time-was">' + timeLabel(fl.arr) + '</span> <span class="time-late">' + (f.arrNotBefore ? 'not before ' : '') + timeLabel(f.expArr) + '</span>';
+        }
+        return dep + ' &rarr; ' + arr;
+    }
+
+    // The buttons of the box of a conflict are shown, they are not working yet
+    function notImplementedButton(cls, text) {
+        return '<button type="button" class="btn ' + cls + ' not-implemented">' + text + '</button>';
+    }
+
+    // The box under a flight which is in conflict with the flight before it: red when the flight before it is as it is (late, diverted), yellow when the conflict appears only after
+    // the flights before it are moved. The text is made of the numbers of the server.
+    function conflictBoxHtml(fl) {
+        const c = fl.forecast ? fl.forecast.conflict : null;
+        if (!c) {
+            return '';
+        }
+        const route = '<b>' + esc(c.causeRoute) + '</b>';
+        if (c.level === 'yellow') {
+            return '<div class="conflict-box is-caution"><div><b>&#9888; Affected</b>' + (c.estimate ? ' <span class="small">(estimate)</span>' : '') + '</div>' +
+                '<div class="small my-1">If the flight before it (' + route + ') is moved to the earliest time it can leave, this flight will be ' + c.shortfallMinutes +
+                ' min short of the gap between the flights too: the earliest departure is then ' + timeLabel(c.suggestedDep) + '.</div>' +
+                '<div class="d-flex flex-wrap gap-2">' + notImplementedButton('btn-outline-warning', 'Move this flight too') + '</div></div>';
+        }
+        const why = c.estimate
+            ? 'The flight before it (' + route + ') is diverted: the earliest the aircraft can be at its destination is an estimate, and an hour on the ground is needed after that.'
+            : 'The flight before it (' + route + ') is late.';
+        return '<div class="conflict-box"><div><b>&#9940; Conflict</b>' + (c.estimate ? ' <span class="small">(estimate)</span>' : '') + '</div>' +
+            '<div class="small my-1">' + why + ' This flight leaves ' + timeLabel(fl.dep) + ': it is ' + c.shortfallMinutes + ' min short of the gap between the flights. ' +
+            'The earliest departure is ' + timeLabel(c.suggestedDep) + '.</div><div class="d-flex flex-wrap gap-2">' +
+            notImplementedButton('btn-danger', 'Move to ' + timeLabel(c.suggestedDep)) + notImplementedButton('btn-outline-danger', 'Choose another time') +
+            (c.estimate ? notImplementedButton('btn-outline-secondary', 'Decide later') : '') + notImplementedButton('btn-outline-secondary', 'Cancel flight') + '</div></div>';
+    }
+
     function flightTile(fl, isLast) {
-        return '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + '">' +
+        const f = fl.forecast;
+        const conflict = f ? f.conflict : null;
+        const box = conflictBoxHtml(fl);
+        const delayed = f && (f.expDep || f.expArr) && !conflict && !f.divertTo;
+        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : '') + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
-            '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status + '</div>' +
+            '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
+            (delayed ? ' <span class="time-late">&#9201; Delayed</span>' : '') +
+            (f && f.divertTo ? ' <span class="badge text-bg-warning">&#9888; Diverted to ' + esc(f.divertTo) + '</span>' : '') + '</div>' +
             '<div class="flight-route">' + fl.from + ' &rarr; ' + fl.to + '</div>' +
-            '<div class="stat-hint">' + timeLabel(fl.dep) + ' &rarr; ' + timeLabel(fl.arr) + '</div>' +
+            (f && f.divertTo ? '<div class="small text-warning-emphasis">Passengers are still expected at ' + fl.to + '</div>' : '') +
+            '<div class="stat-hint">' + timesHtml(fl) + '</div>' +
             '</div>';
+        return tile + box;
     }
 
     const SECTION_GAP_MILLIS = 24 * 60 * 60 * 1000;
@@ -248,6 +309,15 @@
             return;
         }
         let html = '';
+        // the red line over the roster when some flights are in conflict
+        const conflicts = flights.filter(function (fl) { return fl.forecast && fl.forecast.conflict && fl.forecast.conflict.level === 'red'; }).length;
+        const touched = flights.filter(function (fl) { return fl.forecast && fl.forecast.conflict && fl.forecast.conflict.level === 'yellow'; }).length;
+        if (conflicts > 0) {
+            html += '<div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 py-2"><div><b>' + conflicts +
+                (conflicts === 1 ? ' conflict' : ' conflicts') + ' in your roster.</b> The flights which cannot start by their plan are marked in red' +
+                (touched > 0 ? ', the ones which the moves would touch in yellow' : '') + '.</div>' +
+                notImplementedButton('btn-sm btn-danger', 'Resolve conflicts') + '</div>';
+        }
         // the tile of the next flight (only after a flight which is not over) is a part of the last section: the tile of the aircraft is as high as the flights and this tile together
         const groups = groupFlights(flights);
         groups.forEach(function (group, i) {
@@ -276,13 +346,45 @@
     const RELOAD_PERIOD_MILLIS = 60 * 1000;
     let reloading = false;
 
+    // ?stub=late (the first flight is an hour late: the second flight is red, the third one yellow), ?stub=divert (the first flight is diverted), ?stub=ok (no conflicts),
+    // the data are shaped like the answer of the server: the page shows them without the server
+    const STUB = new URLSearchParams(location.search).get('stub');
+
+    function stubRosterFlights(name) {
+        const MIN = 60000;
+        const base = Math.ceil(Date.now() / (30 * MIN)) * (30 * MIN);
+        const flight = function (id, from, to, depMin, durMin, status, extra) {
+            return Object.assign({id: id, from: from, to: to, dep: base + depMin * MIN, arr: base + (depMin + durMin) * MIN, reg: 'N-SJ01', type: 'C25C', status: status,
+                operatorName: 'ShadowJet', sold: 3, remained: 1, carried: null, onBoard: null, income: 4200, ferry: false, diverted: false, tfStatus: null, forecast: null}, extra);
+        };
+        if (name === 'late') {
+            // the first flight leaves an hour later and lands at +3:30: the second flight (planned +3:10) must leave at +4:00, and then the third one (planned +4:30) is short too
+            const f1 = flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'WaitingForBoarding', forecast: {expDep: base + 90 * MIN, expArr: base + 210 * MIN, arrNotBefore: false, divertTo: null, conflict: null}});
+            const f2 = flight('2', 'MMUN', 'MMMX', 190, 120, 'Dispatched', {forecast: {expDep: base + 240 * MIN, expArr: base + 360 * MIN, arrNotBefore: false, divertTo: null,
+                conflict: {level: 'red', shortfallMinutes: 50, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + 240 * MIN}}});
+            const f3 = flight('3', 'MMUN', 'MMMX', 270, 120, 'Dispatched', {forecast: {expDep: base + 390 * MIN, expArr: base + 510 * MIN, arrNotBefore: false, divertTo: null,
+                conflict: {level: 'yellow', shortfallMinutes: 120, causeRoute: 'MMUN - MMMX', estimate: false, suggestedDep: base + 390 * MIN}}});
+            return [f1, f2, f3];
+        }
+        if (name === 'divert') {
+            const f1 = flight('1', 'MMMX', 'MMUN', -60, 120, 'Flying', {tfStatus: 'Flying', onBoard: 3, remained: null,
+                forecast: {expDep: null, expArr: base + 200 * MIN, arrNotBefore: true, divertTo: 'MMTO', conflict: null}});
+            const f2 = flight('2', 'MMUN', 'MMMX', 90, 120, 'Dispatched', {forecast: {expDep: base + 260 * MIN, expArr: base + 380 * MIN, arrNotBefore: false, divertTo: null,
+                conflict: {level: 'red', shortfallMinutes: 170, causeRoute: 'MMMX - MMUN', estimate: true, suggestedDep: base + 260 * MIN}}});
+            const f3 = flight('3', 'MMMX', 'MMUN', 270, 120, 'Dispatched', {forecast: {expDep: base + 410 * MIN, expArr: base + 530 * MIN, arrNotBefore: false, divertTo: null,
+                conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
+            return [f1, f2, f3];
+        }
+        return [flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'CheckIn'}), flight('2', 'MMUN', 'MMMX', 210, 120, 'Dispatched', {})];
+    }
+
     function reloadRoster() {
         if (reloading) {
             return;
         }
         reloading = true;
         $('#reloadRoster').prop('disabled', true);
-        loadRosterFlights(function (flights) {
+        (STUB ? function (callback) { callback(stubRosterFlights(STUB)); } : loadRosterFlights)(function (flights) {
             reloading = false;
             $('#reloadRoster').prop('disabled', false);
             renderRoster(flights);
@@ -297,9 +399,15 @@
     $(document).ready(function () {
         initSiteMenu('pilot-roster');
         renderHeader();
-        loadPilot();
+        if (!STUB) {
+            loadPilot();
+        }
         reloadRoster();
         $('#reloadRoster').on('click', reloadRoster);
+        // the buttons of the conflicts are shown before the actions are made
+        $(document).on('click', '.not-implemented', function () {
+            alert('Hello World: not implemented');
+        });
         setInterval(function () {
             if (!document.hidden) {
                 reloadRoster();

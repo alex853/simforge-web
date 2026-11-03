@@ -1,6 +1,6 @@
 // The roster of the pilot, shared by pilot-roster.html and shadow-jet.html. The flights come from GET /flight-dashboard/my-flights (loadRosterFlights).
 // The shape of a flight of the roster, in the order of the departure:
-// {id, from, to, dep, arr (UTC millis), reg, type, status, operatorName, sold, remained (null when there is no transport flight), carried (the passengers carried, only of a finished flight, otherwise null), income (the income of the flight, 0 when it has none, null when there is no transport flight), ferry (no transport flight)}.
+// {id, from, to, dep, arr (UTC millis), reg, type, status, operatorName, sold, remained (null when there is no transport flight), carried (the passengers carried, only of a finished flight, otherwise null), income (the income of the flight, 0 when it has none, null when there is no transport flight), ferry (no transport flight)}, forecast (see below)}.
 
 // The least gap, always: from now to the departure of a flight, and between the arrival of a flight and the departure of the next one. The gaps can be bigger.
 // The server checks the same (ShadowJetController.MIN_GAP_SECONDS).
@@ -57,7 +57,9 @@ function myFlightToRosterFlight(m) {
     return {
         id: f.id, from: f.depIcao, to: f.destIcao, dep: dep, arr: arr, reg: m.aircraft.regNo, type: m.aircraft.type, status: f.status,
         operatorName: m.aircraft.operatorName, sold: t ? t.soldSeats : null, remained: t ? t.totalSeats - t.soldSeats : null,
-        carried: t ? t.carriedPax : null, onBoard: t ? t.onBoard : null, income: t ? t.income : null, ferry: !t, diverted: !!f.diverted, tfStatus: t ? t.status : null
+        carried: t ? t.carriedPax : null, onBoard: t ? t.onBoard : null, income: t ? t.income : null, ferry: !t, diverted: !!f.diverted, tfStatus: t ? t.status : null,
+        // the expected times, the divert and the conflict with the flight before it (null when there is nothing to tell), see ForecastDto of the server
+        forecast: m.forecast || null
     };
 }
 
