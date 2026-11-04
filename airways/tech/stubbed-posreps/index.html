@@ -10,6 +10,7 @@
     </script>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="sim.js"></script>
     <style>
         .icao-input { width: 7rem; text-transform: uppercase; font-family: var(--bs-font-monospace); }
@@ -43,7 +44,10 @@
     </section>
 
     <section class="card mb-4">
-        <div class="card-header">Aircraft state</div>
+        <div class="card-header d-flex align-items-center">
+            <span>Aircraft state</span>
+            <button type="button" id="btnPark" class="btn btn-sm btn-outline-primary ms-auto">Put aircraft parked at…</button>
+        </div>
         <div class="card-body">
             <div class="row g-3 mb-2">
                 <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Latitude</div><div class="stat-value" id="stLat">—</div></div>
@@ -57,17 +61,6 @@
             </div>
             <div class="phase-line text-secondary" id="phaseLine"></div>
 
-            <hr>
-            <div class="row g-2 align-items-end">
-                <div class="col-auto">
-                    <label class="form-label mb-1" for="parkIcao">Put the aircraft parked at</label>
-                    <input id="parkIcao" class="form-control icao-input" type="text" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO">
-                </div>
-                <div class="col-auto">
-                    <button type="button" id="btnPark" class="btn btn-outline-primary">Put</button>
-                </div>
-                <div class="col-12 form-text">Engines off, parking brake set, on the ground at the airport. A flight in progress is dropped.</div>
-            </div>
         </div>
     </section>
 
@@ -103,6 +96,28 @@
         </div>
     </section>
 </main>
+
+<!-- Put the aircraft parked at an airport -->
+<div class="modal fade" id="parkModal" tabindex="-1" aria-labelledby="parkModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="parkModalTitle">Put aircraft parked at</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label mb-1" for="parkIcao">Airport</label>
+                <input id="parkIcao" class="form-control icao-input" type="text" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO">
+                <div class="form-text">Engines off, parking brake set, on the ground at the airport. A flight in progress is dropped.</div>
+                <div class="text-danger small mt-2" id="parkError"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btnParkPut" class="btn btn-primary">Put</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     const SERVICE_URL = 'https://d1.simforge.net:7776';
@@ -187,7 +202,7 @@
         document.getElementById('fromIcao').value = flying && state ? state.from.icao : (idle ? idle.icao : '');
         document.getElementById('toIcao').disabled = busy || flying;
         document.getElementById('btnFly').disabled = busy || flying || !idle;
-        document.getElementById('btnPark').disabled = busy;
+        document.getElementById('btnParkPut').disabled = busy;
         document.getElementById('divertBox').style.display = PosrepSim.canDivert() ? '' : 'none';
         document.getElementById('btnDivert').disabled = busy;
         setText('flyHelp', flying ? 'The flight is in progress.' : idle ? 'The flight starts where the aircraft stands now.' : 'Put the aircraft at an airport first.');
@@ -198,7 +213,7 @@
         busy = true;
         message = lookingText;
         render();
-        Promise.all(icaos.map(loadAirport))
+        return Promise.all(icaos.map(loadAirport))
             .then(function (airports) {
                 message = done(airports);
             })
@@ -210,15 +225,33 @@
                 busy = false;
                 render();
                 sendPosrep(); // the new state goes to the tracker right away
+                return message;
             });
+    }
+
+    let parkModal;
+
+    function openParkDialog() {
+        setText('parkError', '');
+        document.getElementById('parkIcao').value = '';
+        parkModal.show();
+        setTimeout(function () { document.getElementById('parkIcao').focus(); }, 300);
     }
 
     function park() {
         const icao = icaoOf('parkIcao');
+        setText('parkError', '');
         withAirports([icao], 'Looking up ' + icao + '…', function (airports) {
             PosrepSim.parkAt(airports[0]);
-            document.getElementById('parkIcao').value = '';
             return null;
+        }).then(function (result) {
+            if (result === null) {
+                parkModal.hide();
+            } else {
+                setText('parkError', result);
+                message = null;
+                render();
+            }
         });
     }
 
@@ -327,12 +360,16 @@
             renderPilot();
             // the first time: the aircraft stands where the pilot is
             if (!PosrepSim.state() && p && p.airportIcao) {
-                document.getElementById('parkIcao').value = p.airportIcao;
-                park();
+                withAirports([p.airportIcao], 'Looking up ' + p.airportIcao + '…', function (airports) {
+                    PosrepSim.parkAt(airports[0]);
+                    return null;
+                });
             }
         });
 
-        document.getElementById('btnPark').addEventListener('click', park);
+        parkModal = new bootstrap.Modal(document.getElementById('parkModal'));
+        document.getElementById('btnPark').addEventListener('click', openParkDialog);
+        document.getElementById('btnParkPut').addEventListener('click', park);
         document.getElementById('btnFly').addEventListener('click', startFlight);
         document.getElementById('btnDivert').addEventListener('click', divert);
         [['parkIcao', park], ['toIcao', startFlight], ['divertIcao', divert]].forEach(function (pair) {
