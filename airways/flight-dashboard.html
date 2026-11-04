@@ -547,7 +547,7 @@
                 + '<div class="action-note mt-2">The sim tracker lands the aircraft where you land it.</div>';
         }
         const right = '<button class="btn btn-outline-orange w-100" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
-            + '<div class="action-note mt-2">Land at another airport instead of ' + esc(f.dest) + '.</div>';
+            + '<div class="action-note mt-2">If you need to land at another airport instead of ' + esc(f.dest) + ': an emergency, bad weather, a closed airport, or any other reason you cannot land there.</div>';
         // after a divert the pilot can go back to the destination of the plan
         const cancel = f.div
             ? '<div class="col-12 col-md-4"><button class="btn btn-outline-secondary w-100" id="divertCancelBtn"' + (actionInProgress ? ' disabled' : '') + '>Cancel divert</button>'
