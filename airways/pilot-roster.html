@@ -67,6 +67,8 @@
         .flight-flying { background: color-mix(in srgb, var(--bs-primary) 7%, var(--bs-body-bg)) !important; border-color: color-mix(in srgb, var(--bs-primary) 35%, var(--bs-body-bg)) !important; }
         /* a diverted flight: a pale orange tile, the box under it is orange too */
         .flight-diverted { border-left: .4rem solid var(--bs-orange) !important; background: rgba(253, 126, 20, .12) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
+        /* a diverted flight which is over: the same orange, much paler, near the grey of a finished flight; it has no box under it, its tile tells everything */
+        .flight-diverted-over { border-left: .4rem solid rgba(253, 126, 20, .5) !important; background: color-mix(in srgb, #fd7e14 5%, var(--bs-body-bg)) !important; }
         .conflict-box.is-divert { border-color: rgba(253, 126, 20, .4); border-left-color: var(--bs-orange); background: rgba(253, 126, 20, .12); color: var(--bs-body-color); }
         .was-route { font-weight: 600; color: var(--bs-orange-text-emphasis, #984c0c); }
         .time-was { color: var(--bs-secondary-color); text-decoration: line-through; }
@@ -111,6 +113,28 @@
     </div>
 </main>
 
+<!-- The move of a flight to another time (the action Reschedule of the menu of a flight): the pilot chooses among the times which keep the flight between its neighbours -->
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Reschedule the flight</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <p class="mb-2"><span class="fw-bold" id="rs-route"></span><br>
+                    <span class="text-secondary">now:</span> <span id="rs-now"></span></p>
+                <label class="form-label" for="rs-time">New departure</label>
+                <select class="form-select" id="rs-time"></select>
+                <p class="small text-secondary mt-2 mb-0" id="rs-hint"></p>
+                <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="rs-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="rs-confirm" disabled>Reschedule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- The question before the move of a flight (the button Move to of a conflict): the pilot sees what is moved, the answer of the server is shown here when the move is refused -->
 <div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -146,13 +170,22 @@
     let firstFlightToFlyId = null;
 
     function actionsHtml(fl) {
-        // only the first flight which is not over has a button
-        if (fl.id !== firstFlightToFlyId || !isRosterFlightActive(fl)) {
+        if (!isRosterFlightActive(fl)) {
+            return '';
+        }
+        // Fly: only the first flight which is not over; Reschedule: a flight which can be moved
+        let items = '';
+        if (fl.id === firstFlightToFlyId) {
+            items += '<li><a class="dropdown-item fw-semibold text-success" href="flight-dashboard.html">Fly</a></li>';
+        }
+        if (fl.reschedule) {
+            items += '<li><button type="button" class="dropdown-item reschedule-flight" data-flight-id="' + esc(fl.id) + '">Reschedule&hellip;</button></li>';
+        }
+        if (items === '') {
             return '';
         }
         return '<div class="dropdown flight-menu"><button type="button" class="btn btn-outline-secondary flight-menu-btn" data-bs-toggle="dropdown" aria-expanded="false" ' +
-            'aria-label="Actions of the flight" title="Actions">&#8942;</button>' +
-            '<ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item fw-semibold text-success" href="flight-dashboard.html">Fly</a></li></ul></div>';
+            'aria-label="Actions of the flight" title="Actions">&#8942;</button><ul class="dropdown-menu dropdown-menu-end">' + items + '</ul></div>';
     }
 
     // the flight is in the air or on the way to it and from it: the status is written in blue (Departure, Flying, Arrival and the postflight)
@@ -246,11 +279,6 @@
     // The box under a diverted flight: what it was, where it is now and where the airline expects it to deliver the passengers
     function diversionBoxHtml(fl) {
         const f = fl.forecast;
-        if (!f && fl.landedAt) {
-            // the flight is over (or has no forecast): what it was and where it has landed
-            return '<div class="conflict-box is-divert"><div><b>&#9888; Diversion</b></div><div class="small my-1">This was the flight <b>' + fl.from + ' &rarr; ' + fl.to +
-                '</b>, diverted to <b>' + esc(fl.landedAt) + '</b>' + (fl.actArr ? ': the aircraft was at the gate there at ' + timeLabel(fl.actArr) : '') + '.</div></div>';
-        }
         if (!f || !f.divertTo) {
             return '';
         }
@@ -310,7 +338,7 @@
         const divertAirport = f && f.divertTo ? f.divertTo : fl.landedAt;
         const diverted = !!divertAirport;
         const box = diversionBoxHtml(fl) + conflictBoxHtml(fl);
-        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? ' flight-diverted' : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : (isFlyingWithoutTrouble(fl) ? ' flight-flying' : ''))) + '">' +
+        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? (f && f.divertTo ? ' flight-diverted' : ' flight-diverted-over') : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : (isFlyingWithoutTrouble(fl) ? ' flight-flying' : ''))) + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
             '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
@@ -471,6 +499,15 @@
                 conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
             return [f1, f2, f3];
         }
+        if (name === 'reschedule') {
+            // the flight before is in the air and ahead of the plan, the flight in the middle can be moved, the third one is in conflict with it (planned too early)
+            const f1 = flight('1', 'MMUN', 'MMMX', -120, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null,
+                forecast: {expDep: base - 138 * MIN, expArr: base - 20 * MIN, destNotBefore: null, divertTo: null, conflict: null}});
+            const f2 = flight('2', 'MMMX', 'MMUN', 120, 125, 'Dispatched', {reschedule: {from: base + 15 * MIN, to: base + 120 * MIN, stepMinutes: 15}});
+            const f3 = flight('3', 'MMUN', 'MMMX', 165, 125, 'Dispatched', {forecast: {expDep: base + 275 * MIN, expArr: base + 400 * MIN, destNotBefore: null, divertTo: null,
+                conflict: {level: 'red', shortfallMinutes: 110, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + 275 * MIN}}});
+            return [f1, f2, f3];
+        }
         if (name === 'diverted-over') {
             // the flight landed at MMUN instead of MMMX (it is over), the passengers went on in the next flight
             const f1 = flight('1', 'MMUN', 'MMMX', -300, 125, 'Finished', {ferry: true, diverted: true, tfStatus: null, income: 0, sold: null, remained: null,
@@ -519,6 +556,61 @@
         // the buttons of the conflicts are shown before the actions are made
         $(document).on('click', '.not-implemented', function () {
             alert('Hello World: not implemented');
+        });
+        // 'Reschedule': the times are from the earliest to the latest which keep the flight between its neighbours (the server counts them), every 15 minutes; the flight is moved
+        // by the difference to its planned departure
+        const rescheduleModal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
+        let rescheduledFlight = null;
+        $(document).on('click', '.reschedule-flight', function () {
+            const fl = rosterFlights.find(function (f) { return String(f.id) === $(this).attr('data-flight-id'); }.bind(this));
+            if (!fl || !fl.reschedule) {
+                return;
+            }
+            rescheduledFlight = fl;
+            const r = fl.reschedule;
+            const step = r.stepMinutes * 60000;
+            const duration = fl.arr - fl.dep;
+            let options = '';
+            for (let t = r.from; t <= r.to; t += step) {
+                if (t !== fl.dep) {
+                    options += '<option value="' + t + '">' + timeLabel(t) + ' &rarr; ' + timeLabel(t + duration) + '</option>';
+                }
+            }
+            $('#rs-route').text(fl.from + ' \u2192 ' + fl.to);
+            $('#rs-now').text(timeLabel(fl.dep) + ' \u2192 ' + timeLabel(fl.arr));
+            $('#rs-error').addClass('d-none').text('');
+            if (options === '') {
+                $('#rs-time').html('<option value="">There is no other time</option>').prop('disabled', true);
+                $('#rs-hint').text('There is no other time between the flight before this one and the flight after it where this flight would not be in conflict with them.');
+            } else {
+                $('#rs-time').html('<option value="" selected disabled>Choose the time</option>' + options).prop('disabled', false);
+                $('#rs-hint').text('The times keep the flight between its neighbours: not earlier than the gap of 30 minutes after the landing of the flight before it, and landing not later than 30 minutes before the flight after it. The passengers stay with the flight.');
+            }
+            $('#rs-confirm').prop('disabled', true);
+            rescheduleModal.show();
+        });
+        $('#rs-time').on('change', function () {
+            $('#rs-confirm').prop('disabled', !$(this).val());
+        });
+        $('#rs-confirm').on('click', function () {
+            const chosen = parseInt($('#rs-time').val(), 10);
+            if (!rescheduledFlight || !chosen) {
+                return;
+            }
+            if (STUB) {
+                $('#rs-error').removeClass('d-none').text('The stub data: nothing is sent');
+                return;
+            }
+            const $confirm = $(this);
+            $confirm.prop('disabled', true);
+            airwaysAuth('POST', '/flight-dashboard/reschedule', {flightId: rescheduledFlight.id, shiftMinutes: Math.round((chosen - rescheduledFlight.dep) / 60000)}, function () {
+                rescheduleModal.hide();
+                reloadRoster();
+            }, function (e) {
+                const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
+                $('#rs-error').removeClass('d-none').text('The flight was not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
+                $confirm.prop('disabled', false);
+            });
         });
         // 'Move to': the question is asked in the window, the flight is moved to the time of the button (the shift is from the planned departure, the server checks everything
         // and tells why it can not be done)
