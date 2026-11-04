@@ -109,7 +109,7 @@
         minZoom: mapZoomMin
     }).addTo(map);
 
-    const data = {cities: [], airports: []};
+    const data = {cities: [], airports: [], countries: []};
     let markers = [];
     let lines = [];
     const modal = new bootstrap.Modal(document.getElementById('info-modal'));
@@ -204,10 +204,14 @@
         }
     } catch (e) { /* the place is not remembered */ }
 
+    // The editor sees all the airports, also the excluded ones (the public /geo lists do not have them), so the lists come from the admin endpoints.
     function loadWorld() {
-        airwaysGet('/geo/cities', function (cities) {
+        airwaysGet('/geo/countries', function (countries) {
+            data.countries = countries.slice().sort((a, b) => a.name.localeCompare(b.name));
+        });
+        adminGet('/admin/world/cities', function (cities) {
             data.cities = cities;
-            airwaysGet('/geo/airports', function (airports) {
+            adminGet('/admin/world/airports', function (airports) {
                 data.airports = airports;
                 $('#counts').text(cities.length + ' cities, ' + airports.length + ' airports');
                 drawLinks();
@@ -343,6 +347,13 @@
         showCity(info);
     }
 
+    // the countries of the world, the empty value is 'unknown'
+    function countrySelectHtml(countryId) {
+        return '<select class="form-select form-select-sm" id="country-select"><option value=""' + (countryId ? '' : ' selected') + '>unknown</option>'
+            + data.countries.map(c => '<option value="' + esc(c.id) + '"' + (c.id === countryId ? ' selected' : '') + '>' + esc(c.name) + ' (' + esc(c.code) + ')</option>').join('')
+            + '</select>';
+    }
+
     function showAirport(a) {
         $('#info-title').text(a.icao + ' ' + a.name);
         const cities = a.cities.length === 0 ? '<div class="text-muted">no cities linked</div>'
@@ -358,12 +369,27 @@
             + row('ICAO / IATA', esc(a.icao) + ' / ' + esc(a.iata))
             + row('Name', esc(a.name))
             + row('Coordinates', coords(a))
-            + row('Excluded', a.excluded ? 'yes' : 'no')
+            + row('Country', countrySelectHtml(a.countryId))
+            + row('Flags', '<div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="excluded-check"' + (a.excluded ? ' checked' : '')
+                + '><label class="form-check-label" for="excluded-check">Excluded</label></div>'
+                + '<div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="hub-check"' + (a.hub ? ' checked' : '')
+                + '><label class="form-check-label" for="hub-check">Hub</label></div>')
             + row('Business terminal', (a.businessTerminal ? '<span class="me-3">yes</span><button class="btn btn-sm btn-outline-danger" id="bt-button">Remove business terminal</button>'
                 : '<span class="me-3">no</span><button class="btn btn-sm btn-outline-primary" id="bt-button">Create business terminal</button>'))
             + '</tbody></table>'
             + '<h6 class="mt-3">Cities</h6>' + cities
             + '<h6 class="mt-3">Facilities</h6>' + facilities);
+
+        // a change goes to the server at once, the dialog shows what the server has stored
+        $('#country-select').on('change', function () {
+            adminPost('/admin/world/airport/country', {icao: a.icao, country: $(this).val()}, showAirport);
+        });
+        $('#excluded-check').on('change', function () {
+            adminPost('/admin/world/airport/excluded', {icao: a.icao, enabled: this.checked}, showAirport);
+        });
+        $('#hub-check').on('change', function () {
+            adminPost('/admin/world/airport/hub', {icao: a.icao, enabled: this.checked}, showAirport);
+        });
 
         $('#bt-button').on('click', function () {
             if (a.businessTerminal && !confirm('Remove the business aviation terminal of ' + a.icao + '?')) {
@@ -381,6 +407,7 @@
             localStorage.setItem('airways.admin.token', $('#token-input').val().trim());
         } catch (e) { /* no storage */ }
         $('#token-box').hide();
+        loadWorld();
     });
 
     try {
