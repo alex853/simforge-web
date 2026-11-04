@@ -71,6 +71,8 @@
         .flight-diverted-over { border-left: .4rem solid rgba(253, 126, 20, .5) !important; background: color-mix(in srgb, #fd7e14 5%, var(--bs-body-bg)) !important; }
         .conflict-box.is-divert { border-color: rgba(253, 126, 20, .4); border-left-color: var(--bs-orange); background: rgba(253, 126, 20, .12); color: var(--bs-body-color); }
         .was-route { font-weight: 600; color: var(--bs-orange-text-emphasis, #984c0c); }
+        /* the list of the times of the move can be long: it scrolls */
+        #rs-options { max-height: 45vh; overflow-y: auto; }
         .time-was { color: var(--bs-secondary-color); text-decoration: line-through; }
         .time-late { color: var(--bs-warning-text-emphasis); font-weight: 600; }
         .time-early { color: var(--bs-success-text-emphasis); font-weight: 600; }
@@ -122,8 +124,11 @@
             <div class="modal-body">
                 <p class="mb-2"><span class="fw-bold" id="rs-route"></span><br>
                     <span class="text-secondary">now:</span> <span id="rs-now"></span></p>
-                <label class="form-label" for="rs-time">New departure</label>
+                <p class="small text-secondary mb-2" id="rs-context"></p>
+                <div class="alert py-2 d-none" id="rs-notice"></div>
+                <label class="form-label" for="rs-time" id="rs-time-label">New departure</label>
                 <select class="form-select" id="rs-time"></select>
+                <div class="list-group d-none" id="rs-options"></div>
                 <p class="small text-secondary mt-2 mb-0" id="rs-hint"></p>
                 <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="rs-error"></div>
             </div>
@@ -499,13 +504,27 @@
                 conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
             return [f1, f2, f3];
         }
-        if (name === 'reschedule') {
-            // the flight before is in the air and ahead of the plan, the flight in the middle can be moved, the third one is in conflict with it (planned too early)
+        if (name === 'reschedule' || name === 'reschedule-conflict' || name === 'reschedule-earliest') {
+            // the flight before is in the air and ahead of the plan, the flight in the middle can be moved, the flight after it is either far enough (reschedule), planned too
+            // early for the flight in the middle at any time (reschedule-conflict), or the flight in the middle is already at the earliest time (reschedule-earliest)
             const f1 = flight('1', 'MMUN', 'MMMX', -120, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null,
                 forecast: {expDep: base - 138 * MIN, expArr: base - 20 * MIN, destNotBefore: null, divertTo: null, conflict: null}});
-            const f2 = flight('2', 'MMMX', 'MMUN', 120, 125, 'Dispatched', {reschedule: {from: base + 15 * MIN, to: base + 120 * MIN, stepMinutes: 15}});
-            const f3 = flight('3', 'MMUN', 'MMMX', 165, 125, 'Dispatched', {forecast: {expDep: base + 275 * MIN, expArr: base + 400 * MIN, destNotBefore: null, divertTo: null,
-                conflict: {level: 'red', shortfallMinutes: 110, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + 275 * MIN}}});
+            const earliest = name === 'reschedule-earliest';
+            const depB = earliest ? 15 : 120;
+            const tooEarly = name !== 'reschedule';
+            const plannedC = tooEarly ? 135 : 330;
+            // the options of the flight in the middle: from the earliest time to the current one; the flight after it leaves at the departure of the flight in the middle plus its
+            // flight of 125 minutes plus the gap of 30 minutes, not earlier than planned
+            const options = [];
+            for (let t = 15; t < depB; t += 15) {
+                const nextDep = Math.max(plannedC, t + 125 + 30);
+                options.push({dep: base + t * MIN, nextDep: base + nextDep * MIN, shortfallMinutes: Math.max(0, t + 125 + 30 - plannedC)});
+            }
+            const f2 = flight('2', 'MMMX', 'MMUN', depB, 125, 'Dispatched', {reschedule: {from: base + 15 * MIN, to: base + depB * MIN, stepMinutes: 15, reason: earliest ? 'earliest' : null,
+                before: {route: 'MMUN - MMMX', time: base - 20 * MIN}, after: {route: 'MMUN - MMMX', time: base + plannedC * MIN}, options: options}});
+            const nextExpected = Math.max(plannedC, depB + 155);
+            const f3 = flight('3', 'MMUN', 'MMMX', plannedC, 125, 'Dispatched', tooEarly ? {forecast: {expDep: base + nextExpected * MIN, expArr: base + (nextExpected + 125) * MIN, destNotBefore: null,
+                divertTo: null, conflict: {level: 'red', shortfallMinutes: nextExpected - plannedC, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + nextExpected * MIN}}} : {});
             return [f1, f2, f3];
         }
         if (name === 'diverted-over') {
@@ -570,15 +589,55 @@
             const r = fl.reschedule;
             const step = r.stepMinutes * 60000;
             const duration = fl.arr - fl.dep;
+            $('#rs-route').text(fl.from + ' \u2192 ' + fl.to);
+            $('#rs-now').text(timeLabel(fl.dep) + ' \u2192 ' + timeLabel(fl.arr));
+            $('#rs-error').addClass('d-none').text('');
+            $('#rs-notice').addClass('d-none').removeClass('alert-warning alert-info').text('');
+            $('#rs-options').addClass('d-none').empty();
+            $('#rs-time, #rs-time-label').removeClass('d-none');
+            // the neighbours of the flight in the roster (when the server tells them)
+            const context = [];
+            if (r.before) {
+                context.push('Before it: <b>' + esc(r.before.route) + '</b>, lands about ' + timeLabel(r.before.time) + '.');
+            }
+            if (r.after) {
+                context.push('After it: <b>' + esc(r.after.route) + '</b>, planned at ' + timeLabel(r.after.time) + '.');
+            }
+            $('#rs-context').html(context.join('<br>'));
+            if (r.options) {
+                // the times with what each of them does to the flight after this one (made by the server); the best is the one with the least delay of the flight after it
+                $('#rs-time, #rs-time-label').addClass('d-none');
+                $('#rs-hint').text('The passengers stay with the flight.');
+                const free = r.options.filter(function (o) { return !o.shortfallMinutes; });
+                if (r.options.length === 0) {
+                    $('#rs-notice').removeClass('d-none').addClass('alert-info').text(r.reason === 'earliest'
+                        ? 'This flight is already at the earliest time after the flight before it. Later times only make the flight after it later.'
+                        : 'There is no other time for this flight.');
+                } else {
+                    if (free.length === 0) {
+                        $('#rs-notice').removeClass('d-none').addClass('alert-warning').html('<b>No time keeps this flight clear of the flight after it.</b> The flight after it is planned too early ' +
+                            'for this flight at any time. You can still choose the best one: the flight after it will have to be moved too.');
+                    }
+                    const best = Math.min.apply(null, r.options.map(function (o) { return o.shortfallMinutes || 0; }));
+                    $('#rs-options').removeClass('d-none').html(r.options.map(function (o) {
+                        const effect = o.shortfallMinutes
+                            ? '<span class="small text-danger">next flight leaves ' + timeLabel(o.nextDep) + ', ' + o.shortfallMinutes + ' min short</span>'
+                            : '<span class="small text-success">no conflict' + (o.nextDep ? ', next flight stays at ' + timeLabel(o.nextDep) : '') + '</span>';
+                        const mark = (free.length === 0 && (o.shortfallMinutes || 0) === best) ? ' <span class="badge text-bg-warning">best</span>' : '';
+                        return '<label class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2"><span><input class="form-check-input me-2" type="radio" name="rs-option" value="' +
+                            o.dep + '"><b>' + timeLabel(o.dep) + ' &rarr; ' + timeLabel(o.dep + duration) + '</b>' + mark + '</span>' + effect + '</label>';
+                    }).join(''));
+                }
+                $('#rs-confirm').prop('disabled', true);
+                rescheduleModal.show();
+                return;
+            }
             let options = '';
             for (let t = r.from; t <= r.to; t += step) {
                 if (t !== fl.dep) {
                     options += '<option value="' + t + '">' + timeLabel(t) + ' &rarr; ' + timeLabel(t + duration) + '</option>';
                 }
             }
-            $('#rs-route').text(fl.from + ' \u2192 ' + fl.to);
-            $('#rs-now').text(timeLabel(fl.dep) + ' \u2192 ' + timeLabel(fl.arr));
-            $('#rs-error').addClass('d-none').text('');
             if (options === '') {
                 $('#rs-time').html('<option value="">There is no other time</option>').prop('disabled', true);
                 $('#rs-hint').text('There is no other time between the flight before this one and the flight after it where this flight would not be in conflict with them.');
@@ -592,8 +651,11 @@
         $('#rs-time').on('change', function () {
             $('#rs-confirm').prop('disabled', !$(this).val());
         });
+        $('#rs-options').on('change', 'input', function () {
+            $('#rs-confirm').prop('disabled', false);
+        });
         $('#rs-confirm').on('click', function () {
-            const chosen = parseInt($('#rs-time').val(), 10);
+            const chosen = parseInt($('#rs-options').hasClass('d-none') ? $('#rs-time').val() : $('#rs-options input:checked').val(), 10);
             if (!rescheduledFlight || !chosen) {
                 return;
             }
