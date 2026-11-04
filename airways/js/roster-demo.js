@@ -1,6 +1,6 @@
 // The roster of the pilot, shared by pilot-roster.html and shadow-jet.html. The flights come from GET /flight-dashboard/my-flights (loadRosterFlights).
 // The shape of a flight of the roster, in the order of the departure:
-// {id, from, to, dep, arr (UTC millis), reg, type, status, operatorName, sold, remained (null when there is no transport flight), carried (the passengers carried, only of a finished flight, otherwise null), income (the income of the flight, 0 when it has none, null when there is no transport flight), ferry (no transport flight)}, forecast (see below)}.
+// {id, from, to, dep, arr (UTC millis), reg, type, status, operatorName, sold, remained (null when there is no transport flight), carried (the passengers carried, only of a finished flight, otherwise null), income (the income of the flight, 0 when it has none, null when there is no transport flight), ferry (no transport flight)}, forecast (see below), actDep, actArr, landedAt}.
 
 // The least gap, always: from now to the departure of a flight, and between the arrival of a flight and the departure of the next one. The gaps can be bigger.
 // The server checks the same (ShadowJetController.MIN_GAP_SECONDS).
@@ -59,7 +59,9 @@ function myFlightToRosterFlight(m) {
         operatorName: m.aircraft.operatorName, sold: t ? t.soldSeats : null, remained: t ? t.totalSeats - t.soldSeats : null,
         carried: t ? t.carriedPax : null, onBoard: t ? t.onBoard : null, income: t ? t.income : null, ferry: !t, diverted: !!f.diverted, tfStatus: t ? t.status : null,
         // the expected times, the divert and the conflict with the flight before it (null when there is nothing to tell), see ForecastDto of the server
-        forecast: m.forecast || null
+        forecast: m.forecast || null,
+        // the actual blocks off and blocks on (UTC millis, null while they have not happened), and the airport where the flight has landed when it is not its destination (ICAO)
+        actDep: f.actualDeparture || null, actArr: f.actualArrival || null, landedAt: f.landedIcao || null
     };
 }
 

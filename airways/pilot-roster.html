@@ -111,6 +111,26 @@
     </div>
 </main>
 
+<!-- The question before the move of a flight (the button Move to of a conflict): the pilot sees what is moved, the answer of the server is shown here when the move is refused -->
+<div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Move the flight?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <p class="mb-2"><span class="fw-bold" id="move-route"></span><br>
+                    <span class="text-secondary">departure:</span> <span class="time-was" id="move-from"></span> <span class="fw-bold" id="move-to"></span></p>
+                <p class="mb-0">The passengers stay with the flight. The flights after it are not moved, the roster is checked again after the move.</p>
+                <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="move-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="move-confirm">Move the flight</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 
     // 'HH:MM', with the day ('30 Oct') when it is not today (UTC)
@@ -183,8 +203,19 @@
         return '<span class="time-was">' + timeLabel(planned) + '</span> <span class="' + (expected > planned ? 'time-late' : 'time-early') + '">' + (prefix || '') + timeLabel(expected) + '</span>';
     }
 
+    // the actual time when it differs from the planned one by 5 minutes or more (the planned one is crossed out), otherwise the time as it is
+    function actualTimeHtml(planned, actual) {
+        return Math.abs(actual - planned) >= 300000 ? expectedTimeHtml(planned, actual) : timeLabel(actual);
+    }
+
     function timesHtml(fl) {
         const f = fl.forecast;
+        if (!f && (fl.actDep || fl.actArr)) {
+            // a flight which has left and has no forecast (it is over): the actual times; the flight which landed at another airport has no plan to compare the arrival with
+            const actDep = fl.actDep ? actualTimeHtml(fl.dep, fl.actDep) : timeLabel(fl.dep);
+            const actArr = fl.actArr ? (fl.landedAt ? timeLabel(fl.actArr) : actualTimeHtml(fl.arr, fl.actArr)) : (fl.landedAt ? '?' : timeLabel(fl.arr));
+            return actDep + ' &rarr; ' + actArr;
+        }
         const dep = f && f.expDep ? expectedTimeHtml(fl.dep, f.expDep) : timeLabel(fl.dep);
         if (f && f.divertTo) {
             // the plan is for the destination, the aircraft goes to the divert airport: the planned arrival is not the one to compare with
@@ -215,6 +246,11 @@
     // The box under a diverted flight: what it was, where it is now and where the airline expects it to deliver the passengers
     function diversionBoxHtml(fl) {
         const f = fl.forecast;
+        if (!f && fl.landedAt) {
+            // the flight is over (or has no forecast): what it was and where it has landed
+            return '<div class="conflict-box is-divert"><div><b>&#9888; Diversion</b></div><div class="small my-1">This was the flight <b>' + fl.from + ' &rarr; ' + fl.to +
+                '</b>, diverted to <b>' + esc(fl.landedAt) + '</b>' + (fl.actArr ? ': the aircraft was at the gate there at ' + timeLabel(fl.actArr) : '') + '.</div></div>';
+        }
         if (!f || !f.divertTo) {
             return '';
         }
@@ -245,8 +281,8 @@
         const shiftMinutes = Math.ceil((c.suggestedDep - fl.dep) / 300000) * 5;
         const newDep = fl.dep + shiftMinutes * 60000;
         const move = shiftMinutes > 0
-            ? '<button type="button" class="btn btn-danger move-flight" data-flight-id="' + esc(fl.id) + '" data-shift="' + shiftMinutes + '" data-confirm="' +
-                esc('Move the flight ' + fl.from + ' - ' + fl.to + ' from ' + timeLabel(fl.dep) + ' to ' + timeLabel(newDep) + '? The passengers stay with the flight.') + '">Move to ' + timeLabel(newDep) + '</button>'
+            ? '<button type="button" class="btn btn-danger move-flight" data-flight-id="' + esc(fl.id) + '" data-shift="' + shiftMinutes + '" data-route="' +
+                esc(fl.from + ' \u2192 ' + fl.to) + '" data-from="' + esc(timeLabel(fl.dep)) + '" data-to="' + esc(timeLabel(newDep)) + '">Move to ' + timeLabel(newDep) + '</button>'
             : '';
         return '<div class="conflict-box"><div><b>&#9940; Conflict</b>' + (c.estimate ? ' <span class="small">(estimate)</span>' : '') + '</div>' +
             '<div class="small my-1">' + why + ' This flight leaves ' + timeLabel(fl.dep) + ': it is ' + c.shortfallMinutes + ' min short of the gap between the flights. ' +
@@ -270,7 +306,9 @@
     function flightTile(fl, isLast) {
         const f = fl.forecast;
         const conflict = f ? f.conflict : null;
-        const diverted = !!(f && f.divertTo);
+        // diverted: in the air (the forecast knows the airport of the divert) or over (the flight knows where it has landed)
+        const divertAirport = f && f.divertTo ? f.divertTo : fl.landedAt;
+        const diverted = !!divertAirport;
         const box = diversionBoxHtml(fl) + conflictBoxHtml(fl);
         const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? ' flight-diverted' : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : (isFlyingWithoutTrouble(fl) ? ' flight-flying' : ''))) + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
@@ -279,8 +317,8 @@
             scheduleStateHtml(fl) +
             (diverted ? ' <span class="badge text-bg-warning">&#9888; Diverted</span>' : '') + '</div>' +
             // a diverted flight goes to the airport of the divert, so the route says that, and the flight of the plan is told under it
-            '<div class="flight-route">' + fl.from + ' &rarr; ' + (diverted ? esc(f.divertTo) : fl.to) + '</div>' +
-            (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + ', diverted to ' + esc(f.divertTo) + '</div>' : '') +
+            '<div class="flight-route">' + fl.from + ' &rarr; ' + (diverted ? esc(divertAirport) : fl.to) + '</div>' +
+            (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + ', diverted to ' + esc(divertAirport) + '</div>' : '') +
             '<div class="stat-hint">' + timesHtml(fl) + '</div>' +
             '</div>';
         return tile + box;
@@ -433,6 +471,13 @@
                 conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
             return [f1, f2, f3];
         }
+        if (name === 'diverted-over') {
+            // the flight landed at MMUN instead of MMMX (it is over), the passengers went on in the next flight
+            const f1 = flight('1', 'MMUN', 'MMMX', -300, 125, 'Finished', {ferry: true, diverted: true, tfStatus: null, income: 0, sold: null, remained: null,
+                actDep: base - 318 * MIN, actArr: base - 196 * MIN, landedAt: 'MMUN'});
+            const f2 = flight('2', 'MMUN', 'MMMX', 30, 125, 'Dispatched', {});
+            return [f1, f2];
+        }
         if (name === 'flying') {
             // the flight is in the air, nothing is wrong with it: the pale blue tile
             return [flight('1', 'MMUN', 'MMMX', -30, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null}), flight('2', 'MMMX', 'MMUN', 180, 120, 'Dispatched', {})];
@@ -475,23 +520,37 @@
         $(document).on('click', '.not-implemented', function () {
             alert('Hello World: not implemented');
         });
-        // 'Move to': the flight is moved to the time of the button (the shift is from the planned departure, the server checks everything and tells why it can not be done)
+        // 'Move to': the question is asked in the window, the flight is moved to the time of the button (the shift is from the planned departure, the server checks everything
+        // and tells why it can not be done)
+        const moveModal = new bootstrap.Modal(document.getElementById('moveModal'));
+        let pendingMove = null;
         $(document).on('click', '.move-flight', function () {
             const $button = $(this);
+            pendingMove = {flightId: $button.attr('data-flight-id'), shiftMinutes: $button.attr('data-shift')};
+            $('#move-route').text($button.attr('data-route'));
+            $('#move-from').text($button.attr('data-from'));
+            $('#move-to').text($button.attr('data-to'));
+            $('#move-error').addClass('d-none').text('');
+            $('#move-confirm').prop('disabled', false);
+            moveModal.show();
+        });
+        $('#move-confirm').on('click', function () {
+            if (!pendingMove) {
+                return;
+            }
             if (STUB) {
-                alert('The stub data: nothing is sent');
+                $('#move-error').removeClass('d-none').text('The stub data: nothing is sent');
                 return;
             }
-            if (!confirm($button.attr('data-confirm'))) {
-                return;
-            }
-            $button.prop('disabled', true);
-            airwaysAuth('POST', '/flight-dashboard/reschedule', {flightId: $button.attr('data-flight-id'), shiftMinutes: $button.attr('data-shift')}, function () {
+            const $confirm = $(this);
+            $confirm.prop('disabled', true);
+            airwaysAuth('POST', '/flight-dashboard/reschedule', pendingMove, function () {
+                moveModal.hide();
                 reloadRoster();
             }, function (e) {
                 const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
-                alert('The flight was not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
-                reloadRoster();
+                $('#move-error').removeClass('d-none').text('The flight was not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
+                $confirm.prop('disabled', false);
             });
         });
         setInterval(function () {
