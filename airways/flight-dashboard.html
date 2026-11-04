@@ -67,7 +67,9 @@
         /* the outline orange button: Finish Boarding, the step which cannot be taken back, with the note next to it */
         .btn-outline-orange { --bs-btn-color: #fd7e14; --bs-btn-border-color: #fd7e14; --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #fd7e14; --bs-btn-hover-border-color: #fd7e14;
             --bs-btn-active-color: #fff; --bs-btn-active-bg: #e8590c; --bs-btn-active-border-color: #e8590c; --bs-btn-disabled-color: #fd7e14; --bs-btn-disabled-border-color: #fd7e14; }
-        .hl-good { background: var(--bs-success); color: #fff; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
+        .hl-good, .hl-flight { color: #fff; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
+        .hl-good { background: var(--bs-success); }
+        .hl-flight { background: var(--bs-primary); }
         .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
         .todo-list { margin-top: 1.5rem; font-size: .85rem; }
         /* the alternate right after the route in the header: one and a half times smaller, dark grey, a gap of about 2-3 spaces of the big font */
@@ -405,13 +407,13 @@
     function trackingTile(status) {
         const sim = status.sim || {};
         const f = status.flight;
-        const mode = status.mode === 'SIM_TRACKER' ? 'Sim tracker' : status.mode === 'MANUAL' ? 'Manual' : f ? (sim.status === 'Connected' ? 'Choose at start' : 'Manual only') : '---';
+        const mode = status.mode === 'SIM_TRACKER' ? 'Sim Tracker' : status.mode === 'MANUAL' ? 'Manual' : f ? (sim.status === 'Connected' ? 'Choose at start' : 'Manual only') : '---';
         const details = [];
         // the good state is marked in green, like with a marker
-        const mark = (text, good) => good ? '<span class="hl-good">' + text + '</span>' : text;
+        const mark = (text, good, cls) => good ? '<span class="' + (cls ?? 'hl-good') + '">' + text + '</span>' : text;
         details.push(mark('Sim ' + esc(sim.status ?? '---'), sim.status === 'Connected'));
         if (sim.locationStatus) {
-            details.push(mark(esc(sim.locationStatus) + (sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''), sim.locationStatus === 'At airport'));
+            details.push(mark(esc(sim.locationStatus === 'In flight' ? 'In Flight' : sim.locationStatus) +(sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''), sim.locationStatus === 'At airport' || sim.locationStatus === 'In flight', sim.locationStatus === 'In flight' ? 'hl-flight' : 'hl-good'));
         }
         if (sim.parkingBrake !== null && sim.parkingBrake !== undefined) {
             details.push('P/B ' + (sim.parkingBrake ? 'SET' : 'OFF'));
