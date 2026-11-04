@@ -25,21 +25,26 @@
      browser), the state is sent as posreps (POST /sim/posrep), and a scripted flight changes it, so the sim tracker can be debugged without a sim. -->
 <main class="container-lg py-4">
     <h1 class="h3 mb-1">Stubbed posreps</h1>
-    <p class="text-secondary mb-4">The state of the aircraft is kept in this browser and sent to the sim tracker as the pilot of your token every 10 seconds while the page is
-        open (a hidden tab is slowed down by the browser: the flight catches up, but the posreps come rarely).</p>
+    <p class="text-secondary mb-4">The state of the aircraft is kept in this browser and changes by itself while a flight is simulated, as long as the page is open
+        (a hidden tab is slowed down by the browser, the flight catches up). Sending the state to the sim tracker as the pilot of your token (posreps, every 10 seconds)
+        is a separate switch: it is off every time the page is opened.</p>
 
     <div id="alertHost"></div>
 
     <div class="text-secondary small mb-3">Pilot now: <span id="pilotLine">loading…</span></div>
 
     <section class="card mb-4">
-        <div class="card-body">
-            <div class="text-secondary small text-uppercase">Posreps</div>
-            <div class="fs-5" id="posrepLine">Not sent yet</div>
-            <details class="mt-1">
-                <summary class="small text-secondary">Last response</summary>
-                <pre class="mt-2 mb-0" id="responseBody"></pre>
-            </details>
+        <div class="card-body d-flex align-items-center gap-3">
+            <div class="flex-grow-1">
+                <div class="text-secondary small text-uppercase">Posreps</div>
+                <div class="fs-5" id="posrepMode">Off</div>
+                <div class="text-secondary" id="posrepLine">Not sent yet</div>
+                <details class="mt-1">
+                    <summary class="small text-secondary">Last response</summary>
+                    <pre class="mt-2 mb-0" id="responseBody"></pre>
+                </details>
+            </div>
+            <button type="button" id="btnPosreps" class="btn btn-lg btn-success px-4">Start posreps</button>
         </div>
     </section>
 
@@ -139,6 +144,7 @@
     let message = null;         // the result of the last action, shown under the state
     let busy = false;           // an airport lookup is running
     let posrepInProgress = false;
+    let posrepsOn = false;      // sending posreps is off by default, on each opening of the page; the flight is simulated whether they are sent or not
 
     function alertHtml(type, html) {
         document.getElementById('alertHost').innerHTML = '<div class="alert alert-' + type + '">' + html + '</div>';
@@ -285,9 +291,25 @@
         });
     }
 
+    function renderPosrepSwitch() {
+        setText('posrepMode', posrepsOn ? 'Being sent every 10 seconds' : 'Off');
+        const button = document.getElementById('btnPosreps');
+        button.textContent = posrepsOn ? 'Stop posreps' : 'Start posreps';
+        button.classList.toggle('btn-success', !posrepsOn);
+        button.classList.toggle('btn-danger', posrepsOn);
+    }
+
+    function togglePosreps() {
+        posrepsOn = !posrepsOn;
+        renderPosrepSwitch();
+        if (posrepsOn) {
+            sendPosrep(); // the current state goes right away
+        }
+    }
+
     function sendPosrep() {
         const state = PosrepSim.state();
-        if (!token || !state || posrepInProgress) {
+        if (!posrepsOn || !token || !state || posrepInProgress) {
             return;
         }
         posrepInProgress = true;
@@ -371,6 +393,8 @@
         document.getElementById('btnPark').addEventListener('click', openParkDialog);
         document.getElementById('btnParkPut').addEventListener('click', park);
         document.getElementById('btnFly').addEventListener('click', startFlight);
+        document.getElementById('btnPosreps').addEventListener('click', togglePosreps);
+        renderPosrepSwitch();
         document.getElementById('btnDivert').addEventListener('click', divert);
         [['parkIcao', park], ['toIcao', startFlight], ['divertIcao', divert]].forEach(function (pair) {
             document.getElementById(pair[0]).addEventListener('keydown', function (e) {
