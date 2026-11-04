@@ -481,6 +481,8 @@ function loadAircraftDetails(id) {
             id: d.fmId,
             from: {icao: d.dep},
             to: {icao: d.dest},
+            // the declared divert airport: the aircraft flies there instead of "to"
+            divert: d.div ? {icao: d.div} : null,
             std: flightTime(d.pdep),
             atd: flightTime(d.atkf),
             sta: flightTime(d.parr),
@@ -507,7 +509,7 @@ function loadAircraftDetails(id) {
         };
 
         // names and countries of the airports come with the response
-        [result.airport, currentFlight?.from, currentFlight?.to, ...recentFlights.flatMap(f => [f.from, f.to])]
+        [result.airport, currentFlight?.from, currentFlight?.to, currentFlight?.divert, ...recentFlights.flatMap(f => [f.from, f.to])]
             .filter(Boolean)
             .forEach(ref => Object.assign(ref, fullInfo.airports?.[ref.icao] ?? {}));
 

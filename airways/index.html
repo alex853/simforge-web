@@ -362,8 +362,14 @@
 
             <tr>
                 <td colspan="2" class="text-center fs-5 fw-bold border-bottom-0">${details?.dep ?? '-'}</td>
-                <td colspan="2" class="text-center fs-5 fw-bold border-bottom-0">${details?.dest ?? '-'}</td>
+                ${details?.div
+                    ? `<td colspan="2" class="text-center fs-5 fw-bold border-bottom-0 text-warning-emphasis">${details.div}</td>`
+                    : `<td colspan="2" class="text-center fs-5 fw-bold border-bottom-0">${details?.dest ?? '-'}</td>`}
             </tr>
+            ${details?.div ? `<tr>
+                <td colspan="2" class="border-bottom-0"></td>
+                <td colspan="2" class="text-center small border-bottom-0"><span class="badge text-bg-warning">DIVERT</span> <span class="text-muted">was ${details.dest}</span></td>
+            </tr>` : ''}
             <tr>
                 <td colspan="2" class="text-center fw-bold" title="Actual Time of Departure">${details?.atkf ?? '-'}</td>
                 <td colspan="2" class="text-center fst-italic" title="Estimated Time of Arrival">${details?.eldg ?? '-'}</td>
