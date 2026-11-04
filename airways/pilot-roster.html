@@ -63,6 +63,8 @@
             border-radius: 0 0 .75rem .75rem; background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
         .conflict-box.is-caution { border-color: var(--bs-warning-border-subtle); border-left-color: var(--bs-warning); background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
         .conflict-box .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .55rem; --bs-btn-font-size: .85rem; }
+        /* a flight which is in the air without any trouble: the pale blue tile of the current stage of the flight dashboard */
+        .flight-flying { background: color-mix(in srgb, var(--bs-primary) 7%, var(--bs-body-bg)) !important; border-color: color-mix(in srgb, var(--bs-primary) 35%, var(--bs-body-bg)) !important; }
         /* a diverted flight: a pale orange tile, the box under it is orange too */
         .flight-diverted { border-left: .4rem solid var(--bs-orange) !important; background: rgba(253, 126, 20, .12) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
         .conflict-box.is-divert { border-color: rgba(253, 126, 20, .4); border-left-color: var(--bs-orange); background: rgba(253, 126, 20, .12); color: var(--bs-body-color); }
@@ -203,7 +205,7 @@
         return later ? ' <span class="time-late">&#9201; Delayed</span>' : ' <span class="time-early">Ahead of schedule</span>';
     }
 
-    // The buttons of the box of a conflict are shown, they are not working yet
+    // The buttons of the conflicts which are shown before their actions are made: 'Choose another time', 'Move this flight too', 'Resolve conflicts'
     function notImplementedButton(cls, text) {
         return '<button type="button" class="btn ' + cls + ' not-implemented">' + text + '</button>';
     }
@@ -239,11 +241,30 @@
         const why = c.estimate
             ? 'The flight before it (' + route + ') is diverted: the earliest the aircraft can be at its destination is an estimate, and an hour on the ground is needed after that.'
             : 'The flight before it (' + route + ') is late.';
+        // the flight is moved in steps of 5 minutes, to the earliest time which is not earlier than the suggested one
+        const shiftMinutes = Math.ceil((c.suggestedDep - fl.dep) / 300000) * 5;
+        const newDep = fl.dep + shiftMinutes * 60000;
+        const move = shiftMinutes > 0
+            ? '<button type="button" class="btn btn-danger move-flight" data-flight-id="' + esc(fl.id) + '" data-shift="' + shiftMinutes + '" data-confirm="' +
+                esc('Move the flight ' + fl.from + ' - ' + fl.to + ' from ' + timeLabel(fl.dep) + ' to ' + timeLabel(newDep) + '? The passengers stay with the flight.') + '">Move to ' + timeLabel(newDep) + '</button>'
+            : '';
         return '<div class="conflict-box"><div><b>&#9940; Conflict</b>' + (c.estimate ? ' <span class="small">(estimate)</span>' : '') + '</div>' +
             '<div class="small my-1">' + why + ' This flight leaves ' + timeLabel(fl.dep) + ': it is ' + c.shortfallMinutes + ' min short of the gap between the flights. ' +
             'The earliest departure is ' + timeLabel(c.suggestedDep) + '.</div><div class="d-flex flex-wrap gap-2">' +
-            notImplementedButton('btn-danger', 'Move to ' + timeLabel(c.suggestedDep)) + notImplementedButton('btn-outline-danger', 'Choose another time') +
-            (c.estimate ? notImplementedButton('btn-outline-secondary', 'Decide later') : '') + notImplementedButton('btn-outline-secondary', 'Cancel flight') + '</div></div>';
+            move + notImplementedButton('btn-outline-danger', 'Choose another time') + '</div></div>';
+    }
+
+    // the flight is in the air and there is nothing wrong with it: not diverted, not late, no conflict (earlier than planned is fine)
+    function isFlyingWithoutTrouble(fl) {
+        const f = fl.forecast;
+        if (!isFlying(fl)) {
+            return false;
+        }
+        if (!f) {
+            return true;
+        }
+        const later = (f.expDep && f.expDep > fl.dep) || (f.expArr && f.expArr > fl.arr);
+        return !f.divertTo && !f.conflict && !later;
     }
 
     function flightTile(fl, isLast) {
@@ -251,7 +272,7 @@
         const conflict = f ? f.conflict : null;
         const diverted = !!(f && f.divertTo);
         const box = diversionBoxHtml(fl) + conflictBoxHtml(fl);
-        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? ' flight-diverted' : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : '')) + '">' +
+        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? ' flight-diverted' : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : (isFlyingWithoutTrouble(fl) ? ' flight-flying' : ''))) + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
             '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
@@ -412,6 +433,10 @@
                 conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
             return [f1, f2, f3];
         }
+        if (name === 'flying') {
+            // the flight is in the air, nothing is wrong with it: the pale blue tile
+            return [flight('1', 'MMUN', 'MMMX', -30, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null}), flight('2', 'MMMX', 'MMUN', 180, 120, 'Dispatched', {})];
+        }
         if (name === 'early') {
             // the flight left 18 minutes before the plan and lands 21 minutes before it
             return [flight('1', 'MMUN', 'MMMX', -30, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null,
@@ -449,6 +474,25 @@
         // the buttons of the conflicts are shown before the actions are made
         $(document).on('click', '.not-implemented', function () {
             alert('Hello World: not implemented');
+        });
+        // 'Move to': the flight is moved to the time of the button (the shift is from the planned departure, the server checks everything and tells why it can not be done)
+        $(document).on('click', '.move-flight', function () {
+            const $button = $(this);
+            if (STUB) {
+                alert('The stub data: nothing is sent');
+                return;
+            }
+            if (!confirm($button.attr('data-confirm'))) {
+                return;
+            }
+            $button.prop('disabled', true);
+            airwaysAuth('POST', '/flight-dashboard/reschedule', {flightId: $button.attr('data-flight-id'), shiftMinutes: $button.attr('data-shift')}, function () {
+                reloadRoster();
+            }, function (e) {
+                const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
+                alert('The flight was not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
+                reloadRoster();
+            });
         });
         setInterval(function () {
             if (!document.hidden) {
