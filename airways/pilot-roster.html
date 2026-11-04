@@ -68,7 +68,9 @@
         /* a diverted flight: a pale orange tile, the box under it is orange too */
         .flight-diverted { min-height: 9rem; border-left: .4rem solid var(--bs-orange) !important; background: rgba(253, 126, 20, .12) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
         /* a diverted flight which is over: the same orange, much paler, near the grey of a finished flight; it has no box under it, its tile tells everything */
-        .flight-diverted-over { border-left: .4rem solid rgba(253, 126, 20, .5) !important; background: color-mix(in srgb, #fd7e14 5%, var(--bs-body-bg)) !important; }
+        .flight-diverted-over { border-left: .4rem solid rgba(253, 126, 20, .35) !important; background: color-mix(in srgb, #fd7e14 3%, var(--bs-body-bg)) !important; }
+        /* a finished flight which was not diverted: the palest green */
+        .flight-done { background: color-mix(in srgb, var(--bs-success) 4%, var(--bs-body-bg)) !important; border-color: color-mix(in srgb, var(--bs-success) 16%, var(--bs-border-color)) !important; }
         .conflict-box.is-divert { border-color: rgba(253, 126, 20, .4); border-left-color: var(--bs-orange); background: rgba(253, 126, 20, .12); color: var(--bs-body-color); }
         .was-route { font-weight: 600; color: var(--bs-orange-text-emphasis, #984c0c); }
         /* the list of the times of the move can be long: it scrolls */
@@ -198,8 +200,9 @@
         return fl.status === 'Departure' || fl.status === 'Flying' || fl.status === 'Arrival';
     }
 
+    // the flight is going on: from the start of the preflight to the end of the postflight
     function isInProgress(fl) {
-        return isFlying(fl) || fl.status === 'Postflight';
+        return fl.status === 'Preflight' || isFlying(fl) || fl.status === 'Postflight';
     }
 
     // The tickets and the income come from my-flights (sold, and remained = seats - sold; no numbers when the flight has no transport flight; the income is the sum of the
@@ -227,9 +230,10 @@
                 : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
                   '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>');
         // the state of the transport flight over the numbers: now only the open check-in (a green bold line), the other states come later (todo ak1 below)
-        const checkInOpen = fl.tfStatus === 'CheckIn';
-        return '<div class="flight-sales' + (checkInOpen ? ' has-state' : '') + '">' +
-            (checkInOpen ? '<div><span class="text-success fw-bold">Check-in open</span></div>' : '') + tickets +
+        // the state of the transport flight in a bold green line over the numbers: the check-in, the boarding and the deboarding
+        const stateLine = {CheckIn: 'Check-in open', Boarding: 'Boarding', Deboarding: 'Deboarding'}[fl.tfStatus];
+        return '<div class="flight-sales' + (stateLine ? ' has-state' : '') + '">' +
+            (stateLine ? '<div><span class="text-success fw-bold">' + stateLine + '</span></div>' : '') + tickets +
             '<div><span class="sales-label">Income</span><span class="fw-semibold">' + (fl.income === null || fl.income === undefined ? '&mdash;' : moneyHtml(fl.income)) + '</span></div></div>';
     }
 
@@ -343,10 +347,10 @@
             '</div>' + (move ? '<div class="small mt-2">' + moveNote(fl) + '</div>' : '') + '</div>';
     }
 
-    // the flight is in the air and there is nothing wrong with it: not diverted, not late, no conflict (earlier than planned is fine)
+    // the flight is going on (the preflight, the flying, the postflight) and there is nothing wrong with it: not diverted, not late, no conflict (earlier than planned is fine)
     function isFlyingWithoutTrouble(fl) {
         const f = fl.forecast;
-        if (!isFlying(fl)) {
+        if (!isInProgress(fl)) {
             return false;
         }
         if (!f) {
@@ -363,7 +367,7 @@
         const divertAirport = f && f.divertTo ? f.divertTo : fl.landedAt;
         const diverted = !!divertAirport;
         const box = diversionBoxHtml(fl) + conflictBoxHtml(fl);
-        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? (f && f.divertTo ? ' flight-diverted' : ' flight-diverted-over') : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : (isFlyingWithoutTrouble(fl) ? ' flight-flying' : ''))) + '">' +
+        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? (f && f.divertTo ? ' flight-diverted' : ' flight-diverted-over') : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : (isFlyingWithoutTrouble(fl) ? ' flight-flying' : (fl.status === 'Finished' ? ' flight-done' : '')))) + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
             '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
@@ -549,6 +553,15 @@
             const f3 = flight('3', 'MMUN', 'MMMX', plannedC, 125, 'Dispatched', tooEarly ? {forecast: {expDep: base + nextExpected * MIN, expArr: base + (nextExpected + 125) * MIN, destNotBefore: null,
                 divertTo: null, conflict: {level: 'red', shortfallMinutes: nextExpected - plannedC, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + nextExpected * MIN}}} : {});
             return [f1, f2, f3];
+        }
+        if (name === 'stages') {
+            // a finished flight, a diverted one which is over, the preflight, the postflight, the flying, a dispatched one
+            return [flight('1', 'MMUN', 'MMUN', -400, 120, 'Finished', {ferry: true, diverted: true, tfStatus: null, income: 0, sold: null, remained: null,
+                    actDep: base - 418 * MIN, actArr: base - 296 * MIN, landedAt: 'MMUN'}),
+                flight('2', 'MMUN', 'MMMX', -300, 125, 'Finished', {carried: 54, actDep: base - 318 * MIN, actArr: base - 190 * MIN}),
+                flight('3', 'MMMX', 'MMUN', -180, 125, 'Postflight', {carried: 54, tfStatus: 'Deboarding', actDep: base - 182 * MIN, actArr: base - 55 * MIN}),
+                flight('4', 'MMUN', 'MMMX', -20, 125, 'Preflight', {tfStatus: 'Boarding'}),
+                flight('5', 'MMMX', 'MMUN', 150, 125, 'Dispatched', {tfStatus: 'CheckIn'})];
         }
         if (name === 'diverted-over') {
             // the flight landed at MMUN instead of MMMX (it is over), the passengers went on in the next flight
