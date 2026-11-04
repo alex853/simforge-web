@@ -25,6 +25,15 @@
             filter: sepia(1) hue-rotate(175deg) saturate(2.2) brightness(.95);
         }
 
+        /* the yellow pin turns grey (excluded) or carrot red (hub) */
+        .marker-excluded {
+            filter: grayscale(1) brightness(.8);
+        }
+
+        .marker-hub {
+            filter: hue-rotate(-48deg) saturate(3) brightness(.9);
+        }
+
         .always-shown-tooltip {
             background-color: transparent;
             border: none;
@@ -138,11 +147,13 @@
 
     // ---- the map
 
-    function iconOf(kind, size) {
+    // The airport marker is yellow; the excluded airport is grey, the hub is carrot red (the excluded one stays grey also when it is a hub).
+    function iconOf(kind, size, airport) {
         return L.icon({
             iconUrl: kind === 'city' ? '../icons/city/001-cityscape.png' : '../icons/airport/001-airplane.png',
             iconSize: [size, size],
-            iconAnchor: [size / 2, size / 2]
+            iconAnchor: [size / 2, size / 2],
+            className: airport && airport.excluded ? 'marker-excluded' : airport && airport.hub ? 'marker-hub' : ''
         });
     }
 
@@ -169,7 +180,7 @@
         const airportSize = (zoom - mapZoomMin) * 3 + 8;
 
         data.airports.forEach(a => {
-            let marker = L.marker([a.latitude, a.longitude], {icon: iconOf('airport', airportSize)})
+            let marker = L.marker([a.latitude, a.longitude], {icon: iconOf('airport', airportSize, a)})
                 .on('click', () => openAirport(a.icao));
             if (zoom >= 8) {
                 marker = marker.bindTooltip(a.icao, {permanent: true, direction: 'right', offset: [airportSize / 10, 0], className: 'always-shown-tooltip'});
@@ -355,6 +366,13 @@
     }
 
     function showAirport(a) {
+        // the flags of the airport are the colour of its marker
+        const listed = data.airports.find(x => x.icao === a.icao);
+        if (listed && (listed.excluded !== a.excluded || listed.hub !== a.hub)) {
+            listed.excluded = a.excluded;
+            listed.hub = a.hub;
+            drawMarkers();
+        }
         $('#info-title').text(a.icao + ' ' + a.name);
         const cities = a.cities.length === 0 ? '<div class="text-muted">no cities linked</div>'
             : '<table class="table table-sm mb-0"><thead><tr><th>City</th><th>Country</th><th class="text-end">Population</th><th class="text-end">Distance, nm</th></tr></thead><tbody>'
