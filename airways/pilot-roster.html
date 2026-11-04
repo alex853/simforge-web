@@ -66,7 +66,7 @@
         /* a flight which is in the air without any trouble: the pale blue tile of the current stage of the flight dashboard */
         .flight-flying { background: color-mix(in srgb, var(--bs-primary) 7%, var(--bs-body-bg)) !important; border-color: color-mix(in srgb, var(--bs-primary) 35%, var(--bs-body-bg)) !important; }
         /* a diverted flight: a pale orange tile, the box under it is orange too */
-        .flight-diverted { border-left: .4rem solid var(--bs-orange) !important; background: rgba(253, 126, 20, .12) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
+        .flight-diverted { min-height: 9rem; border-left: .4rem solid var(--bs-orange) !important; background: rgba(253, 126, 20, .12) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
         /* a diverted flight which is over: the same orange, much paler, near the grey of a finished flight; it has no box under it, its tile tells everything */
         .flight-diverted-over { border-left: .4rem solid rgba(253, 126, 20, .5) !important; background: color-mix(in srgb, #fd7e14 5%, var(--bs-body-bg)) !important; }
         .conflict-box.is-divert { border-color: rgba(253, 126, 20, .4); border-left-color: var(--bs-orange); background: rgba(253, 126, 20, .12); color: var(--bs-body-color); }
@@ -208,6 +208,10 @@
         // a flight without a transport flight is a ferry flight (no passengers, so no tickets and no income); the one which landed at another airport and whose passengers went on in
         // another flight is not a ferry flight but a diverted one, in dark red as the new airport of the divert in the dashboard
         if (fl.ferry) {
+            // a diverted flight which has landed says it by its own tile (the badge and the line 'Was ... diverted to ...'): the label on the right would run into that line
+            if (fl.landedAt) {
+                return '';
+            }
             const label = fl.diverted
                 ? '<span class="fw-semibold" style="color: var(--bs-danger-text-emphasis)">Diverted flight</span>'
                 : '<span class="text-primary fw-semibold">Ferry flight</span>';
@@ -274,7 +278,7 @@
         return later ? ' <span class="time-late">&#9201; Delayed</span>' : ' <span class="time-early">Ahead of schedule</span>';
     }
 
-    // The buttons of the conflicts which are shown before their actions are made: 'Choose another time', 'Move this flight too', 'Resolve conflicts'
+    // The buttons of the conflicts which are shown before their actions are made: 'Move this flight too', 'Resolve conflicts'
     function notImplementedButton(cls, text) {
         return '<button type="button" class="btn ' + cls + ' not-implemented">' + text + '</button>';
     }
@@ -293,6 +297,20 @@
                 ' after the problem is solved. ' : 'The airline expects you to deliver the passengers to ' + fl.to + ' after the problem is solved. ') +
             (f.destNotBefore ? 'By our estimate you will be at ' + fl.to + ' not before <b>' + timeLabel(f.destNotBefore) + '</b> (the flight to ' + esc(f.divertTo) +
                 ', an hour on the ground there, the planned flight to ' + fl.to + ').' : '') + '</div></div>';
+    }
+
+    // the flight which goes after the flight in the roster (the flights are in the order of the departure)
+    function flightAfter(fl) {
+        const i = rosterFlights.findIndex(function (f) { return f.id === fl.id; });
+        return i >= 0 && i + 1 < rosterFlights.length ? rosterFlights[i + 1] : null;
+    }
+
+    // What the button Move to does: it solves the conflict with the flight before it by the earliest time, and the flights after it can get a conflict because of that
+    function moveNote(fl) {
+        const after = flightAfter(fl);
+        const touched = after && after.forecast && after.forecast.conflict && after.forecast.conflict.level === 'yellow';
+        return 'Moving the flight to the earliest time solves the conflict with the flight before it.' +
+            (touched ? ' The flight after it is then short of the gap too (it is marked in yellow).' : ' The flights after it may get a conflict in turn.');
     }
 
     function conflictBoxHtml(fl) {
@@ -320,7 +338,9 @@
         return '<div class="conflict-box"><div><b>&#9940; Conflict</b>' + (c.estimate ? ' <span class="small">(estimate)</span>' : '') + '</div>' +
             '<div class="small my-1">' + why + ' This flight leaves ' + timeLabel(fl.dep) + ': it is ' + c.shortfallMinutes + ' min short of the gap between the flights. ' +
             'The earliest departure is ' + timeLabel(c.suggestedDep) + '.</div><div class="d-flex flex-wrap gap-2">' +
-            move + notImplementedButton('btn-outline-danger', 'Choose another time') + '</div></div>';
+            // the same window as the action Reschedule of the menu of the flight (a flight which cannot be moved has no such button)
+            move + (fl.reschedule ? '<button type="button" class="btn btn-outline-danger reschedule-flight" data-flight-id="' + esc(fl.id) + '">Choose another time</button>' : '') +
+            '</div>' + (move ? '<div class="small mt-2">' + moveNote(fl) + '</div>' : '') + '</div>';
     }
 
     // the flight is in the air and there is nothing wrong with it: not diverted, not late, no conflict (earlier than planned is fine)
@@ -351,7 +371,7 @@
             (diverted ? ' <span class="badge text-bg-warning">&#9888; Diverted</span>' : '') + '</div>' +
             // a diverted flight goes to the airport of the divert, so the route says that, and the flight of the plan is told under it
             '<div class="flight-route">' + fl.from + ' &rarr; ' + (diverted ? esc(divertAirport) : fl.to) + '</div>' +
-            (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + ', diverted to ' + esc(divertAirport) + '</div>' : '') +
+            (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + '</div>' : '') +
             '<div class="stat-hint">' + timesHtml(fl) + '</div>' +
             '</div>';
         return tile + box;
@@ -490,7 +510,10 @@
             // the first flight leaves an hour later and lands at +3:30: the second flight (planned +3:10) must leave at +4:00, and then the third one (planned +4:30) is short too
             const f1 = flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'WaitingForBoarding', forecast: {expDep: base + 90 * MIN, expArr: base + 210 * MIN, destNotBefore: null, divertTo: null, conflict: null}});
             const f2 = flight('2', 'MMUN', 'MMMX', 190, 120, 'Dispatched', {forecast: {expDep: base + 240 * MIN, expArr: base + 360 * MIN, destNotBefore: null, divertTo: null,
-                conflict: {level: 'red', shortfallMinutes: 50, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + 240 * MIN}}});
+                conflict: {level: 'red', shortfallMinutes: 50, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + 240 * MIN}},
+                // the times of the move: from the earliest after the flight before it, with what each of them does to the flight after (planned at +4:30)
+                reschedule: {from: base + 240 * MIN, to: base + 100 * MIN, stepMinutes: 15, reason: null, before: {route: 'MMMX - MMUN', time: base + 210 * MIN}, after: {route: 'MMUN - MMMX', time: base + 270 * MIN},
+                    options: [240, 255, 270, 285].map(function (t) { return {dep: base + t * MIN, nextDep: base + (t + 150) * MIN, shortfallMinutes: t + 150 - 270}; })}});
             const f3 = flight('3', 'MMUN', 'MMMX', 270, 120, 'Dispatched', {forecast: {expDep: base + 390 * MIN, expArr: base + 510 * MIN, destNotBefore: null, divertTo: null,
                 conflict: {level: 'yellow', shortfallMinutes: 120, causeRoute: 'MMUN - MMMX', estimate: false, suggestedDep: base + 390 * MIN}}});
             return [f1, f2, f3];
@@ -602,6 +625,9 @@
             }
             if (r.after) {
                 context.push('After it: <b>' + esc(r.after.route) + '</b>, planned at ' + timeLabel(r.after.time) + '.');
+            }
+            if (r.from > fl.dep) {
+                context.push('At its current time (' + timeLabel(fl.dep) + ') this flight is too close to the flight before it: the earliest time is ' + timeLabel(r.from) + '.');
             }
             $('#rs-context').html(context.join('<br>'));
             if (r.options) {
