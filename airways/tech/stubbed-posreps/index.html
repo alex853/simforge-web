@@ -13,66 +13,84 @@
     <script src="sim.js"></script>
     <style>
         .icao-input { width: 7rem; text-transform: uppercase; font-family: var(--bs-font-monospace); }
-        .sim-state { font-family: var(--bs-font-monospace); font-size: .9rem; word-break: break-word; }
+        .stat-value { font-family: var(--bs-font-monospace); font-size: 1.25rem; }
+        .phase-line { font-family: var(--bs-font-monospace); font-size: .9rem; word-break: break-word; }
         #responseBody { max-height: 18rem; overflow: auto; font-size: .8rem; }
     </style>
 </head>
 <body>
 
-<!-- A technical page, it is not linked from the menu of the site. It acts as the sim of the pilot of the token: it sends posreps (POST /sim/posrep) of a
-     scripted flight, so the sim tracker can be debugged without a sim. -->
+<!-- A technical page, it is not linked from the menu of the site. It acts as the sim of the pilot of the token: the aircraft has a state (kept in this
+     browser), the state is sent as posreps (POST /sim/posrep), and a scripted flight changes it, so the sim tracker can be debugged without a sim. -->
 <main class="container-lg py-4">
     <h1 class="h3 mb-1">Stubbed posreps</h1>
-    <p class="text-secondary mb-4">The page flies a scripted aircraft and sends its position to the sim tracker as the pilot of your token. Keep the page open (a hidden tab
-        is slowed down by the browser: the flight catches up, but the posreps come rarely).</p>
+    <p class="text-secondary mb-4">The state of the aircraft is kept in this browser and sent to the sim tracker as the pilot of your token every 10 seconds while the page is
+        open (a hidden tab is slowed down by the browser: the flight catches up, but the posreps come rarely).</p>
 
     <div id="alertHost"></div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-md-6">
-            <section class="card h-100">
-                <div class="card-body">
-                    <div class="text-secondary small text-uppercase">Pilot</div>
-                    <div class="fs-5" id="pilotLine">Loading…</div>
-                </div>
-            </section>
-        </div>
-        <div class="col-12 col-md-6">
-            <section class="card h-100">
-                <div class="card-body">
-                    <div class="text-secondary small text-uppercase">Posreps</div>
-                    <div class="fs-5" id="posrepLine">Not sent yet</div>
-                    <details class="mt-1">
-                        <summary class="small text-secondary">Last response</summary>
-                        <pre class="mt-2 mb-0" id="responseBody"></pre>
-                    </details>
-                </div>
-            </section>
-        </div>
-    </div>
+    <div class="text-secondary small mb-3">Pilot now: <span id="pilotLine">loading…</span></div>
 
     <section class="card mb-4">
-        <div class="card-header">Aircraft</div>
         <div class="card-body">
-            <div class="sim-state mb-3" id="simState"></div>
+            <div class="text-secondary small text-uppercase">Posreps</div>
+            <div class="fs-5" id="posrepLine">Not sent yet</div>
+            <details class="mt-1">
+                <summary class="small text-secondary">Last response</summary>
+                <pre class="mt-2 mb-0" id="responseBody"></pre>
+            </details>
+        </div>
+    </section>
 
-            <!-- not flying: where from and where to -->
-            <div id="setup" class="row g-2 align-items-end">
+    <section class="card mb-4">
+        <div class="card-header">Aircraft state</div>
+        <div class="card-body">
+            <div class="row g-3 mb-2">
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Latitude</div><div class="stat-value" id="stLat">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Longitude</div><div class="stat-value" id="stLon">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Altitude</div><div class="stat-value" id="stAlt">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Speed</div><div class="stat-value" id="stSpeed">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Heading</div><div class="stat-value" id="stHdg">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Parking brake</div><div class="stat-value" id="stBrake">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">Engines</div><div class="stat-value" id="stEng">—</div></div>
+                <div class="col-6 col-md-3"><div class="text-secondary small text-uppercase">On ground</div><div class="stat-value" id="stGround">—</div></div>
+            </div>
+            <div class="phase-line text-secondary" id="phaseLine"></div>
+
+            <hr>
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label mb-1" for="parkIcao">Put the aircraft parked at</label>
+                    <input id="parkIcao" class="form-control icao-input" type="text" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ICAO">
+                </div>
+                <div class="col-auto">
+                    <button type="button" id="btnPark" class="btn btn-outline-primary">Put</button>
+                </div>
+                <div class="col-12 form-text">Engines off, parking brake set, on the ground at the airport. A flight in progress is dropped.</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card mb-4">
+        <div class="card-header">Simulate flight</div>
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
                 <div class="col-auto">
                     <label class="form-label mb-1" for="fromIcao">From</label>
-                    <input id="fromIcao" class="form-control icao-input" type="text" maxlength="4" autocomplete="off" spellcheck="false">
+                    <input id="fromIcao" class="form-control icao-input" type="text" readonly>
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-1" for="toIcao">To</label>
                     <input id="toIcao" class="form-control icao-input" type="text" maxlength="4" autocomplete="off" spellcheck="false">
                 </div>
                 <div class="col-auto">
-                    <button type="button" id="btnFly" class="btn btn-success">Start sending posreps</button>
+                    <button type="button" id="btnFly" class="btn btn-success">Start simulating flight</button>
                 </div>
+                <div class="col-12 form-text" id="flyHelp">The flight starts where the aircraft stands now.</div>
             </div>
 
             <!-- flying: the new destination -->
-            <div id="divertBox" class="row g-2 align-items-end" style="display: none;">
+            <div id="divertBox" class="row g-2 align-items-end mt-3" style="display: none;">
                 <div class="col-auto">
                     <label class="form-label mb-1" for="divertIcao">Divert to</label>
                     <input id="divertIcao" class="form-control icao-input" type="text" maxlength="4" autocomplete="off" spellcheck="false">
@@ -81,11 +99,6 @@
                     <button type="button" id="btnDivert" class="btn btn-warning">Divert</button>
                 </div>
                 <div class="col-12 form-text">The aircraft turns to the new airport from where it is. It can be done any number of times until the touchdown.</div>
-            </div>
-
-            <div class="mt-3">
-                <button type="button" id="btnReset" class="btn btn-sm btn-outline-secondary">Reset</button>
-                <span class="form-text ms-2">Forgets the flight; the aircraft stands again at the airport of the pilot.</span>
             </div>
         </div>
     </section>
@@ -108,10 +121,8 @@
     const token = userToken();
     const airportCache = {};
     let pilot = null;           // GET /pilot
-    let message = null;         // a problem to show instead of the state of the aircraft
+    let message = null;         // the result of the last action, shown under the state
     let busy = false;           // an airport lookup is running
-    let parkPending = false;
-    let parkFailedIcao = null;
     let posrepInProgress = false;
 
     function alertHtml(type, html) {
@@ -124,6 +135,9 @@
 
     // { icao, lat, lon, elevation } of an airport from the airports service
     function loadAirport(icao) {
+        if (icao.length !== 4) {
+            return Promise.reject(new Error('"' + icao + '" is not an ICAO code'));
+        }
         if (airportCache.hasOwnProperty(icao)) {
             return Promise.resolve(airportCache[icao]);
         }
@@ -147,106 +161,100 @@
             });
     }
 
-    function render() {
-        const state = PosrepSim.state();
-        document.getElementById('simState').textContent = message || PosrepSim.describe(state);
-        const flying = PosrepSim.active();
-        document.getElementById('setup').style.display = flying ? 'none' : '';
-        document.getElementById('divertBox').style.display = PosrepSim.canDivert() ? '' : 'none';
-        document.getElementById('btnFly').disabled = busy;
-        document.getElementById('fromIcao').disabled = busy;
-        document.getElementById('toIcao').disabled = busy;
-        document.getElementById('btnDivert').disabled = busy;
+    function setText(id, text) {
+        document.getElementById(id).textContent = text;
     }
 
-    // While no flight is on, the aircraft stands (engines off, parking brake set) at the From airport, so the posreps report its place. Changing the field moves it.
-    // After a finished flight the field takes the destination (where the aircraft stands now) once. An unknown airport is reported once, until the field changes.
-    let finishTaken = null;
-    function parkAtFrom() {
-        if (PosrepSim.active() || busy || parkPending) {
-            return;
-        }
-        const fromField = document.getElementById('fromIcao');
+    // the indications of the state, updated every second
+    function render() {
         const state = PosrepSim.state();
-        if (state && state.phase === 'finished' && finishTaken !== state.phaseStart) {
-            finishTaken = state.phaseStart;
-            fromField.value = state.to.icao;
+        if (state) {
+            setText('stLat', state.lat.toFixed(6));
+            setText('stLon', state.lon.toFixed(6));
+            setText('stAlt', Math.round(state.alt) + ' ft');
+            setText('stSpeed', Math.round(state.speed) + ' kt');
+            setText('stHdg', Math.round(state.heading) + '°');
+            setText('stBrake', state.brake ? 'set' : 'off');
+            setText('stEng', state.engines ? 'running' : 'off');
+            setText('stGround', state.onGround ? 'yes' : 'no');
+        } else {
+            ['stLat', 'stLon', 'stAlt', 'stSpeed', 'stHdg', 'stBrake', 'stEng', 'stGround'].forEach(function (id) { setText(id, '—'); });
         }
-        const icao = icaoOf('fromIcao');
-        if (icao.length !== 4 || PosrepSim.idleIcao() === icao || parkFailedIcao === icao) {
-            return;
-        }
-        parkPending = true;
-        loadAirport(icao)
-            .then(function (airport) {
-                if (!PosrepSim.active() && icaoOf('fromIcao') === icao) {
-                    PosrepSim.parkAt(airport);
-                    parkFailedIcao = null;
-                    message = null;
-                }
+        setText('phaseLine', message || PosrepSim.describe(state));
+
+        const flying = PosrepSim.active();
+        const idle = PosrepSim.idleAirport();
+        document.getElementById('fromIcao').value = flying && state ? state.from.icao : (idle ? idle.icao : '');
+        document.getElementById('toIcao').disabled = busy || flying;
+        document.getElementById('btnFly').disabled = busy || flying || !idle;
+        document.getElementById('btnPark').disabled = busy;
+        document.getElementById('divertBox').style.display = PosrepSim.canDivert() ? '' : 'none';
+        document.getElementById('btnDivert').disabled = busy;
+        setText('flyHelp', flying ? 'The flight is in progress.' : idle ? 'The flight starts where the aircraft stands now.' : 'Put the aircraft at an airport first.');
+    }
+
+    // runs an action which needs airports: the airports are looked up, then done(airports) says what to do
+    function withAirports(icaos, lookingText, done) {
+        busy = true;
+        message = lookingText;
+        render();
+        Promise.all(icaos.map(loadAirport))
+            .then(function (airports) {
+                message = done(airports);
             })
             .catch(function (err) {
                 console.error(err);
-                parkFailedIcao = icao;
-                message = 'Cannot park at ' + icao + ': ' + err.message;
+                message = 'Cannot do it: ' + err.message;
             })
             .then(function () {
-                parkPending = false;
+                busy = false;
                 render();
+                sendPosrep(); // the new state goes to the tracker right away
             });
+    }
+
+    function park() {
+        const icao = icaoOf('parkIcao');
+        withAirports([icao], 'Looking up ' + icao + '…', function (airports) {
+            PosrepSim.parkAt(airports[0]);
+            document.getElementById('parkIcao').value = '';
+            return null;
+        });
     }
 
     function startFlight() {
-        if (PosrepSim.active() || busy) {
+        const idle = PosrepSim.idleAirport();
+        const toIcao = icaoOf('toIcao');
+        if (PosrepSim.active() || !idle) {
             return;
         }
-        const fromIcao = icaoOf('fromIcao');
-        const toIcao = icaoOf('toIcao');
-        busy = true;
-        message = 'Looking up ' + fromIcao + ' and ' + toIcao + '…';
-        render();
-        Promise.all([loadAirport(fromIcao), loadAirport(toIcao)])
-            .then(function (airports) {
-                PosrepSim.start(airports[0], airports[1]);
-                message = null;
-            })
-            .catch(function (err) {
-                console.error(err);
-                message = 'Cannot fly: ' + err.message;
-            })
-            .then(function () {
-                busy = false;
-                render();
-            });
+        withAirports([toIcao], 'Looking up ' + toIcao + '…', function (airports) {
+            if (airports[0].icao === idle.icao) {
+                return 'The destination is the airport where the aircraft stands';
+            }
+            PosrepSim.start(idle, airports[0]);
+            return null;
+        });
     }
 
     function divert() {
-        if (busy || !PosrepSim.canDivert()) {
+        const icao = icaoOf('divertIcao');
+        if (!PosrepSim.canDivert()) {
             return;
         }
-        const icao = icaoOf('divertIcao');
-        busy = true;
-        message = 'Looking up ' + icao + '…';
-        render();
-        loadAirport(icao)
-            .then(function (airport) {
-                // the touchdown may have happened while the lookup was running
-                message = PosrepSim.divert(airport) ? null : 'Too late to divert, the aircraft has touched down';
-                document.getElementById('divertIcao').value = '';
-            })
-            .catch(function (err) {
-                console.error(err);
-                message = 'Cannot divert: ' + err.message;
-            })
-            .then(function () {
-                busy = false;
-                render();
-            });
+        withAirports([icao], 'Looking up ' + icao + '…', function (airports) {
+            // the touchdown may have happened while the lookup was running
+            if (!PosrepSim.divert(airports[0])) {
+                return 'Too late to divert, the aircraft has touched down';
+            }
+            document.getElementById('divertIcao').value = '';
+            return null;
+        });
     }
 
     function sendPosrep() {
         const state = PosrepSim.state();
-        if (!state || posrepInProgress) {
+        if (!token || !state || posrepInProgress) {
             return;
         }
         posrepInProgress = true;
@@ -256,14 +264,14 @@
         fetch(SERVICE_URL + '/sim/posrep', {method: 'POST', headers: {'Authorization': 'Bearer ' + token}, body: params})
             .then(function (r) {
                 return r.text().then(function (body) {
-                    document.getElementById('posrepLine').textContent = 'Sent at ' + sentAt + 'Z, HTTP ' + r.status;
+                    setText('posrepLine', 'Sent at ' + sentAt + 'Z, HTTP ' + r.status);
                     let shown = body;
                     try {
                         shown = JSON.stringify(JSON.parse(body), null, 2);
                     } catch (e) {
                         // not JSON: shown as it is
                     }
-                    document.getElementById('responseBody').textContent = shown;
+                    setText('responseBody', shown);
                     if (r.status === 401) {
                         showNoToken('The server does not accept the token of this browser.');
                     }
@@ -271,7 +279,7 @@
             })
             .catch(function (err) {
                 console.error(err);
-                document.getElementById('posrepLine').textContent = 'Sent at ' + sentAt + 'Z, failed (' + err.message + ')';
+                setText('posrepLine', 'Sent at ' + sentAt + 'Z, failed (' + err.message + ')');
             })
             .then(function () {
                 posrepInProgress = false;
@@ -279,15 +287,14 @@
     }
 
     function renderPilot() {
-        const line = document.getElementById('pilotLine');
         if (!pilot) {
-            line.textContent = 'Unknown';
+            setText('pilotLine', 'Unknown');
         } else if (pilot.airportIcao) {
-            line.textContent = 'At ' + pilot.airportIcao + ' (' + pilot.state + ')';
+            setText('pilotLine', 'At ' + pilot.airportIcao + ' (' + pilot.state + ')');
         } else if (pilot.cityName) {
-            line.textContent = 'In ' + pilot.cityName + ' (' + pilot.state + ')';
+            setText('pilotLine', 'In ' + pilot.cityName + ' (' + pilot.state + ')');
         } else {
-            line.textContent = pilot.locationType + ' (' + pilot.state + ')';
+            setText('pilotLine', pilot.locationType + ' (' + pilot.state + ')');
         }
     }
 
@@ -315,44 +322,30 @@
             return;
         }
 
-        // the aircraft stands where the pilot is, unless a simulation is going on already
-        const state = PosrepSim.state();
-        if (state) {
-            document.getElementById('fromIcao').value = state.from.icao;
-            document.getElementById('toIcao').value = state.to.icao === state.from.icao ? '' : state.to.icao;
-        }
         loadPilot().then(function (p) {
             pilot = p;
             renderPilot();
+            // the first time: the aircraft stands where the pilot is
             if (!PosrepSim.state() && p && p.airportIcao) {
-                document.getElementById('fromIcao').value = p.airportIcao;
-                parkAtFrom();
+                document.getElementById('parkIcao').value = p.airportIcao;
+                park();
             }
         });
 
+        document.getElementById('btnPark').addEventListener('click', park);
         document.getElementById('btnFly').addEventListener('click', startFlight);
         document.getElementById('btnDivert').addEventListener('click', divert);
-        document.getElementById('btnReset').addEventListener('click', function () {
-            PosrepSim.reset();
-            message = null;
-            parkFailedIcao = null;
-            if (pilot && pilot.airportIcao) {
-                document.getElementById('fromIcao').value = pilot.airportIcao;
-            }
-            render();
-            parkAtFrom();
-        });
-        document.getElementById('fromIcao').addEventListener('input', parkAtFrom);
-        document.getElementById('divertIcao').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                divert();
-            }
+        [['parkIcao', park], ['toIcao', startFlight], ['divertIcao', divert]].forEach(function (pair) {
+            document.getElementById(pair[0]).addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    pair[1]();
+                }
+            });
         });
 
         setInterval(function () {
             PosrepSim.update(Date.now());
             render();
-            parkAtFrom();
         }, 1000);
         setInterval(sendPosrep, POSREP_PERIOD_MS);
         setInterval(function () {

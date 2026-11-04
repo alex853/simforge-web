@@ -11,7 +11,7 @@
 // towards the destination) -> takeoff (accelerates to 180 kt, then airborne) -> airborne (480 kt; slows down to 160 kt in time to fly the last 5 nm
 // at it; climbs to the cruise level, 200 ft per nm of distance, 3000-45000 ft; descends on a 3 degree path to touch down 1.5 nm before the destination's
 // reference point) -> rollout (brakes to 20 kt) -> taxi-in (180 s at 20 kt) -> stopped (60 s, parking brake set) -> finished (engines off).
-// Idle (parked, parkAt): the aircraft stands at an airport.
+// Idle (parked, parkAt, or finished): the aircraft stands at an airport, the state stays in localStorage for as long as wanted.
 //
 // Divert: before the touchdown the destination may be changed any number of times; the aircraft turns to the new one from where it is (and keeps
 // going as long as it is not near the destination, so it may be held in the air for hours). The fuel is not simulated.
@@ -332,6 +332,15 @@ const PosrepSim = (function () {
             return state.phase === "finished" ? state.to.icao : state.from.icao;
         },
 
+        // The airport the idle aircraft stands at: { icao, lat, lon, elevation }, or null when there is no state or a flight is on.
+        idleAirport: function () {
+            const state = load();
+            if (!state || this.active()) {
+                return null;
+            }
+            return state.phase === "finished" ? state.to : state.from;
+        },
+
         // Forgets the flight.
         reset: function () {
             save(null);
@@ -342,6 +351,9 @@ const PosrepSim = (function () {
             const state = load();
             if (!state) {
                 return null;
+            }
+            if (state.phase === 'parked' || state.phase === 'finished') {
+                state.updatedAt = Math.max(state.updatedAt, now); // nothing moves, no need to catch up second by second after days
             }
             while (state.updatedAt < now) {
                 const dt = Math.min(1, (now - state.updatedAt) / 1000);
