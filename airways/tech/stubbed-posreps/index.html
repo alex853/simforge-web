@@ -75,7 +75,7 @@
             <div class="row g-2 align-items-end">
                 <div class="col-auto">
                     <label class="form-label mb-1" for="fromIcao">From</label>
-                    <input id="fromIcao" class="form-control icao-input" type="text" readonly>
+                    <input id="fromIcao" class="form-control icao-input" type="text" disabled>
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-1" for="toIcao">To</label>
@@ -206,6 +206,10 @@
         const flying = PosrepSim.active();
         const idle = PosrepSim.idleAirport();
         document.getElementById('fromIcao').value = flying && state ? state.from.icao : (idle ? idle.icao : '');
+        // in flight To is the current destination (it changes with a divert), not what was typed
+        if (flying && state) {
+            document.getElementById('toIcao').value = state.to.icao;
+        }
         document.getElementById('toIcao').disabled = busy || flying;
         document.getElementById('btnFly').disabled = busy || flying || !idle;
         document.getElementById('btnParkPut').disabled = busy;
