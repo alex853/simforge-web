@@ -65,6 +65,7 @@
         .conflict-box .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .55rem; --bs-btn-font-size: .85rem; }
         .time-was { color: var(--bs-secondary-color); text-decoration: line-through; }
         .time-late { color: var(--bs-warning-text-emphasis); font-weight: 600; }
+        .time-early { color: var(--bs-success-text-emphasis); font-weight: 600; }
     </style>
 </head>
 <body>
@@ -170,15 +171,28 @@
     // A booked flight, a double tile in the middle. The operator, the type and the aircraft are in the tile of the aircraft next to it. Only the last flight of
     // the roster can be cancelled.
     // The forecast of the flight (fl.forecast, from the server; null when there is nothing to tell): the expected times, the divert, the conflict with the flight before it.
-    // The planned time is crossed out and the expected one is next to it when the flight is expected to leave or to land later than planned; a diverted flight lands 'not before'.
+    // The planned time is crossed out and the expected one is next to it when the flight is expected to leave or to land 5 minutes or more off the plan: in orange when it is
+    // later than planned, in green when it is earlier; a diverted flight lands 'not before'.
+    function expectedTimeHtml(planned, expected, prefix) {
+        return '<span class="time-was">' + timeLabel(planned) + '</span> <span class="' + (expected > planned ? 'time-late' : 'time-early') + '">' + (prefix || '') + timeLabel(expected) + '</span>';
+    }
+
     function timesHtml(fl) {
         const f = fl.forecast;
-        const dep = f && f.expDep ? '<span class="time-was">' + timeLabel(fl.dep) + '</span> <span class="time-late">' + timeLabel(f.expDep) + '</span>' : timeLabel(fl.dep);
-        let arr = timeLabel(fl.arr);
-        if (f && f.expArr) {
-            arr = '<span class="time-was">' + timeLabel(fl.arr) + '</span> <span class="time-late">' + (f.arrNotBefore ? 'not before ' : '') + timeLabel(f.expArr) + '</span>';
-        }
+        const dep = f && f.expDep ? expectedTimeHtml(fl.dep, f.expDep) : timeLabel(fl.dep);
+        const arr = f && f.expArr ? expectedTimeHtml(fl.arr, f.expArr, f.arrNotBefore ? 'not before ' : '') : timeLabel(fl.arr);
         return dep + ' &rarr; ' + arr;
+    }
+
+    // the flight is expected to be later than planned (Delayed) or earlier (Ahead of schedule) in the departure or in the arrival; the flight which is in conflict or diverted is
+    // told by its box and its badge, not by this
+    function scheduleStateHtml(fl) {
+        const f = fl.forecast;
+        if (!f || f.conflict || f.divertTo || !(f.expDep || f.expArr)) {
+            return '';
+        }
+        const later = (f.expDep && f.expDep > fl.dep) || (f.expArr && f.expArr > fl.arr);
+        return later ? ' <span class="time-late">&#9201; Delayed</span>' : ' <span class="time-early">Ahead of schedule</span>';
     }
 
     // The buttons of the box of a conflict are shown, they are not working yet
@@ -214,12 +228,11 @@
         const f = fl.forecast;
         const conflict = f ? f.conflict : null;
         const box = conflictBoxHtml(fl);
-        const delayed = f && (f.expDep || f.expArr) && !conflict && !f.divertTo;
         const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : '') + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
             '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
-            (delayed ? ' <span class="time-late">&#9201; Delayed</span>' : '') +
+            scheduleStateHtml(fl) +
             (f && f.divertTo ? ' <span class="badge text-bg-warning">&#9888; Diverted to ' + esc(f.divertTo) + '</span>' : '') + '</div>' +
             '<div class="flight-route">' + fl.from + ' &rarr; ' + fl.to + '</div>' +
             (f && f.divertTo ? '<div class="small text-warning-emphasis">Passengers are still expected at ' + fl.to + '</div>' : '') +
@@ -346,7 +359,7 @@
     const RELOAD_PERIOD_MILLIS = 60 * 1000;
     let reloading = false;
 
-    // ?stub=late (the first flight is an hour late: the second flight is red, the third one yellow), ?stub=divert (the first flight is diverted), ?stub=ok (no conflicts),
+    // ?stub=early (the flight is ahead of the plan), ?stub=late (the first flight is an hour late: the second flight is red, the third one yellow), ?stub=divert (the first flight is diverted), ?stub=ok (no conflicts),
     // the data are shaped like the answer of the server: the page shows them without the server
     const STUB = new URLSearchParams(location.search).get('stub');
 
@@ -374,6 +387,11 @@
             const f3 = flight('3', 'MMMX', 'MMUN', 270, 120, 'Dispatched', {forecast: {expDep: base + 410 * MIN, expArr: base + 530 * MIN, arrNotBefore: false, divertTo: null,
                 conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
             return [f1, f2, f3];
+        }
+        if (name === 'early') {
+            // the flight left 18 minutes before the plan and lands 21 minutes before it
+            return [flight('1', 'MMUN', 'MMMX', -30, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null,
+                forecast: {expDep: base - 48 * MIN, expArr: base + 74 * MIN, arrNotBefore: false, divertTo: null, conflict: null}}), flight('2', 'MMMX', 'MMUN', 180, 120, 'Dispatched', {})];
         }
         return [flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'CheckIn'}), flight('2', 'MMUN', 'MMMX', 210, 120, 'Dispatched', {})];
     }
