@@ -63,6 +63,10 @@
             border-radius: 0 0 .75rem .75rem; background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
         .conflict-box.is-caution { border-color: var(--bs-warning-border-subtle); border-left-color: var(--bs-warning); background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
         .conflict-box .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .55rem; --bs-btn-font-size: .85rem; }
+        /* a diverted flight: a pale orange tile, the box under it is orange too */
+        .flight-diverted { border-left: .4rem solid var(--bs-orange) !important; background: rgba(253, 126, 20, .12) !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0 !important; }
+        .conflict-box.is-divert { border-color: rgba(253, 126, 20, .4); border-left-color: var(--bs-orange); background: rgba(253, 126, 20, .12); color: var(--bs-body-color); }
+        .was-route { font-weight: 600; color: var(--bs-orange-text-emphasis, #984c0c); }
         .time-was { color: var(--bs-secondary-color); text-decoration: line-through; }
         .time-late { color: var(--bs-warning-text-emphasis); font-weight: 600; }
         .time-early { color: var(--bs-success-text-emphasis); font-weight: 600; }
@@ -172,7 +176,7 @@
     // the roster can be cancelled.
     // The forecast of the flight (fl.forecast, from the server; null when there is nothing to tell): the expected times, the divert, the conflict with the flight before it.
     // The planned time is crossed out and the expected one is next to it when the flight is expected to leave or to land 5 minutes or more off the plan: in orange when it is
-    // later than planned, in green when it is earlier; a diverted flight lands 'not before'.
+    // later than planned, in green when it is earlier. A diverted flight goes to the airport of the divert now: its arrival is the arrival there.
     function expectedTimeHtml(planned, expected, prefix) {
         return '<span class="time-was">' + timeLabel(planned) + '</span> <span class="' + (expected > planned ? 'time-late' : 'time-early') + '">' + (prefix || '') + timeLabel(expected) + '</span>';
     }
@@ -180,7 +184,11 @@
     function timesHtml(fl) {
         const f = fl.forecast;
         const dep = f && f.expDep ? expectedTimeHtml(fl.dep, f.expDep) : timeLabel(fl.dep);
-        const arr = f && f.expArr ? expectedTimeHtml(fl.arr, f.expArr, f.arrNotBefore ? 'not before ' : '') : timeLabel(fl.arr);
+        if (f && f.divertTo) {
+            // the plan is for the destination, the aircraft goes to the divert airport: the planned arrival is not the one to compare with
+            return dep + ' &rarr; ' + (f.expArr ? '<span class="time-late">' + timeLabel(f.expArr) + '</span>' : '?');
+        }
+        const arr = f && f.expArr ? expectedTimeHtml(fl.arr, f.expArr) : timeLabel(fl.arr);
         return dep + ' &rarr; ' + arr;
     }
 
@@ -202,6 +210,20 @@
 
     // The box under a flight which is in conflict with the flight before it: red when the flight before it is as it is (late, diverted), yellow when the conflict appears only after
     // the flights before it are moved. The text is made of the numbers of the server.
+    // The box under a diverted flight: what it was, where it is now and where the airline expects it to deliver the passengers
+    function diversionBoxHtml(fl) {
+        const f = fl.forecast;
+        if (!f || !f.divertTo) {
+            return '';
+        }
+        const original = '<b>' + fl.from + ' &rarr; ' + fl.to + '</b>';
+        return '<div class="conflict-box is-divert"><div><b>&#9888; Diversion</b></div><div class="small my-1">This was the flight ' + original + ', diverted to <b>' + esc(f.divertTo) + '</b>. ' +
+            (f.expArr ? 'The aircraft is at the gate in ' + esc(f.divertTo) + ' at ' + timeLabel(f.expArr) + ', but the airline expects you to deliver the passengers to ' + fl.to +
+                ' after the problem is solved. ' : 'The airline expects you to deliver the passengers to ' + fl.to + ' after the problem is solved. ') +
+            (f.destNotBefore ? 'By our estimate you will be at ' + fl.to + ' not before <b>' + timeLabel(f.destNotBefore) + '</b> (the flight to ' + esc(f.divertTo) +
+                ', an hour on the ground there, the planned flight to ' + fl.to + ').' : '') + '</div></div>';
+    }
+
     function conflictBoxHtml(fl) {
         const c = fl.forecast ? fl.forecast.conflict : null;
         if (!c) {
@@ -227,15 +249,17 @@
     function flightTile(fl, isLast) {
         const f = fl.forecast;
         const conflict = f ? f.conflict : null;
-        const box = conflictBoxHtml(fl);
-        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : '') + '">' +
+        const diverted = !!(f && f.divertTo);
+        const box = diversionBoxHtml(fl) + conflictBoxHtml(fl);
+        const tile = '<div class="stat flight-tile mb-3' + (isRosterFlightActive(fl) ? '' : ' flight-over') + (diverted ? ' flight-diverted' : (conflict ? (conflict.level === 'red' ? ' flight-conflict' : ' flight-affected') : '')) + '">' +
             // TODO the cross which cancels the last flight is taken off for now: (isLast ? '<button ... data-cancel="' + fl.id + '">&#10005;</button>' : '')
             salesHtml(fl) + actionsHtml(fl) +
             '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
             scheduleStateHtml(fl) +
-            (f && f.divertTo ? ' <span class="badge text-bg-warning">&#9888; Diverted to ' + esc(f.divertTo) + '</span>' : '') + '</div>' +
-            '<div class="flight-route">' + fl.from + ' &rarr; ' + fl.to + '</div>' +
-            (f && f.divertTo ? '<div class="small text-warning-emphasis">Passengers are still expected at ' + fl.to + '</div>' : '') +
+            (diverted ? ' <span class="badge text-bg-warning">&#9888; Diverted</span>' : '') + '</div>' +
+            // a diverted flight goes to the airport of the divert, so the route says that, and the flight of the plan is told under it
+            '<div class="flight-route">' + fl.from + ' &rarr; ' + (diverted ? esc(f.divertTo) : fl.to) + '</div>' +
+            (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + ', diverted to ' + esc(f.divertTo) + '</div>' : '') +
             '<div class="stat-hint">' + timesHtml(fl) + '</div>' +
             '</div>';
         return tile + box;
@@ -372,26 +396,26 @@
         };
         if (name === 'late') {
             // the first flight leaves an hour later and lands at +3:30: the second flight (planned +3:10) must leave at +4:00, and then the third one (planned +4:30) is short too
-            const f1 = flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'WaitingForBoarding', forecast: {expDep: base + 90 * MIN, expArr: base + 210 * MIN, arrNotBefore: false, divertTo: null, conflict: null}});
-            const f2 = flight('2', 'MMUN', 'MMMX', 190, 120, 'Dispatched', {forecast: {expDep: base + 240 * MIN, expArr: base + 360 * MIN, arrNotBefore: false, divertTo: null,
+            const f1 = flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'WaitingForBoarding', forecast: {expDep: base + 90 * MIN, expArr: base + 210 * MIN, destNotBefore: null, divertTo: null, conflict: null}});
+            const f2 = flight('2', 'MMUN', 'MMMX', 190, 120, 'Dispatched', {forecast: {expDep: base + 240 * MIN, expArr: base + 360 * MIN, destNotBefore: null, divertTo: null,
                 conflict: {level: 'red', shortfallMinutes: 50, causeRoute: 'MMMX - MMUN', estimate: false, suggestedDep: base + 240 * MIN}}});
-            const f3 = flight('3', 'MMUN', 'MMMX', 270, 120, 'Dispatched', {forecast: {expDep: base + 390 * MIN, expArr: base + 510 * MIN, arrNotBefore: false, divertTo: null,
+            const f3 = flight('3', 'MMUN', 'MMMX', 270, 120, 'Dispatched', {forecast: {expDep: base + 390 * MIN, expArr: base + 510 * MIN, destNotBefore: null, divertTo: null,
                 conflict: {level: 'yellow', shortfallMinutes: 120, causeRoute: 'MMUN - MMMX', estimate: false, suggestedDep: base + 390 * MIN}}});
             return [f1, f2, f3];
         }
         if (name === 'divert') {
             const f1 = flight('1', 'MMMX', 'MMUN', -60, 120, 'Flying', {tfStatus: 'Flying', onBoard: 3, remained: null,
-                forecast: {expDep: null, expArr: base + 200 * MIN, arrNotBefore: true, divertTo: 'MMTO', conflict: null}});
-            const f2 = flight('2', 'MMUN', 'MMMX', 90, 120, 'Dispatched', {forecast: {expDep: base + 260 * MIN, expArr: base + 380 * MIN, arrNotBefore: false, divertTo: null,
+                forecast: {expDep: null, expArr: base + 40 * MIN, destNotBefore: base + 200 * MIN, divertTo: 'MMTO', conflict: null}});
+            const f2 = flight('2', 'MMUN', 'MMMX', 90, 120, 'Dispatched', {forecast: {expDep: base + 260 * MIN, expArr: base + 380 * MIN, destNotBefore: null, divertTo: null,
                 conflict: {level: 'red', shortfallMinutes: 170, causeRoute: 'MMMX - MMUN', estimate: true, suggestedDep: base + 260 * MIN}}});
-            const f3 = flight('3', 'MMMX', 'MMUN', 270, 120, 'Dispatched', {forecast: {expDep: base + 410 * MIN, expArr: base + 530 * MIN, arrNotBefore: false, divertTo: null,
+            const f3 = flight('3', 'MMMX', 'MMUN', 270, 120, 'Dispatched', {forecast: {expDep: base + 410 * MIN, expArr: base + 530 * MIN, destNotBefore: null, divertTo: null,
                 conflict: {level: 'yellow', shortfallMinutes: 140, causeRoute: 'MMUN - MMMX', estimate: true, suggestedDep: base + 410 * MIN}}});
             return [f1, f2, f3];
         }
         if (name === 'early') {
             // the flight left 18 minutes before the plan and lands 21 minutes before it
             return [flight('1', 'MMUN', 'MMMX', -30, 125, 'Flying', {tfStatus: 'Flying', onBoard: 54, remained: null,
-                forecast: {expDep: base - 48 * MIN, expArr: base + 74 * MIN, arrNotBefore: false, divertTo: null, conflict: null}}), flight('2', 'MMMX', 'MMUN', 180, 120, 'Dispatched', {})];
+                forecast: {expDep: base - 48 * MIN, expArr: base + 74 * MIN, destNotBefore: null, divertTo: null, conflict: null}}), flight('2', 'MMMX', 'MMUN', 180, 120, 'Dispatched', {})];
         }
         return [flight('1', 'MMMX', 'MMUN', 30, 120, 'Preflight', {tfStatus: 'CheckIn'}), flight('2', 'MMUN', 'MMMX', 210, 120, 'Dispatched', {})];
     }
