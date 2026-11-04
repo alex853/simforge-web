@@ -355,12 +355,13 @@
         }
     }
 
+    // The tile of the stage which is going now (check-in, boarding, deboarding) is blue (next: true), the same as the tile of the next time of the flight (Waiting for landing).
     // The check-in goes by itself, its window is fixed and counted from the planned departure (it starts 120 minutes before it and ends 30 minutes before it, cinStart and cinEnd of
     // the status): it does not depend on the start of the flight or on the aircraft. The tile is like the deboarding one: how many have checked in so far and when it ends (no number
     // of the sold tickets, they are in the payload).
     function checkInTile(f) {
         if (f.tfSt === 'CheckIn') {
-            return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big good', hint: f.cinEnd ? 'ends at ' + f.cinEnd : ''};
+            return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big good', hint: f.cinEnd ? 'ends at ' + f.cinEnd : '', next: true};
         }
         if (f.tfSt !== 'Scheduled') {
             return {label: 'Check-in', value: (f.ckdIn ?? 0) + ' checked in', cls: 'big'};
@@ -369,10 +370,10 @@
     }
 
     // The boarding can not begin before the start of the flight, the pilot starts it with the button. The plan: the end is 10 minutes before the planned departure, the start is
-    // the end minus the duration by the cabin layout (brdStart, brdEnd of the status). Nothing ends the boarding by the planned end: it is only a plan.
+    // the end minus the duration by the cabin layout (brdStart, brdEnd of the status). A boarding which has begun early stays open until the planned end (or Finish Boarding), even if everybody has boarded: the server holds it.
     function boardingTile(f) {
         if (f.tfSt === 'Boarding') {
-            return {label: 'Boarding', value: (f.ponBrd ?? 0) + ' boarded', cls: 'big good', hint: f.brdEnd ? 'ends at ' + f.brdEnd : ''};
+            return {label: 'Boarding', value: (f.ponBrd ?? 0) + ' boarded', cls: 'big good', hint: f.brdEnd ? 'ends at ' + f.brdEnd : '', next: true};
         }
         if (f.fmSt === 'Dispatched') {
             if (f.brdStart) {
@@ -388,7 +389,7 @@
     // deboarding is its own story: nothing is said about the finish of the flight here.
     function deboardingTile(f) {
         if (f.tfSt === 'Deboarding') {
-            return {label: 'Deboarding', value: (f.ponBrd ?? 0) + ' left', cls: 'big good', hint: f.debEnd ? 'ends at ' + f.debEnd : ''};
+            return {label: 'Deboarding', value: (f.ponBrd ?? 0) + ' left', cls: 'big good', hint: f.debEnd ? 'ends at ' + f.debEnd : '', next: true};
         }
         if (f.tfSt === 'WaitingForDeboarding') {
             return {label: 'Deboarding', value: 'Waiting', cls: 'big t-wait', hint: 'start it when you are ready'};
