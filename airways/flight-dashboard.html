@@ -552,6 +552,26 @@
             + '<div class="row g-3">' + (left ? '<div class="col-12 col-md-4">' + left + '</div>' : '') + '<div class="col-12 col-md-4">' + right + '</div>' + cancel + '</div></div>';
     }
 
+    // The start of the flight when both ways are open (the sim tracker is on): two columns, a button and under it what it does and its conditions.
+    function bothStartsHtml(status, actions) {
+        const f = status.flight;
+        const notes = {
+            'start-flight': 'Blocks Off, Takeoff, Landing and Blocks On follow the sim.',
+            'start-flight-manual': 'You press the buttons for Blocks Off, Takeoff, Landing and Blocks On.'
+        };
+        const columns = ['start-flight', 'start-flight-manual'].map(name => {
+            const a = actions.find(x => x.name === name);
+            const allowed = a.allowed && !isBlocked(status, name);
+            const style = allowed ? (name === 'start-flight' ? 'btn-success' : 'btn-outline-success') : 'btn-outline-danger';
+            const list = a.checks ?? [];
+            return '<div class="col-12 col-md-6"><button class="btn action-button w-100 ' + style + '" data-action="' + name + '"' + (allowed ? '' : ' disabled') + '>' + esc(ACTION_LABELS[name]) + '</button>'
+                + '<div class="action-note mt-2">' + notes[name] + '</div>'
+                + (list.length > 0 ? '<ul class="checks mt-2 mb-0">' + list.map(c => '<li class="' + (c.result ? 'ok' : 'no') + '">' + esc(c.name) + '</li>').join('') + '</ul>' : '')
+                + '</div>';
+        }).join('');
+        return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div><div class="row g-3">' + columns + '</div></div>';
+    }
+
     function wrongLandingHtml(status, actions) {
         const f = status.flight;
         const columns = WRONG_LANDING_COLUMNS.map(c => {
@@ -616,6 +636,9 @@
         }
         if (f.fmSt === 'Flying') {
             return flyingHtml(status, actions, manual);
+        }
+        if (bothStarts && actions.length === 2) {
+            return bothStartsHtml(status, actions);
         }
         let checks = '';
         let buttons = '';
