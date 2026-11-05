@@ -413,12 +413,16 @@
 
     // The tile of the next flight with the values which are known already: the airport of the departure, the aircraft, the earliest time.
     // The page of ShadowJet opens with these fixed, only the time (and the airport of the arrival) is chosen there.
-    function nextFlightTile(last) {
+    // nextDep: the departure of the flight which goes after this chain (0 for the last chain): the new flight has to fit before it
+    function nextFlightTile(last, nextDep) {
         const c = rosterContinuation([last], true);
+        if (nextDep) {
+            c.notAfter = nextDep;
+        }
         return '<a class="stat next-tile" href="' + shadowJetHref(c) + '">' +
             '<div class="stat-label">Book the next flight</div>' +
             '<div class="flight-route">' + c.from + ' &rarr; ?</div>' +
-            '<div class="stat-hint">Not earlier than ' + timeLabel(c.notBefore) + '</div>' +
+            '<div class="stat-hint">Not earlier than ' + timeLabel(c.notBefore) + (nextDep ? ', before ' + timeLabel(nextDep) : '') + '</div>' +
             '</a>';
     }
 
@@ -482,8 +486,7 @@
         }
         const groups = groupFlights(flights);
         groups.forEach(function (group, i) {
-            const isLastGroup = i === groups.length - 1;
-            html += (i > 0 ? gapSeparator(group.flights[0].dep - groups[i - 1].flights[groups[i - 1].flights.length - 1].arr) : '') + groupHtml(group, null, isLastGroup && isRosterFlightActive(flights[flights.length - 1]) ? nextFlightTile(flights[flights.length - 1]) : '');
+            html += (i > 0 ? gapSeparator(group.flights[0].dep - groups[i - 1].flights[groups[i - 1].flights.length - 1].arr) : '') + groupHtml(group, null, nextTileOfGroup(group, groups[i + 1]));
         });
         html += '<hr class="my-4">';
         $body.html(html);
@@ -496,6 +499,21 @@
         const plural = function (n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); };
         const text = hours < 1 ? 'less than an hour' : days === 0 ? plural(hours, 'hour') : plural(days, 'day') + (hours % 24 > 0 ? ' ' + plural(hours % 24, 'hour') : '');
         return '<div class="gap-sep"><span>' + text + '</span></div>';
+    }
+
+    // The tile "Book the next flight" after a chain: after the last chain always, after the other ones when the chain is not over and the gap to the next chain has room
+    // for a flight (the least gap, a flight and the least gap again)
+    function nextTileOfGroup(group, nextGroup) {
+        const last = group.flights[group.flights.length - 1];
+        // only the chains of ShadowJet: how busyBirds flights go on in the roster is not decided yet
+        if (!isRosterFlightActive(last) || String(group.operatorName).toLowerCase() !== 'shadowjet') {
+            return '';
+        }
+        if (!nextGroup) {
+            return nextFlightTile(last, 0);
+        }
+        const nextDep = nextGroup.flights[0].dep;
+        return nextDep - last.arr >= 3 * MIN_GAP_MILLIS ? nextFlightTile(last, nextDep) : '';
     }
 
     // The window before the first flight of the roster is offered for booking when the flight is more than 12 hours away

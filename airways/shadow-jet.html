@@ -637,7 +637,8 @@
             $('#aircraftHint').text('The same as the flights before');
         }
         if (notBefore) {
-            departureHintBase = 'Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), notBefore)), Date.now());
+            departureHintBase = 'Not earlier than ' + departureLabel(ceilToQuarter(Math.max(Date.now(), notBefore)), Date.now())
+                + (notAfter ? ', and the new flight must land at least 30 minutes before the flight which leaves at ' + departureLabel(notAfter, Date.now()) : '');
             updateDepartureHint();
         }
 

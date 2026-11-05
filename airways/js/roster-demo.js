@@ -28,6 +28,9 @@ function shadowJetHref(continuation) {
         return 'shadow-jet.html';
     }
     const q = new URLSearchParams({notBefore: String(continuation.notBefore)});
+    if (continuation.notAfter) {
+        q.set('notAfter', String(continuation.notAfter));
+    }
     if (continuation.from) {
         q.set('from', continuation.from);
     }
