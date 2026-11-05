@@ -66,7 +66,9 @@ function myFlightToRosterFlight(m) {
         // the departures to which the flight can be moved without a conflict with its neighbours: {from, to (UTC millis), stepMinutes}, null when the flight cannot be moved
         reschedule: m.reschedule || null,
         // the actual blocks off and blocks on (UTC millis, null while they have not happened), and the airport where the flight has landed when it is not its destination (ICAO)
-        actDep: f.actualDeparture || null, actArr: f.actualArrival || null, landedAt: f.landedIcao || null
+        actDep: f.actualDeparture || null, actArr: f.actualArrival || null, landedAt: f.landedIcao || null,
+        // the landing at a wrong airport was not declared as the divert (an unplanned landing)
+        unplanned: !!f.unplanned
     };
 }
 
@@ -75,7 +77,10 @@ function myFlightToRosterFlight(m) {
 function loadRosterFlights(callback, errorCallback) {
     airwaysAuth('GET', '/flight-dashboard/my-flights', {}, function (response) {
         // TODO all the flights of my-flights are shown, the old ones too: the roster must show a part of the history only (the flights of the last days) when there are many
-        callback((response.flights || []).map(myFlightToRosterFlight).sort(function (a, b) { return a.dep - b.dep; }));
+        callback((response.flights || []).map(myFlightToRosterFlight).sort(function (a, b) {
+            // a flight which has departed is placed by its actual blocks off: it may leave much earlier than planned, and the next flight may be moved to its planned time
+            return (a.actDep || a.dep) - (b.actDep || b.dep);
+        }));
     }, function () {
         if (errorCallback) {
             errorCallback();

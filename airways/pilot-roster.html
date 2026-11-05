@@ -373,7 +373,8 @@
             salesHtml(fl) + actionsHtml(fl) +
             '<div class="stat-label' + (isInProgress(fl) ? ' text-primary' : '') + '">' + fl.status +
             scheduleStateHtml(fl) +
-            (diverted ? ' <span class="badge text-bg-warning">&#9888; Diverted</span>' : '') + '</div>' +
+            // an unplanned landing (the airport was not declared as the divert) is the same orange, the badge says it was unexpected
+            (diverted ? ' <span class="badge text-bg-warning">&#9888; ' + (fl.unplanned ? 'Diverted unexpectedly' : 'Diverted') + '</span>' : '') + '</div>' +
             // a diverted flight goes to the airport of the divert, so the route says that, and the flight of the plan is told under it
             '<div class="flight-route">' + fl.from + ' &rarr; ' + (diverted ? esc(divertAirport) : fl.to) + '</div>' +
             (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + '</div>' : '') +

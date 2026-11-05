@@ -654,8 +654,16 @@
                 + (list.length > 0 ? '<ul class="checks mt-2 mb-0">' + list.map(x => '<li class="' + (x.result ? 'ok' : 'no') + '">' + checkHtml(x.name) + '</li>').join('') + '</ul>' : '')
                 + '</div>';
         }).join('');
-        return '<div class="action-area"><div class="action-title">Landed at the alternate ' + esc(f.aldgA ?? f.aldg ?? '?') + ', not at the destination ' + esc(f.dest) + '</div>'
-            + '<p class="text-body-secondary">What happens to the passengers?</p>'
+        // a landing at the airport which the pilot declared as the divert, or an unplanned one (the same actions, the other words)
+        const landedAt = f.aldgA ?? f.aldg ?? '?';
+        const title = f.unplanned
+            ? 'You landed at ' + bold(landedAt) + ', not at the destination ' + bold(f.dest) + ' and not at the airport you declared'
+            : 'Landed at the alternate ' + bold(landedAt) + ', not at the destination ' + bold(f.dest);
+        const note = f.unplanned
+            ? 'You have not declared this divert in flight, so it is an unplanned landing. The passengers were to be delivered to ' + bold(f.dest) + ': please deliver them, they are waiting. What happens to them now?'
+            : 'What happens to the passengers?';
+        return '<div class="action-area"><div class="action-title">' + title + '</div>'
+            + '<p class="text-body-secondary">' + note + '</p>'
             + '<div class="row g-3">' + columns + '</div></div>';
     }
 
@@ -1204,8 +1212,10 @@
                 break;
             case 'wrong-landing-over-limit':
             case 'later-problem':
+            case 'wrong-landing-unplanned':
             case 'wrong-landing':
-                Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59', aldgA: 'KSAT'});
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59', aldgA: 'KSAT',
+                    unplanned: stub === 'wrong-landing-unplanned' ? true : undefined});
                 // the flight on to the destination starts a new mission at once: the limits of the pilot are its conditions
                 actions = [{name: 'continue-now', allowed: dutyOk, checks: limits}, {name: 'continue-later', allowed: true, checks: []},
                     {name: 'cancel-transport', allowed: true, checks: []}];
