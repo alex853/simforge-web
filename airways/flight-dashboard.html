@@ -573,7 +573,7 @@
         {name: 'continue-now', style: 'btn-success', text: f => 'If you can fly now, the passengers stay on board and the same aircraft flies on to <b>' + esc(f.dest) + '</b> now, in a new flight which you start when you are ready. '
                 + 'This flight is closed and you are paid for it. The passengers pay for the whole trip when they get to <b>' + esc(f.dest) + '</b>.'},
         {name: 'continue-later', style: 'btn-outline-primary', text: f => 'If you cannot fly now (you are tired or over a limit), the passengers get off here and wait: the same aircraft takes them on to <b>' + esc(f.dest)
-                + '</b> in a new flight, which you plan for later (not earlier than 3 hours from now). The flights of your roster which it overlaps are moved after it.'},
+                + '</b> in a new flight, which you plan for later (not earlier than <b>3 hours</b> from now). The flights of your roster which it overlaps are moved after it.'},
         {name: 'cancel-transport', style: 'btn-outline-danger', text: f => 'If the passengers cannot be taken on, they get off here and make their own way. It is expensive for the company: nobody pays for the trip, and it is noted in your record.'}
     ];
 
@@ -601,18 +601,18 @@
             const allowed = landing.allowed && !isBlocked(status, 'landing');
             const list = landing.checks ?? [];
             left = '<button class="btn action-button w-100 ' + (allowed ? 'btn-success' : 'btn-outline-danger') + '" data-action="landing"' + (allowed ? '' : ' disabled') + '>' + esc(ACTION_LABELS['landing']) + '</button>'
-                + '<div class="action-note mt-2">Lands the aircraft at ' + esc(f.div ?? f.dest) + '.</div>'
+                + '<div class="action-note mt-2">Lands the aircraft at ' + bold(f.div ?? f.dest) + '.</div>'
                 + (!allowed && list.length > 0 ? '<ul class="checks mt-2 mb-0">' + list.map(c => '<li class="' + (c.result ? 'ok' : 'no') + '">' + checkHtml(c.name) + '</li>').join('') + '</ul>' : '');
         } else if (status.mode === 'SIM_TRACKER') {
             // the explanation above says that the sim tracker lands the aircraft where you land it
             left = '<button class="btn btn-outline-primary w-100 disabled">Landing will be tracked automatically</button>';
         }
         const right = '<button class="btn btn-outline-orange w-100" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
-            + '<div class="action-note mt-2">If you need to land at another airport instead of ' + esc(f.dest) + ': an emergency, bad weather, a closed airport, or any other reason you cannot land there.</div>';
+            + '<div class="action-note mt-2">If you need to land at another airport instead of ' + bold(f.dest) + ': an emergency, bad weather, a closed airport, or any other reason you cannot land there.</div>';
         // after a divert the pilot can go back to the destination of the plan
         const cancel = f.div
             ? '<div class="col-12 col-md-4"><button class="btn btn-outline-secondary w-100" id="divertCancelBtn"' + (actionInProgress ? ' disabled' : '') + '>Cancel divert</button>'
-                + '<div class="action-note mt-2">Take the divert back: fly to ' + esc(f.dest) + ' as planned.</div></div>'
+                + '<div class="action-note mt-2">Take the divert back: fly to ' + bold(f.dest) + ' as planned.</div></div>'
             : '';
         return '<div class="action-area"><div class="action-title">' + esc(STAGE_TITLES[f.fmSt] ?? f.fmSt) + '</div>'
             + '<div class="row g-3">' + (left ? '<div class="col-12 col-md-4">' + left + '</div>' : '') + '<div class="col-12 col-md-4">' + right + '</div>' + cancel + '</div></div>';
@@ -667,18 +667,19 @@
         if (!w) {
             return '';
         }
-        const next = w.nextFlightRoute ? ' (' + esc(w.nextFlightRoute) + ' at ' + esc(w.nextFlightDeparture) + ' UTC)' : '';
+        // the codes of the airports, the times and the numbers are bold
+        const next = w.nextFlightRoute ? ' (' + boldCodes(w.nextFlightRoute) + ' at ' + bold(w.nextFlightDeparture) + ' UTC)' : '';
         const rosterButton = ' <a class="btn btn-sm btn-outline-danger ms-2" href="pilot-roster.html">Open the roster</a>';
         if (w.kind === 'late') {
-            return '<div class="alert alert-danger py-2"><b>You are late.</b> This flight lands at about ' + esc(w.blocksOn) + ' UTC, and the next flight' + next
-                + ' cannot start by its plan: the gap of 30 minutes between the flights is short by ' + w.shortfallMinutes + ' min. Go to the roster and resolve the conflict.' + rosterButton + '</div>';
+            return '<div class="alert alert-danger py-2"><b>You are late.</b> This flight lands at about ' + bold(w.blocksOn) + ' UTC, and the next flight' + next
+                + ' cannot start by its plan: the gap of ' + bold(30) + ' minutes between the flights is short by ' + bold(w.shortfallMinutes) + ' min. Go to the roster and resolve the conflict.' + rosterButton + '</div>';
         }
         // two different messages: the divert is a caution (information), the conflict under it is the one to deal with
         let html = '<div class="alert alert-warning py-2"><b>Divert.</b> The passengers are on board: the airline expects you to deliver them to '
-            + esc(w.destinationIcao) + ' after the problem is solved.</div>';
+            + bold(w.destinationIcao) + ' after the problem is solved.</div>';
         if (w.conflict) {
-            html += '<div class="alert alert-danger py-2"><b>Conflict with the next flight.</b> By our estimate you will not be at ' + esc(w.destinationIcao) + ' before ' + esc(w.blocksOn)
-                + ' UTC (the flight to the divert airport, an hour on the ground there, the planned flight to ' + esc(w.destinationIcao) + ', an hour on the ground at the destination), and the next flight' + next
+            html += '<div class="alert alert-danger py-2"><b>Conflict with the next flight.</b> By our estimate you will not be at ' + bold(w.destinationIcao) + ' before ' + bold(w.blocksOn)
+                + ' UTC (the flight to the divert airport, an hour on the ground there, the planned flight to ' + bold(w.destinationIcao) + ', an hour on the ground at the destination), and the next flight' + next
                 + ' starts earlier. Go to the roster and resolve the conflict.' + rosterButton + '</div>';
         }
         return html;
@@ -689,6 +690,11 @@
 
     function bold(value) {
         return '<b>' + esc(value) + '</b>';
+    }
+
+    // a text with the codes of the airports (a route): every code is bold
+    function boldCodes(text) {
+        return esc(text).replace(/(?<![A-Za-z])[A-Z]{4}(?![A-Za-z])/g, '<b>$&</b>');
     }
 
     const FOUR_STEPS = '<b>Blocks Off</b>, <b>Takeoff</b>, <b>Landing</b>, <b>Blocks On</b>';
