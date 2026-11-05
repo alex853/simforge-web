@@ -291,6 +291,20 @@
             && sim.locationStatus === 'At airport' && sim.airportIcao && sim.airportIcao.toUpperCase() !== p.expectedAirport.toUpperCase());
     }
 
+    // Before the start the flight begins at its departure airport: the pilot of the world and the aircraft of the sim must be there. Both tiles are red when they are not
+    // (the checks of the start say the same: "the pilot is at the departure airport", "departure location").
+    const sameAirport = (a, b) => !!a && !!b && a.toUpperCase() === b.toUpperCase();
+    function pilotAwayFromDeparture(status) {
+        const p = status.pilot;
+        const f = status.flight;
+        return !!(f && f.fmSt === 'Dispatched' && p && p.expectedAirport && f.dep && !sameAirport(p.expectedAirport, f.dep));
+    }
+    function simAwayFromDeparture(status) {
+        const sim = status.sim;
+        const f = status.flight;
+        return !!(f && f.fmSt === 'Dispatched' && sim && sim.status === 'Connected' && sim.locationStatus === 'At airport' && sim.airportIcao && f.dep && !sameAirport(sim.airportIcao, f.dep));
+    }
+
     // Where the pilot is and whether it is right: the state of the pilot of the user (the same states which block the actions)
     function pilotTile(status) {
         const p = status.pilot;
@@ -300,6 +314,9 @@
         const where = p.expectedAirport ?? p.expectedCity ?? '---';
         if (locationConflict(status)) {
             return {label: 'Pilot', html: '<div class="stat-value big"><span class="hl-warn">' + esc(where) + '</span></div>', hint: 'contradicts with tracking data'};
+        }
+        if (pilotAwayFromDeparture(status) && (p.state === 'OK' || p.state === 'UNKNOWN')) {
+            return {label: 'Pilot', value: esc(where), cls: 'big bad', hint: 'the flight starts at ' + esc(status.flight.dep)};
         }
         switch (p.state) {
             case 'OK':
@@ -342,7 +359,7 @@
     // The pilot tile is pale red when the pilot can not start a flight: no pilot, busy, not at an airport, in a city, at the wrong airport. UNKNOWN (the sim
     // does not confirm the place) is not a problem.
     function pilotHasProblem(status) {
-        return !status.pilot || BLOCKING_USER_STATES.includes(status.pilot.state) || status.pilot.state === 'PERSON_IN_CITY' || locationConflict(status);
+        return !status.pilot || BLOCKING_USER_STATES.includes(status.pilot.state) || status.pilot.state === 'PERSON_IN_CITY' || locationConflict(status) || pilotAwayFromDeparture(status);
     }
 
     // Without a flight: the two tiles which say what to do. The pilot with the link to his page (to fix what is wrong), the flight with the link to the booking.
@@ -453,11 +470,12 @@
         const details = [];
         // the airport of the sim which contradicts with the place of the pilot in the world is yellow (and the tile is pale red)
         const conflict = locationConflict(status);
+        const awayFromDeparture = simAwayFromDeparture(status);
         // the good state is marked in green, like with a marker
         const mark = (text, good, cls) => good ? '<span class="' + (cls ?? 'hl-good') + '">' + text + '</span>' : text;
         details.push(mark('Sim ' + esc(sim.status ?? '---'), sim.status === 'Connected'));
         if (sim.locationStatus) {
-            details.push(mark(esc(sim.locationStatus === 'In flight' ? 'In Flight' : sim.locationStatus) +(sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''), sim.locationStatus === 'At airport' || sim.locationStatus === 'In flight', conflict ? 'hl-warn' : sim.locationStatus === 'In flight' ? 'hl-flight' : 'hl-good'));
+            details.push(mark(esc(sim.locationStatus === 'In flight' ? 'In Flight' : sim.locationStatus) +(sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''), (sim.locationStatus === 'At airport' && !awayFromDeparture) || sim.locationStatus === 'In flight', conflict ? 'hl-warn' : sim.locationStatus === 'In flight' ? 'hl-flight' : 'hl-good'));
         }
         if (sim.parkingBrake !== null && sim.parkingBrake !== undefined) {
             details.push('P/B ' + (sim.parkingBrake ? 'SET' : 'OFF'));
@@ -469,7 +487,7 @@
             details.push('G/S ' + esc(sim.measuredGs));
         }
         const good = status.mode === 'SIM_TRACKER' && sim.status === 'Connected';
-        return {label: 'Tracking', value: mode, cls: 'big' + (good ? ' good' : ''), hint: details.concat('Time ' + new Date().toISOString().slice(11, 19) + 'Z').join(' &middot; '), alert: conflict};
+        return {label: 'Tracking', value: mode, cls: 'big' + (good ? ' good' : ''), hint: details.concat('Time ' + new Date().toISOString().slice(11, 19) + 'Z').join(' &middot; '), alert: conflict || awayFromDeparture};
     }
 
     // all four times in one tile (a place is saved for the check-in)
@@ -1154,6 +1172,11 @@
         let mode = null;
         let scheduleWarning = null;
         switch (name) {
+            case 'wrong-place':
+                // the pilot and the sim are at another airport than the departure of the flight: the two tiles are red
+                f.dep = 'LEIB';
+                mode = null;
+                break;
             case 'check-in':
                 Object.assign(f, {fmSt: 'Preflight', tfSt: 'CheckIn', ckdIn: 87});
                 actions = [{name: 'start-boarding', allowed: true, checks: []}];
@@ -1244,10 +1267,10 @@
             default:
                 break;
         }
-        return {mode: mode, actions: actions, sim: {status: 'Connected', locationStatus: 'At airport', airportIcao: 'KAUS', parkingBrake: true, engineRunning: false, measuredGs: '0'},
+        return {mode: mode, actions: actions, sim: {status: 'Connected', locationStatus: 'At airport', airportIcao: name === 'wrong-place' ? 'MMMX' : 'KAUS', parkingBrake: true, engineRunning: false, measuredGs: '0'},
             scheduleWarning: scheduleWarning,
             flight: f, pilot: name === 'travelling' ? {state: 'PERSON_NOT_IDLE'}
-                : (['flying', 'landed', 'ferry', 'late', 'divert-reminder', 'divert-conflict'].includes(name) ? {state: 'OK'} : {state: 'OK', expectedAirport: 'KAUS', currentAirport: 'KAUS'})};
+                : (['flying', 'landed', 'ferry', 'late', 'divert-reminder', 'divert-conflict'].includes(name) ? {state: 'OK'} : {state: 'OK', expectedAirport: name === 'wrong-place' ? 'MMMX' : 'KAUS', currentAirport: name === 'wrong-place' ? 'MMMX' : 'KAUS'})};
     }
 
     const STUB_PILOT = {state: 'Idle', awake: {creditMinutes: 600, sleeping: false}, duty: {last24HoursMinutes: 200, limitMinutes: 840},
