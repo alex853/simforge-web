@@ -70,6 +70,7 @@
         .hl-good, .hl-flight { color: #fff; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .hl-good { background: var(--bs-success); }
         .hl-flight { background: var(--bs-primary); }
+        .hl-bad { background: var(--bs-danger); color: #fff; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .hl-warn { background: #ffc107; color: #212529; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
         /* the explanation of the stage: what the pilot does and what happens to the passengers (two paragraphs under the title of the stage) */
@@ -475,7 +476,7 @@
         const mark = (text, good, cls) => good ? '<span class="' + (cls ?? 'hl-good') + '">' + text + '</span>' : text;
         details.push(mark('Sim ' + esc(sim.status ?? '---'), sim.status === 'Connected'));
         if (sim.locationStatus) {
-            details.push(mark(esc(sim.locationStatus === 'In flight' ? 'In Flight' : sim.locationStatus) +(sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''), (sim.locationStatus === 'At airport' && !awayFromDeparture) || sim.locationStatus === 'In flight', conflict ? 'hl-warn' : sim.locationStatus === 'In flight' ? 'hl-flight' : 'hl-good'));
+            details.push(mark(esc(sim.locationStatus === 'In flight' ? 'In Flight' : sim.locationStatus) +(sim.airportIcao ? ' ' + esc(sim.airportIcao) : ''), sim.locationStatus === 'At airport' || sim.locationStatus === 'In flight', conflict ? 'hl-warn' : awayFromDeparture ? 'hl-bad' : sim.locationStatus === 'In flight' ? 'hl-flight' : 'hl-good'));
         }
         if (sim.parkingBrake !== null && sim.parkingBrake !== undefined) {
             details.push('P/B ' + (sim.parkingBrake ? 'SET' : 'OFF'));
