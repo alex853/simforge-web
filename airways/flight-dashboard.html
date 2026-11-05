@@ -662,7 +662,7 @@
         const note = f.unplanned
             ? 'You have not declared this divert in flight, so it is an unplanned landing. The passengers were to be delivered to ' + bold(f.dest) + ': please deliver them, they are waiting. What happens to them now?'
             : 'What happens to the passengers?';
-        return '<div class="action-area"><div class="action-title">' + title + '</div>'
+        return '<div class="action-area"><div class="action-title text-danger">' + title + '</div>'
             + '<p class="text-body-secondary">' + note + '</p>'
             + '<div class="row g-3">' + columns + '</div></div>';
     }
