@@ -484,6 +484,16 @@
             travelAskWhere($(this).data('method'), $(this).data('title'));
         });
         $('#travelFind').on('click', travelFind);
+        // the code of an airport is in capitals as it is typed: Mach 3 takes only a code; the other ways take a city too, so only a short word of letters (up to 4, a code) is capitalised
+        $('#travelQuery').on('input', function () {
+            const value = this.value;
+            const capitals = travelChoice && travelChoice.method === 'Mach3' ? value.toUpperCase() : (/^[A-Za-z]{1,4}$/.test(value) ? value.toUpperCase() : value);
+            if (capitals !== value) {
+                const pos = this.selectionStart;
+                this.value = capitals;
+                this.setSelectionRange(pos, pos);
+            }
+        });
         $('#travelQuery').on('keydown', function (e) {
             if (e.key === 'Enter') {
                 travelFind();
