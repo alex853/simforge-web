@@ -725,7 +725,7 @@
                 return 'The aircraft is taxiing out. ' + (tracked ? '<b>Takeoff</b> follows the sim when the wheels leave the ground.' : 'Press <b>Takeoff</b> when you start the takeoff run.');
             case 'Flying': {
                 if (f.div) {
-                    return 'You are going to ' + bold(f.div) + ' instead of ' + bold(f.dest) + '.' + (ferry ? '' : ' The passengers are expected at ' + bold(f.dest) + ' all the same, see the warnings above.')
+                    return 'You are going to ' + bold(f.div) + ' instead of ' + bold(f.dest) + '.' + (ferry ? '' : ' The passengers are expected at ' + bold(f.dest) + ' all the same, see the warnings below.')
                         + ' <b>Cancel divert</b> takes it back.';
                 }
                 return 'The aircraft is on its way to ' + bold(f.dest) + '. '
@@ -778,7 +778,7 @@
                 if (f.fmSt === 'Arrival') {
                     return 'The passengers are waiting for the aircraft to reach the gate.';
                 }
-                return 'The passengers are in the air to ' + bold(f.dest) + '.';
+                return 'The passengers are in the air.';
             case 'Arrival':
                 return 'The passengers are waiting for the aircraft to reach the gate.';
             case 'WaitingForDeboarding':
