@@ -72,6 +72,10 @@
         .hl-flight { background: var(--bs-primary); }
         .hl-warn { background: #ffc107; color: #212529; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
+        /* the explanation of the stage: what the pilot does and what happens to the passengers (two paragraphs under the title of the stage) */
+        .stage-notes { margin-bottom: 1rem; }
+        .stage-notes p { margin: 0 0 .5rem; }
+        .stage-notes .note-caption { color: var(--bs-secondary-color); font-size: .72rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; margin-right: .5rem; }
         .todo-list { margin-top: 1.5rem; font-size: .85rem; }
         /* the alternate right after the route in the header: one and a half times smaller, dark grey, a gap of about 2-3 spaces of the big font */
         .route-alt { font-size: .667em; font-weight: 400; margin-left: 1em; color: var(--bs-secondary-color); white-space: nowrap; }
@@ -600,8 +604,8 @@
                 + '<div class="action-note mt-2">Lands the aircraft at ' + esc(f.div ?? f.dest) + '.</div>'
                 + (!allowed && list.length > 0 ? '<ul class="checks mt-2 mb-0">' + list.map(c => '<li class="' + (c.result ? 'ok' : 'no') + '">' + checkHtml(c.name) + '</li>').join('') + '</ul>' : '');
         } else if (status.mode === 'SIM_TRACKER') {
-            left = '<button class="btn btn-outline-primary w-100 disabled">Landing will be tracked automatically</button>'
-                + '<div class="action-note mt-2">The sim tracker lands the aircraft where you land it.</div>';
+            // the explanation above says that the sim tracker lands the aircraft where you land it
+            left = '<button class="btn btn-outline-primary w-100 disabled">Landing will be tracked automatically</button>';
         }
         const right = '<button class="btn btn-outline-orange w-100" id="divertBtn"' + (actionInProgress ? ' disabled' : '') + '>' + (f.div ? 'Change the divert' : 'Divert') + '…</button>'
             + '<div class="action-note mt-2">If you need to land at another airport instead of ' + esc(f.dest) + ': an emergency, bad weather, a closed airport, or any other reason you cannot land there.</div>';
@@ -680,12 +684,129 @@
         return html;
     }
 
-    // The area under the tiles: the title of the stage, the warning about the next flights, the conditions of the actions and the buttons.
+    // ---- the explanations of the stage (docs/flight-dashboard-texts.md): two parts, what the pilot does (by the status of the flight and the mode of the tracking) and what
+    // happens to the passengers (by the status of the transport flight, a ferry flight has no such part). The names of the actions, the numbers and the airport codes are bold.
+
+    function bold(value) {
+        return '<b>' + esc(value) + '</b>';
+    }
+
+    const FOUR_STEPS = '<b>Blocks Off</b>, <b>Takeoff</b>, <b>Landing</b>, <b>Blocks On</b>';
+
+    function pilotNote(status) {
+        const f = status.flight;
+        const tracked = status.mode === 'SIM_TRACKER';
+        const ferry = f.tfId === null || f.tfId === undefined;
+        switch (f.fmSt) {
+            case 'Dispatched': {
+                const starts = (status.actions ?? []).filter(a => a.name === 'start-flight' || a.name === 'start-flight-manual');
+                const stuck = starts.length > 0 && starts.every(a => !a.allowed || isBlocked(status, a.name));
+                return 'The aircraft is assigned to you and stands at ' + bold(f.dep) + '. The flight is planned for ' + bold(f.pdep) + ' UTC. When you are at the airport and ready to begin, '
+                    + 'start the flight: with the sim tracker the flight follows the sim (' + FOUR_STEPS + '), in the manual mode you press these steps yourself.'
+                    + (stuck ? ' Fix the red conditions below first.' : '');
+            }
+            case 'Preflight': {
+                const prepared = ferry || f.tfSt === 'WaitingForDeparture';
+                if (!prepared) {
+                    return 'The pilot studies the weather and the route, files the flight plan, walks around the aircraft, sets up the FMS and talks to the ground services about the fuel and the ramp.';
+                }
+                const doors = ferry ? '' : 'The doors are closed. ';
+                return doors + (tracked
+                    ? 'Release the parking brake and push back: <b>Blocks Off</b> follows the sim.'
+                    : 'When the parking brake is released and the aircraft moves, press <b>Blocks Off</b>.');
+            }
+            case 'Departure':
+                return 'The aircraft is taxiing out. ' + (tracked ? '<b>Takeoff</b> follows the sim when the wheels leave the ground.' : 'Press <b>Takeoff</b> when you start the takeoff run.');
+            case 'Flying': {
+                if (f.div) {
+                    return 'You are going to ' + bold(f.div) + ' instead of ' + bold(f.dest) + '.' + (ferry ? '' : ' The passengers are expected at ' + bold(f.dest) + ' all the same, see the warnings above.')
+                        + ' <b>Cancel divert</b> takes it back.';
+                }
+                return 'The aircraft is on its way to ' + bold(f.dest) + '. '
+                    + (tracked ? 'The sim tracker lands the aircraft where you land it.' : 'Press <b>Landing</b> after the touchdown (not earlier than ' + bold('90%') + ' of the planned flight time).')
+                    + ' If you cannot land at ' + bold(f.dest) + ', declare a <b>Divert</b>.';
+            }
+            case 'Arrival':
+                return 'The aircraft has landed and is taxiing in. ' + (tracked
+                    ? '<b>Blocks On</b> follows the sim when it stops at the gate and the engines are shut down.'
+                    : 'When it is parked, the parking brake is set and the engines are off, press <b>Blocks On</b>.');
+            case 'Postflight': {
+                let text = 'The aircraft is at the gate.';
+                if (ferry) {
+                    text += f.autoFinish ? ' The flight is being finished automatically.' : ' Press <b>Finish Flight</b> to close the flight and get the pay.';
+                }
+                return text;
+            }
+            case 'Finished':
+                return 'The flight is finished and paid. The pilot rests at ' + bold(f.dest) + '.';
+            default:
+                return '';
+        }
+    }
+
+    function passengersNote(status) {
+        const f = status.flight;
+        if (f.tfId === null || f.tfId === undefined || f.fmSt === 'Finished') {
+            return '';
+        }
+        // the boarding can not begin before the start of the flight
+        const boardingAfterStart = ' The boarding can be started after you start the flight.';
+        switch (f.tfSt) {
+            case 'Scheduled':
+                return 'The check-in opens at ' + (f.cinStart ? bold(f.cinStart) + ' UTC' : 'its time') + '.';
+            case 'CheckIn':
+                return 'The passengers are checking in (' + bold(f.ckdIn ?? 0) + ' so far).'
+                    + (f.fmSt === 'Dispatched' ? boardingAfterStart
+                        : ' When the pilot is ready to let them on board, press <b>Start Boarding</b>' + (f.brdStart ? ' (planned for ' + bold(f.brdStart) + ' UTC)' : '') + '.');
+            case 'WaitingForBoarding':
+                return 'The check-in is over, the passengers are waiting at the gate.'
+                    + (f.fmSt === 'Dispatched' ? boardingAfterStart : ' When the aircraft is ready, press <b>Start Boarding</b>.');
+            case 'Boarding':
+                return 'The passengers are boarding (' + bold(f.ponBrd ?? 0) + ' on board). The boarding ends at ' + (f.brdEnd ? bold(f.brdEnd) + ' UTC' : 'its planned time')
+                    + ' or when everybody is on board. <b>Finish Boarding</b> closes the doors now, but not everybody may be on board.';
+            case 'WaitingForDeparture':
+            case 'Departure':
+                return 'The passengers are seated.';
+            case 'Flying':
+                // the transport flight is still flying when the aircraft has landed and taxis in
+                if (f.fmSt === 'Arrival') {
+                    return 'The passengers are waiting for the aircraft to reach the gate.';
+                }
+                return 'The passengers are in the air to ' + bold(f.dest) + '.';
+            case 'Arrival':
+                return 'The passengers are waiting for the aircraft to reach the gate.';
+            case 'WaitingForDeboarding':
+                return 'The passengers are waiting to get off. Press <b>Start Deboarding</b> when you are ready.';
+            case 'Deboarding':
+                return 'The passengers are getting off (' + bold(f.ponBrd ?? 0) + ' left).' + (f.debEnd ? ' The deboarding ends at ' + bold(f.debEnd) + ' UTC.' : '');
+            case 'Finished':
+                return f.autoFinish ? 'Everybody is off. The flight is being finished automatically.' : 'Everybody is off. Press <b>Finish Flight</b> to close the flight and get the pay.';
+            default:
+                return '';
+        }
+    }
+
+    function stageNotesHtml(status) {
+        const f = status.flight;
+        // the landing at a wrong airport explains itself under its own title
+        if (f === null || (status.actions ?? []).some(a => a.name === 'continue-now')) {
+            return '';
+        }
+        const pilot = pilotNote(status);
+        const passengers = passengersNote(status);
+        if (!pilot && !passengers) {
+            return '';
+        }
+        return '<div class="stage-notes">' + (pilot ? '<p><span class="note-caption">Flight</span>' + pilot + '</p>' : '')
+            + (passengers ? '<p><span class="note-caption">Passengers</span>' + passengers + '</p>' : '') + '</div>';
+    }
+
+    // The area under the tiles: the title of the stage, the explanations of the stage, the warning about the next flights, the conditions of the actions and the buttons.
     function areaHtml(status) {
         const html = areaStageHtml(status);
-        const warning = scheduleWarningHtml(status);
-        // the warning goes right under the title of the stage, above the buttons
-        return warning ? html.replace(/(<div class="action-title">.*?<\/div>)/, '$1' + warning.replace(/\$/g, '$$$$')) : html;
+        const extra = stageNotesHtml(status) + scheduleWarningHtml(status);
+        // the explanations and the warning go right under the title of the stage, above the buttons
+        return extra ? html.replace(/(<div class="action-title">.*?<\/div>)/, '$1' + extra.replace(/\$/g, '$$$$')) : html;
     }
 
     function areaStageHtml(status) {
@@ -1038,7 +1159,7 @@
                 break;
             case 'ready':
                 // the boarding is over, the pilot has not pressed blocks off yet
-                Object.assign(f, {fmSt: 'Departure', tfSt: 'WaitingForDeparture', ckdIn: 151, ponBrd: 151});
+                Object.assign(f, {fmSt: 'Preflight', tfSt: 'WaitingForDeparture', ckdIn: 151, ponBrd: 151});
                 actions = [];
                 mode = 'SIM_TRACKER';
                 break;
