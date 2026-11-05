@@ -261,17 +261,23 @@ const PosrepSim = (function () {
         // Starts a flight: the aircraft is put at "from", everything off; the engines start a minute later. from/to: { icao, lat, lon, elevation }.
         start: function (from, to) {
             const now = Date.now();
-            const distance = distanceNm(from.lat, from.lon, to.lat, to.lon);
+            // The aircraft which stands at "from" starts where it stands (after a landing that is not the reference point of the airport): moving it to the
+            // reference point would be a jump of the position for the tracker. Only an aircraft which is somewhere else is put at the airport.
+            const old = load();
+            const here = old && this.idleIcao() === from.icao ? old : null;
+            const lat = here ? here.lat : from.lat;
+            const lon = here ? here.lon : from.lon;
+            const distance = distanceNm(lat, lon, to.lat, to.lon);
             const state = {
                 from: from,
                 to: to,
                 diverts: 0,
                 cruiseAlt: Math.max(3000, Math.min(45000, Math.round(distance / 5) * 1000)), // 200 ft per nm
-                lat: from.lat,
-                lon: from.lon,
-                heading: bearingDeg(from.lat, from.lon, to.lat, to.lon),
+                lat: lat,
+                lon: lon,
+                heading: here ? here.heading : bearingDeg(lat, lon, to.lat, to.lon),
                 speed: 0,
-                alt: from.elevation,
+                alt: here ? here.alt : from.elevation,
                 onGround: 1,
                 brake: 1,
                 engines: 0,
