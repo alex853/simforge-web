@@ -134,6 +134,15 @@
                 <select class="form-select" id="rs-time"></select>
                 <div class="list-group d-none" id="rs-options"></div>
                 <p class="small text-secondary mt-2 mb-0" id="rs-hint"></p>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="rs-with-next">
+                    <label class="form-check-label" for="rs-with-next">Move the flights after it too, when they need it</label>
+                </div>
+                <div class="d-none mt-2" id="rs-next-box">
+                    <label class="form-label" for="rs-next-time">New departure</label>
+                    <select class="form-select" id="rs-next-time"></select>
+                    <div class="mt-2" id="rs-next-plan"></div>
+                </div>
                 <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="rs-error"></div>
             </div>
             <div class="modal-footer">
@@ -159,6 +168,24 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" id="move-confirm">Move the flight</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- "Resolve conflicts": the flights in conflict and the ones after them are moved later, each the least that the gap needs (the server counts the plan, all or none) -->
+<div class="modal fade" id="resolveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Resolve conflicts</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <div id="rc-moves"></div>
+                <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="rc-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="rc-confirm" disabled>Move the flights</button>
             </div>
         </div>
     </div>
@@ -282,11 +309,6 @@
         }
         const later = (f.expDep && f.expDep > fl.dep) || (f.expArr && f.expArr > fl.arr);
         return later ? ' <span class="time-late">&#9201; Delayed</span>' : ' <span class="time-early">Ahead of schedule</span>';
-    }
-
-    // The buttons of the conflicts which are shown before their actions are made: 'Resolve conflicts'
-    function notImplementedButton(cls, text) {
-        return '<button type="button" class="btn ' + cls + ' not-implemented">' + text + '</button>';
     }
 
     // The box under a flight which is in conflict with the flight before it: red when the flight before it is as it is (late, diverted), yellow when the conflict appears only after
@@ -475,7 +497,7 @@
             html += '<div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2 py-2"><div><b>' + conflicts +
                 (conflicts === 1 ? ' conflict' : ' conflicts') + ' in your roster.</b> The flights which cannot start by their plan are marked in red' +
                 (touched > 0 ? ', the ones which the moves would touch in yellow' : '') + '.</div>' +
-                notImplementedButton('btn-sm btn-danger', 'Resolve conflicts') + '</div>';
+                '<button type="button" class="btn btn-sm btn-danger" id="resolveConflicts">Resolve conflicts</button>' + '</div>';
         }
         // the tile of the next flight (only after a flight which is not over) is a part of the last section: the tile of the aircraft is as high as the flights and this tile together
         // The first flight is far ahead: the pilot may book a flight in the window before it (the same buttons, smaller, and a line under them)
@@ -647,10 +669,6 @@
         }
         reloadRoster();
         $('#reloadRoster').on('click', reloadRoster);
-        // the buttons of the conflicts are shown before the actions are made
-        $(document).on('click', '.not-implemented', function () {
-            alert('Hello World: not implemented');
-        });
         // 'Reschedule': the times are from the earliest to the latest which keep the flight between its neighbours (the server counts them), every 15 minutes; the flight is moved
         // by the difference to its planned departure
         const rescheduleModal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
@@ -668,6 +686,10 @@
             $('#rs-now').text(timeLabel(fl.dep) + ' \u2192 ' + timeLabel(fl.arr));
             $('#rs-error').addClass('d-none').text('');
             $('#rs-notice').addClass('d-none').removeClass('alert-warning alert-info').text('');
+            $('#rs-with-next').prop('checked', false);
+            $('#rs-next-box').addClass('d-none');
+            $('#rs-next-plan').empty();
+            $('#rs-time, #rs-time-label, #rs-options, #rs-notice, #rs-hint').css('display', '');
             $('#rs-options').addClass('d-none').empty();
             $('#rs-time, #rs-time-label').removeClass('d-none');
             // the neighbours of the flight in the roster (when the server tells them)
@@ -732,7 +754,80 @@
         $('#rs-options').on('change', 'input', function () {
             $('#rs-confirm').prop('disabled', false);
         });
+        // 'Reschedule together with the next flights': any time after the flight before it (up to a day on, every 15 minutes), the server counts what the flights after it do
+        let nextPlanPossible = false;
+        function showNextPlan(r) {
+            nextPlanPossible = r.possible;
+            $('#rs-next-plan').html(r.moves.length === 0
+                ? '<p class="small text-secondary mb-0">None of the flights is moved.</p>'
+                : '<ul class="list-unstyled small mb-0">' + r.moves.map(function (m) {
+                    return '<li class="mb-1"><b>' + esc(m.route) + '</b>: <span class="time-was">' + timeLabel(m.oldDep) + '</span> &rarr; <b>' + timeLabel(m.newDep) + '</b>'
+                        + (m.connectionsLost > 0 ? '<div class="text-danger">' + m.connectionPaxLost + ' passengers with a connection lose it: they get off the first flight and look for tickets themselves.</div>' : '')
+                        + '</li>';
+                }).join('') + '</ul>');
+            $('#rs-error').toggleClass('d-none', r.possible).html(r.possible ? '' : '<b>The flights cannot be moved.</b> '
+                + r.problems.map(function (p) { return esc(p.route) + ': ' + esc(p.reason); }).join('; '));
+            $('#rs-confirm').prop('disabled', !r.possible);
+        }
+        $('#rs-with-next').on('change', function () {
+            const on = $(this).prop('checked');
+            $('#rs-next-box').toggleClass('d-none', !on);
+            // the choice of the single flight is hidden while the other one is on (the elements which are hidden by d-none stay hidden)
+            $('#rs-time, #rs-time-label, #rs-options, #rs-notice, #rs-hint').css('display', on ? 'none' : '');
+            $('#rs-error').addClass('d-none').text('');
+            if (!on) {
+                $('#rs-confirm').prop('disabled', true);
+                return;
+            }
+            const r = rescheduledFlight.reschedule;
+            const step = r.stepMinutes * 60000;
+            let options = '<option value="" selected disabled>Choose the time</option>';
+            for (let t = r.from; t <= r.from + 24 * 3600000; t += step) {
+                if (t !== rescheduledFlight.dep) {
+                    options += '<option value="' + t + '">' + timeLabel(t) + ' &rarr; ' + timeLabel(t + (rescheduledFlight.arr - rescheduledFlight.dep)) + '</option>';
+                }
+            }
+            $('#rs-next-time').html(options);
+            $('#rs-next-plan').empty();
+            $('#rs-confirm').prop('disabled', true);
+        });
+        $('#rs-next-time').on('change', function () {
+            const chosen = parseInt($(this).val(), 10);
+            $('#rs-confirm').prop('disabled', true);
+            if (!chosen) {
+                return;
+            }
+            if (STUB) {
+                showNextPlan({possible: true, moves: [{route: rescheduledFlight.from + ' - ' + rescheduledFlight.to, oldDep: rescheduledFlight.dep, newDep: chosen, connectionsLost: 0, connectionPaxLost: 0}], problems: []});
+                return;
+            }
+            airwaysAuth('GET', '/flight-dashboard/reschedule-with-next/preview', {flightId: rescheduledFlight.id, departureTime: chosen}, showNextPlan, function (e) {
+                const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
+                $('#rs-error').removeClass('d-none').text('The plan was not counted (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
+            });
+        });
         $('#rs-confirm').on('click', function () {
+            if ($('#rs-with-next').prop('checked')) {
+                const chosenNext = parseInt($('#rs-next-time').val(), 10);
+                if (!rescheduledFlight || !chosenNext || !nextPlanPossible) {
+                    return;
+                }
+                if (STUB) {
+                    $('#rs-error').removeClass('d-none').text('The stub data: nothing is sent');
+                    return;
+                }
+                const $next = $(this);
+                $next.prop('disabled', true);
+                airwaysAuth('POST', '/flight-dashboard/reschedule-with-next', {flightId: rescheduledFlight.id, departureTime: chosenNext}, function () {
+                    rescheduleModal.hide();
+                    reloadRoster();
+                }, function (e) {
+                    const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
+                    $('#rs-error').removeClass('d-none').text('The flights were not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
+                    $next.prop('disabled', false);
+                });
+                return;
+            }
             const chosen = parseInt($('#rs-options').hasClass('d-none') ? $('#rs-time').val() : $('#rs-options input:checked').val(), 10);
             if (!rescheduledFlight || !chosen) {
                 return;
@@ -749,6 +844,60 @@
             }, function (e) {
                 const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
                 $('#rs-error').removeClass('d-none').text('The flight was not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
+                $confirm.prop('disabled', false);
+            });
+        });
+        // 'Resolve conflicts': the server counts what is moved (the least that the gaps need, later only), the pilot sees the plan and confirms it
+        const resolveModal = new bootstrap.Modal(document.getElementById('resolveModal'));
+        function resolvePlanHtml(r) {
+            if (r.moves.length === 0) {
+                return '<p class="mb-0">There is nothing to move: no flight of your roster is in conflict now.</p>';
+            }
+            return '<p class="mb-2">These flights are moved later, each by the least which keeps the gap of 30 minutes after the flight before it:</p><ul class="list-unstyled mb-0">'
+                + r.moves.map(function (m) {
+                    return '<li class="mb-1"><b>' + esc(m.route) + '</b>: <span class="time-was">' + timeLabel(m.oldDep) + '</span> &rarr; <b>' + timeLabel(m.newDep) + '</b> '
+                        + '<span class="text-secondary">(+' + Math.round((m.newDep - m.oldDep) / 60000) + ' min)</span>'
+                        + (m.connectionsLost > 0 ? '<div class="small text-danger">' + m.connectionPaxLost + ' passengers with a connection lose it: they get off the first flight and look for tickets themselves.</div>' : '')
+                        + '</li>';
+                }).join('') + '</ul>';
+        }
+        function showResolvePlan(r) {
+            $('#rc-moves').html(resolvePlanHtml(r));
+            $('#rc-error').toggleClass('d-none', r.possible).html(r.possible ? '' : '<b>The conflicts cannot be resolved.</b> '
+                + r.problems.map(function (p) { return esc(p.route) + ': ' + esc(p.reason); }).join('; '));
+            $('#rc-confirm').prop('disabled', !r.possible || r.moves.length === 0);
+            resolveModal.show();
+        }
+        $(document).on('click', '#resolveConflicts', function () {
+            $('#rc-moves').html('<p class="mb-0 text-secondary">Counting&hellip;</p>');
+            $('#rc-error').addClass('d-none').text('');
+            $('#rc-confirm').prop('disabled', true);
+            if (STUB) {
+                // the stub plan: the flights in conflict go to their suggested departures
+                const moves = rosterFlights.filter(function (f) { return f.forecast && f.forecast.conflict; }).map(function (f) {
+                    return {route: f.from + ' - ' + f.to, oldDep: f.dep, newDep: f.forecast.conflict.suggestedDep, connectionsLost: 0, connectionPaxLost: 0};
+                });
+                showResolvePlan({possible: true, moves: moves, problems: []});
+                return;
+            }
+            airwaysAuth('GET', '/flight-dashboard/resolve-conflicts/preview', {}, showResolvePlan, function (e) {
+                resolveModal.hide();
+                alert('The plan was not counted (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + ')');
+            });
+        });
+        $('#rc-confirm').on('click', function () {
+            if (STUB) {
+                $('#rc-error').removeClass('d-none').text('The stub data: nothing is sent');
+                return;
+            }
+            const $confirm = $(this);
+            $confirm.prop('disabled', true);
+            airwaysAuth('POST', '/flight-dashboard/resolve-conflicts', {}, function () {
+                resolveModal.hide();
+                reloadRoster();
+            }, function (e) {
+                const reason = e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : '';
+                $('#rc-error').removeClass('d-none').text('The flights were not moved (' + (e && e.status ? 'HTTP ' + e.status : 'no connection') + reason + ')');
                 $confirm.prop('disabled', false);
             });
         });
