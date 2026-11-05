@@ -154,6 +154,31 @@
     </div>
 </div>
 
+<!-- The flight on later after a landing at a wrong airport: the time of the new flight, and what it does to the flights of the roster after it -->
+<div class="modal fade" id="laterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Continue later</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <p class="text-body-secondary small">The passengers get off at <b id="cl-from"></b>. The same aircraft takes them on to <b id="cl-to"></b> in a new flight at the time you choose:
+                    not earlier than 3 hours from now, and up to 7 days ahead.</p>
+                <div class="row g-2 mb-3">
+                    <div class="col-6"><label class="form-label small mb-1" for="cl-day">Day</label><select class="form-select" id="cl-day"></select></div>
+                    <div class="col-6"><label class="form-label small mb-1" for="cl-time">Departure, UTC</label><select class="form-select" id="cl-time"></select></div>
+                </div>
+                <div class="fw-semibold mb-2" id="cl-flight"></div>
+                <div id="cl-moves"></div>
+                <div class="alert alert-danger py-2 mt-2 mb-0 d-none" id="cl-problems"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="cl-confirm" disabled>Continue later</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="manualPayModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -477,7 +502,9 @@
             rows.push([payload, departureTile(f), arrivalTile(f), placeholder()]);
         }
 
-        if (f.fmSt === 'Dispatched' && pilot) {
+        // the limits of the pilot: before the start, and after a landing at a wrong airport (the flight on to the destination starts a new mission at once)
+        const offersContinue = (status.actions ?? []).some(a => a.name === 'continue-now');
+        if ((f.fmSt === 'Dispatched' || offersContinue) && pilot) {
             rows.push(limitTiles(pilot));
         }
         return rows;
@@ -501,7 +528,7 @@
         'start-flight': 'Start tracked flight', 'start-flight-manual': 'Start manual flight', 'start-boarding': 'Start Boarding', 'finish-boarding': 'Finish Boarding', 'blocks-off': 'Blocks Off',
         'takeoff': 'Takeoff', 'landing': 'Landing', 'blocks-on': 'Blocks On', 'start-deboarding': 'Start Deboarding', 'finish-flight': 'Finish Flight',
         'alternate': 'Setting the alternate', 'divert': 'Setting the divert',
-        'continue-to-destination': 'Continue to the destination', 'continue-later': 'Plan a feeder flight', 'cancel-transport': 'Cancel the transportation'
+        'continue-now': 'Continue now', 'continue-later': 'Continue later', 'cancel-transport': 'Cancel the transportation'
     };
     const ACTION_REQUESTS = {
         'start-flight': {url: 'start-flight', params: {mode: 'tracker'}},
@@ -524,10 +551,11 @@
     // The aircraft has landed not at the destination and stands at the gate: three columns, a button and under it what it does. The server offers these actions instead of the
     // deboarding, the buttons are the ordinary action buttons (the click sends the action).
     const WRONG_LANDING_COLUMNS = [
-        {name: 'continue-to-destination', style: 'btn-success', text: f => 'The passengers stay on board and the same aircraft flies on to ' + f.dest + ' soon, in a new flight which you start when you are ready. '
-                + 'This flight is closed and you are paid for it. The passengers pay for the whole trip when they get to ' + f.dest + '.'},
-        {name: 'continue-later', style: 'btn-outline-secondary', text: f => 'The passengers get off and a delivery flight to ' + f.dest + ' is planned into your roster for later. It is not available yet.'},
-        {name: 'cancel-transport', style: 'btn-outline-danger', text: f => 'The passengers get off here and make their own way. It is expensive for the company: nobody pays for the trip, and it is noted in your record.'}
+        {name: 'continue-now', style: 'btn-success', text: f => 'If you can fly now, the passengers stay on board and the same aircraft flies on to <b>' + esc(f.dest) + '</b> now, in a new flight which you start when you are ready. '
+                + 'This flight is closed and you are paid for it. The passengers pay for the whole trip when they get to <b>' + esc(f.dest) + '</b>.'},
+        {name: 'continue-later', style: 'btn-outline-primary', text: f => 'If you cannot fly now (you are tired or over a limit), the passengers get off here and wait: the same aircraft takes them on to <b>' + esc(f.dest)
+                + '</b> in a new flight, which you plan for later (not earlier than 3 hours from now). The flights of your roster which it overlaps are moved after it.'},
+        {name: 'cancel-transport', style: 'btn-outline-danger', text: f => 'If the passengers cannot be taken on, they get off here and make their own way. It is expensive for the company: nobody pays for the trip, and it is noted in your record.'}
     ];
 
     // The flying stage: two columns, a button and under it what it does and its conditions. Landing on the left (or the note that the tracker lands by itself), Divert on the right:
@@ -579,13 +607,21 @@
 
     function wrongLandingHtml(status, actions) {
         const f = status.flight;
+        const nowAction = actions.find(a => a.name === 'continue-now');
+        const continueBlocked = !nowAction || !nowAction.allowed || isBlocked(status, 'continue-now');
         const columns = WRONG_LANDING_COLUMNS.map(c => {
             const action = actions.find(a => a.name === c.name);
             const allowed = !!action && action.allowed && !isBlocked(status, c.name);
-            return '<div class="col-12 col-md-4"><button class="btn action-button w-100 ' + c.style + '" data-action="' + c.name + '"' + (allowed ? '' : ' disabled') + '>' + esc(ACTION_LABELS[c.name]) + '</button>'
-                + '<div class="action-note mt-2">' + esc(c.text(f)) + '</div></div>';
+            // the conditions of the flight on (the limits of the pilot) are shown when it is not allowed
+            const list = action && !allowed && c.name === 'continue-now' ? (action.checks ?? []) : [];
+            // when the pilot cannot fly now, Continue later is the main button
+            const style = c.name === 'continue-later' && continueBlocked ? 'btn-primary' : c.style;
+            return '<div class="col-12 col-md-4"><button class="btn action-button w-100 ' + style + '" data-action="' + c.name + '"' + (allowed ? '' : ' disabled') + '>' + esc(ACTION_LABELS[c.name]) + '</button>'
+                + '<div class="action-note mt-2">' + c.text(f) + '</div>'
+                + (list.length > 0 ? '<ul class="checks mt-2 mb-0">' + list.map(x => '<li class="' + (x.result ? 'ok' : 'no') + '">' + esc(x.name) + '</li>').join('') + '</ul>' : '')
+                + '</div>';
         }).join('');
-        return '<div class="action-area"><div class="action-title">Landed at ' + esc(f.aldgA ?? f.aldg ?? '?') + ', not at ' + esc(f.dest) + '</div>'
+        return '<div class="action-area"><div class="action-title">Landed at the alternate ' + esc(f.aldgA ?? f.aldg ?? '?') + ', not at the destination ' + esc(f.dest) + '</div>'
             + '<p class="text-body-secondary">What happens to the passengers?</p>'
             + '<div class="row g-3">' + columns + '</div></div>';
     }
@@ -636,7 +672,7 @@
         const manual = status.mode === 'MANUAL';
         const actions = (status.actions ?? []).filter(a => a.name !== 'reschedule');
         const bothStarts = actions.some(a => a.name === 'start-flight') && actions.some(a => a.name === 'start-flight-manual');
-        if (actions.some(a => a.name === 'continue-to-destination')) {
+        if (actions.some(a => a.name === 'continue-now')) {
             return wrongLandingHtml(status, actions);
         }
         if (f.fmSt === 'Flying') {
@@ -726,6 +762,8 @@
             const name = $(this).data('action');
             if (name === 'start-flight-manual') {
                 startManualFlightAfterTheQuestion();
+            } else if (name === 'continue-later') {
+                openLaterDialog();
             } else if (name === 'finish-boarding') {
                 // it cannot be taken back: the pilot is asked first
                 finishBoardingModal.show();
@@ -828,6 +866,93 @@
         });
     }
 
+    let laterModal;
+    // the times of the dialog (UTC milliseconds): the earliest, the latest, the step; the answer of the server for the chosen departure
+    let later = null;
+
+    const utcTime = ms => new Date(ms).toISOString().slice(11, 16);
+    const utcDay = ms => {
+        const days = Math.floor(ms / 86400000) - Math.floor(Date.now() / 86400000);
+        return days <= 0 ? 'Today' : days === 1 ? 'Tomorrow' : new Date(ms).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'});
+    };
+    const hoursMinutes = minutes => Math.floor(minutes / 60) + ':' + String(minutes % 60).padStart(2, '0');
+
+    // The answer of the server for a departure (GET /flight-dashboard/continue-later/preview). Stub data come from the page itself.
+    function laterPreview(departure, done) {
+        if (stub !== null) {
+            const step = 15 * 60000;
+            const earliest = Math.ceil((Date.now() + 3 * 3600000) / step) * step;
+            const dep = departure ?? earliest;
+            done({from: 'KSAT', to: 'MMMX', earliest: earliest, latest: earliest + 7 * 86400000 - 3 * 3600000, stepMinutes: 15, departure: dep, arrival: dep + 55 * 60000, possible: stub !== 'later-problem',
+                moves: [{route: 'MMUN - MMMX', oldDep: dep - 5 * 3600000, newDep: dep + 85 * 60000, connectionsLost: 1, connectionPaxLost: 3},
+                    {route: 'MMMX - MMUN', oldDep: dep - 3 * 3600000, newDep: dep + 205 * 60000, connectionsLost: 0, connectionPaxLost: 0}],
+                problems: stub === 'later-problem' ? [{route: 'MMMX - MMUN', reason: 'it cannot be moved (flight-status-check)'}] : []});
+            return;
+        }
+        const params = {flightId: flightId};
+        if (departure !== null) {
+            params.departureTime = departure;
+        }
+        airwaysAuth('GET', '/flight-dashboard/continue-later/preview', params, done, function () {
+            actionMessage = {text: 'The times of the flight could not be loaded', error: true};
+            render();
+        });
+    }
+
+    function renderLaterPreview(r) {
+        later = r;
+        $('#cl-from').text(r.from);
+        $('#cl-to').text(r.to);
+        $('#cl-flight').html(esc(r.from) + ' &rarr; ' + esc(r.to) + ': ' + utcTime(r.departure) + ' &rarr; ' + utcTime(r.arrival) + ' UTC');
+        $('#cl-moves').html(r.moves.length === 0
+            ? '<p class="small text-body-secondary mb-0">None of your other flights is affected.</p>'
+            : '<p class="small mb-1">The flights of your roster which it overlaps are moved after it, with the least gap between the flights:</p><ul class="list-unstyled small mb-0">'
+            + r.moves.map(m => '<li><b>' + esc(m.route) + '</b>: ' + utcDay(m.oldDep) + ' ' + utcTime(m.oldDep) + ' &rarr; ' + utcDay(m.newDep) + ' ' + utcTime(m.newDep)
+                + ' <span class="text-body-secondary">(+' + hoursMinutes(Math.round((m.newDep - m.oldDep) / 60000)) + ')</span>'
+                + (m.connectionsLost > 0 ? '<div class="text-danger">' + m.connectionPaxLost + ' passengers with a connection lose it: they get off the first flight and look for tickets themselves.</div>' : '')
+                + '</li>').join('') + '</ul>');
+        $('#cl-problems').toggleClass('d-none', r.possible).html(r.possible ? '' : '<b>The flight cannot be planned for this time.</b> ' + r.problems.map(p => esc(p.route) + ': ' + esc(p.reason)).join('; '));
+        $('#cl-confirm').prop('disabled', !r.possible);
+    }
+
+    // the days between the earliest and the latest time, the times of the chosen day
+    function fillLaterTimes(r, chosen) {
+        const step = r.stepMinutes * 60000;
+        const days = [];
+        for (let t = r.earliest; t <= r.latest; t += step) {
+            const day = Math.floor(t / 86400000) * 86400000;
+            if (days.length === 0 || days[days.length - 1] !== day) {
+                days.push(day);
+            }
+        }
+        const chosenDay = Math.floor(chosen / 86400000) * 86400000;
+        $('#cl-day').html(days.map(d => '<option value="' + d + '"' + (d === chosenDay ? ' selected' : '') + '>' + esc(utcDay(d)) + '</option>').join(''));
+        fillLaterTimesOfDay(r, chosen);
+    }
+
+    function fillLaterTimesOfDay(r, chosen) {
+        const step = r.stepMinutes * 60000;
+        const day = parseInt($('#cl-day').val(), 10);
+        let options = '';
+        for (let t = r.earliest; t <= r.latest; t += step) {
+            if (Math.floor(t / 86400000) * 86400000 === day) {
+                options += '<option value="' + t + '"' + (t === chosen ? ' selected' : '') + '>' + utcTime(t) + '</option>';
+            }
+        }
+        $('#cl-time').html(options);
+    }
+
+    function openLaterDialog() {
+        if (actionInProgress || flightId === null) {
+            return;
+        }
+        laterPreview(null, function (r) {
+            fillLaterTimes(r, r.earliest);
+            renderLaterPreview(r);
+            laterModal.show();
+        });
+    }
+
     function startManualFlightAfterTheQuestion() {
         if (actionInProgress || flightId === null || stub !== null) {
             return;
@@ -857,7 +982,7 @@
         }
         const f = {dep: 'KAUS', dest: 'MMMX', fmId: '1', fmSt: 'Dispatched', tfId: 't1', tfSt: 'Scheduled', pdep: '19:05', parr: '20:51', etkf: '19:15', eldg: '20:41', earr: '20:51',
             acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true, brdStart: '18:36', brdEnd: '18:55', cinStart: '17:05', cinEnd: '18:35'};
-        const dutyOk = name !== 'over-limit';
+        const dutyOk = !name.endsWith('over-limit');
         const limits = [{name: 'The awake time is within the limit (the pilot is not overtired)', result: true},
             {name: 'The duty time in 24 hours is within the limit', result: dutyOk},
             {name: 'The flight time in 30 days is within the limit', result: true},
@@ -923,9 +1048,12 @@
                 actions = [];
                 mode = 'MANUAL';
                 break;
+            case 'wrong-landing-over-limit':
+            case 'later-problem':
             case 'wrong-landing':
                 Object.assign(f, {fmSt: 'Postflight', tfSt: 'WaitingForDeboarding', ckdIn: 151, ponBrd: 151, crdPax: 151, adep: '19:07', atkf: '19:18', aldg: '20:51', aarr: '20:59', aldgA: 'KSAT'});
-                actions = [{name: 'continue-to-destination', allowed: true, checks: []}, {name: 'continue-later', allowed: false, checks: [{name: 'It is not available yet', result: false}]},
+                // the flight on to the destination starts a new mission at once: the limits of the pilot are its conditions
+                actions = [{name: 'continue-now', allowed: dutyOk, checks: limits}, {name: 'continue-later', allowed: true, checks: []},
                     {name: 'cancel-transport', allowed: true, checks: []}];
                 mode = 'MANUAL';
                 break;
@@ -989,6 +1117,19 @@
             sendAction('alternate', {icao: ''});
         });
 
+        laterModal = new bootstrap.Modal(document.getElementById('laterModal'));
+        $('#cl-day').on('change', function () {
+            fillLaterTimesOfDay(later, later.earliest);
+            $('#cl-time').trigger('change');
+        });
+        $('#cl-time').on('change', function () {
+            laterPreview(parseInt($(this).val(), 10), renderLaterPreview);
+        });
+        $('#cl-confirm').on('click', function () {
+            laterModal.hide();
+            sendAction('continue-later', {departureTime: later.departure});
+        });
+
         divertModal = new bootstrap.Modal(document.getElementById('divertModal'));
         $(document).on('click', '#divertBtn', openDivertDialog);
         $('#div-list').on('click', 'tr', function () {
@@ -1007,7 +1148,7 @@
         if (stub !== null) {
             lastStatus = stubStatus(stub);
             // over-limit: before the start, the duty time is over its limit (the awake and the flight time are fine)
-            lastPilot = stub === 'over-limit' ? Object.assign({}, STUB_PILOT, {duty: {last24HoursMinutes: 890, limitMinutes: 840}})
+            lastPilot = stub === 'over-limit' || stub === 'wrong-landing-over-limit' ? Object.assign({}, STUB_PILOT, {duty: {last24HoursMinutes: 890, limitMinutes: 840}})
                 : (stub === 'travelling' ? Object.assign({}, STUB_PILOT, {state: 'Travelling', destinationIcao: 'KAUS'}) : STUB_PILOT);
             render();
             return;

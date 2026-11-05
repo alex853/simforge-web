@@ -329,11 +329,14 @@
         return 'The departure is too soon: not earlier than ' + departureLabel(slot.earliestDepartureTime, now) + ' (30 minutes from now).';
     }
 
-    // The possible departures: from 30 minutes after the current time, up to the quarter of an hour (the first one), to 24 hours after it, every 15 minutes.
+    // The possible departures: from 30 minutes after the current time, up to the quarter of an hour (the first one), to 7 days after it, every 15 minutes.
     // The default is the current time plus one hour, up to the quarter of an hour. When the booking goes on after a booked flight, the times begin at
     // notBefore (the arrival of the last flight plus 30 minutes, up to the quarter of an hour) and the default is the first one.
     let departureTimes = [];
     let departureDefault = 0;
+    // The booking in the window before the first flight of the roster (the address has notAfter, the departure of that flight, UTC millis): the flight has to land with the least gap
+    // before it, the exact check is the one of the server. The departures are not later than an hour (and the gap) before it. 0: there is no window.
+    let notAfter = 0;
 
     function fillDepartureTimes(notBefore) {
         const now = Date.now();
@@ -341,7 +344,8 @@
         const first = ceilToQuarter(Math.max(now + MIN_GAP_MILLIS, notBefore || 0));
         departureDefault = notBefore ? first : ceilToQuarter(now + 60 * 60 * 1000);
         departureTimes = [];
-        for (let t = first; t <= first + 24 * 60 * 60 * 1000; t += QUARTER_MILLIS) {
+        const lastTime = notAfter ? Math.min(first + 7 * 24 * 60 * 60 * 1000, notAfter - 2 * MIN_GAP_MILLIS) : first + 7 * 24 * 60 * 60 * 1000;
+        for (let t = first; t <= lastTime; t += QUARTER_MILLIS) {
             departureTimes.push(t);
         }
         // the days which the times are on: the first dropdown; the second one has the times of the chosen day
@@ -612,7 +616,12 @@
         const params = new URLSearchParams(location.search);
         loadTypes(params.get('type'));
         const notBefore = parseInt(params.get('notBefore'), 10) || 0;
+        notAfter = parseInt(params.get('notAfter'), 10) || 0;
         fillDepartureTimes(notBefore);
+        if (notAfter) {
+            departureHintBase = 'Before the flight which leaves at ' + departureLabel(notAfter, Date.now()) + ': the new flight must land at least 30 minutes before it';
+            updateDepartureHint();
+        }
         loadPilot();
 
         // The booking goes on after a booked flight: the airport of the departure, the type and the aircraft are the ones of the sequence, the time has its minimum.
@@ -636,7 +645,7 @@
         // The airport of the departure is only a suggestion (the flight does not go on after another flight on the same aircraft, that is the case of the address with from):
         // it is the airport where the pilot is expected to be, the airport of the arrival of the last flight of the roster, the finished one too (the pilot stayed there), not the
         // cancelled one. The field is free: it is filled in and the pilot changes it as he likes. A pilot who has no flights gets nothing.
-        if (!params.get('from')) {
+        if (!params.get('from') && !notAfter) {
             loadRosterFlights(function (flights) {
                 if (!notBefore) {
                     const c = rosterContinuation(flights, false);
