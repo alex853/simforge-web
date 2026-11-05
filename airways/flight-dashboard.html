@@ -740,6 +740,8 @@
                 let text = 'The aircraft is at the gate.';
                 if (ferry) {
                     text += f.autoFinish ? ' The flight is being finished automatically.' : ' Press <b>Finish Flight</b> to close the flight and get the pay.';
+                } else if (f.autoFinish) {
+                    text += ' The flight will be finished automatically after the passengers have got off.';
                 }
                 return text;
             }
@@ -860,10 +862,6 @@
         });
         if (bothStarts) {
             checks += '<li class="text-secondary">Tracked: Blocks Off, Takeoff, Landing and Blocks On follow the sim. Manual: you press the buttons.</li>';
-        }
-        if (f.fmSt === 'Postflight' && f.autoFinish) {
-            // a note, not a button: it is a text of the conditions, like the notes of the preflight
-            checks += '<li class="text-secondary">The flight will be finished automatically after the passengers have got off</li>';
         }
         if (status.mode === 'SIM_TRACKER' && buttons === '') {
             const note = {Departure: 'Takeoff will be tracked automatically', Flying: 'Landing will be tracked automatically', Arrival: 'Blocks On will be tracked automatically'}[f.fmSt];
