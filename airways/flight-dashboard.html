@@ -465,7 +465,7 @@
             details.push('G/S ' + esc(sim.measuredGs));
         }
         const good = status.mode === 'SIM_TRACKER' && sim.status === 'Connected';
-        return {label: 'Tracking', value: mode, cls: 'big' + (good ? ' good' : ''), hint: details.join(' &middot; ') + '<div>updated ' + new Date().toISOString().slice(11, 19) + 'Z</div>', alert: conflict};
+        return {label: 'Tracking', value: mode, cls: 'big' + (good ? ' good' : ''), hint: details.concat('Time ' + new Date().toISOString().slice(11, 19) + 'Z').join(' &middot; '), alert: conflict};
     }
 
     // all four times in one tile (a place is saved for the check-in)
