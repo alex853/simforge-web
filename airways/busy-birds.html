@@ -16,6 +16,7 @@
     <script src="js/requests.js"></script>
     <script src="../js/flags.js"></script>
     <script src="js/details.js"></script>
+    <script src="js/roster-demo.js"></script>
     <script src="js/pilot-tiles.js"></script>
     <script src="js/pilot-terms.js"></script>
     <style>
@@ -31,6 +32,20 @@
         /* a button in the top right corner of a tile (Details), as on the other tiles (.stat-corner is in css/details.css) */
         .stat.has-corner { position: relative; }
         /* the numbers of the narrow tiles of the quotation are not cut with dots */
+        .start-box { border: 1px solid var(--bs-border-color); border-radius: .5rem; padding: .75rem 1rem; }
+        .start-box .form-select { width: auto; }
+        /* the line of time: from now to 7 days ahead, the flights of the roster and the interval of the mission */
+        .tl { position: relative; height: 3.5rem; border: 1px solid var(--bs-border-color); border-radius: .4rem; background: var(--bs-body-bg); overflow: hidden; }
+        .tl-day { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--bs-border-color); }
+        .tl-day > span { position: absolute; top: 2px; left: 3px; font-size: .65rem; color: var(--bs-secondary-color); white-space: nowrap; }
+        .tl-now { position: absolute; top: 0; bottom: 0; left: 0; border-left: 2px solid var(--bs-warning); }
+        .tl-flight { position: absolute; top: 1.2rem; height: 1rem; background: var(--bs-primary); opacity: .85; border-radius: 2px; min-width: 2px; }
+        .tl-margin { position: absolute; top: 1.2rem; height: 1rem; background: repeating-linear-gradient(135deg, transparent 0 3px, var(--bs-primary-border-subtle) 3px 5px); }
+        .tl-mission { position: absolute; top: 2.4rem; height: .8rem; border-radius: 2px; min-width: 3px; }
+        .tl-mission.free { background: var(--bs-success); }
+        .tl-mission.busy { background: var(--bs-danger); }
+        .tl-legend { font-size: .75rem; color: var(--bs-secondary-color); }
+        .tl-legend i { display: inline-block; width: .8rem; height: .5rem; border-radius: 2px; margin: 0 .25rem 0 .75rem; vertical-align: middle; }
         .stat-value.quote-small { font-size: 1.5rem; overflow: visible; text-overflow: clip; }
         .terms-sub { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color); margin-bottom: 0.5rem; }
         .terms-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
@@ -65,21 +80,21 @@
                 <div class="stat-hint mt-1" id="aircraftHelp"></div>
             </div>
         </div>
-        <!-- the terms of the pilot on the chosen aircraft: they appear when an aircraft is chosen -->
-        <div class="col-6 col-md-3 terms-tile" style="display: none;">
+        <!-- the terms of the pilot on the chosen aircraft: dashes until an aircraft is chosen, as at ShadowJet -->
+        <div class="col-6 col-md-3 terms-tile">
             <div class="stat has-corner">
                 <div class="stat-label">Hourly rate</div>
-                <div class="stat-value money" id="hourlyValue"></div>
+                <div class="stat-value money" id="hourlyValue">&mdash;</div>
                 <div class="stat-hint" id="hourlyHint"></div>
-                <div class="stat-corner"><button type="button" class="btn btn-sm btn-outline-secondary" id="hourlyDetails">Details</button></div>
+                <div class="stat-corner"><button type="button" class="btn btn-sm btn-outline-secondary" id="hourlyDetails" disabled>Details</button></div>
             </div>
         </div>
-        <div class="col-6 col-md-3 terms-tile" style="display: none;">
+        <div class="col-6 col-md-3 terms-tile">
             <div class="stat has-corner">
                 <div class="stat-label">Income share</div>
-                <div class="stat-value money" id="shareValue"></div>
+                <div class="stat-value money" id="shareValue">&mdash;</div>
                 <div class="stat-hint">Of the mission income</div>
-                <div class="stat-corner"><button type="button" class="btn btn-sm btn-outline-secondary" id="shareDetails">Details</button></div>
+                <div class="stat-corner"><button type="button" class="btn btn-sm btn-outline-secondary" id="shareDetails" disabled>Details</button></div>
             </div>
         </div>
     </div>
@@ -186,6 +201,37 @@
                 <span class="section-title">Plan</span>
             </div>
             <div class="card-body">
+                <!-- the start time of the first leg: the plan is built for it and the server checks it against the roster of the pilot -->
+                <div class="start-box mb-3" id="startBox">
+                    <div class="mb-2">
+                        <span class="fw-semibold">Start</span>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="radio" name="startMode" id="startAsap" value="asap" checked>
+                            <label class="form-check-label" for="startAsap">As soon as possible <span class="text-secondary">(in 30 minutes)</span></label>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="radio" name="startMode" id="startAt" value="at">
+                            <label class="form-check-label" for="startAt">At a chosen time</label>
+                        </div>
+                    </div>
+                    <div class="flex-wrap align-items-center gap-2 d-none" id="startPicker">
+                        <select id="startDay" class="form-select form-select-sm" aria-label="Day"></select>
+                        <select id="startTime" class="form-select form-select-sm" aria-label="Time, UTC"></select>
+                        <span class="text-secondary small">UTC</span>
+                    </div>
+                    <div class="form-text">Within 7 days from now. The whole mission (the legs with the pauses) must keep 30 minutes from your other flights of the roster.</div>
+                    <div class="tl mt-2" id="startTimeline"></div>
+                    <div class="tl-legend mt-1">
+                        <i style="background: var(--bs-primary);"></i>your flights
+                        <i style="background: repeating-linear-gradient(135deg, transparent 0 2px, var(--bs-primary-border-subtle) 2px 4px); border: 1px solid var(--bs-primary-border-subtle);"></i>30 minutes around them
+                        <i style="background: var(--bs-success);"></i>the mission
+                        <i style="background: var(--bs-danger);"></i>the mission in conflict
+                    </div>
+                    <div id="startSlot" class="mt-1 small"></div>
+                </div>
+
                 <div class="row g-2 align-items-end mb-3 plan-options-row">
                     <div class="col-md-4 col-lg-5">
                         <label class="form-label mb-1" for="planSelect">Plan</label>
@@ -204,7 +250,7 @@
                     <table class="table table-bordered table-striped table mb-0">
                         <thead class="table-light">
                         <tr>
-                            <th style="width: 5rem;" class="text-center" title="The time before the leg: the first leg departs this long from now, every other leg this long after the arrival of the previous one">After</th>
+                            <th style="width: 5rem;" class="text-center" title="The pause before the leg: this long after the arrival of the previous leg (the first leg departs at the start chosen above)">After</th>
                             <th style="width: 2rem;" class="text-center">#</th>
                             <th style="width: 7.5rem;" class="text-center">DOF</th>
                             <th style="width: 5rem;" class="text-center">From</th>
@@ -505,7 +551,16 @@
         $('#hourlyValue').html(moneyHtml(t.effectiveHourlyRate));
         $('#hourlyHint').text('Per flight hour, ' + t.aircraftType);
         $('#shareValue').text(formatNumber(t.effectiveIncomeSharePercent) + '%');
-        $('.terms-tile').show();
+        $('#hourlyDetails, #shareDetails').prop('disabled', false);
+    }
+
+    // no aircraft chosen or no terms: the tiles show dashes and Details is blocked
+    function clearTerms() {
+        currentTerms = null;
+        $('#hourlyValue').html('&mdash;');
+        $('#hourlyHint').text('');
+        $('#shareValue').html('&mdash;');
+        $('#hourlyDetails, #shareDetails').prop('disabled', true);
     }
 
     function showTermsModal(title, html) {
@@ -523,8 +578,7 @@
         const aircraftId = getSelectedAircraftId();
         termsRequestedFor = aircraftId;
         if (!aircraftId) {
-            currentTerms = null;
-            $('.terms-tile').hide();
+            clearTerms();
             return;
         }
         airwaysAuth('GET', '/busy-birds/pilot-terms', {aircraftId: aircraftId}, function (t) {
@@ -533,8 +587,7 @@
             }
         }, function () {
             if (termsRequestedFor === aircraftId) {
-                currentTerms = null;
-                $('.terms-tile').hide();
+                clearTerms();
             }
         });
     }
@@ -563,10 +616,197 @@
         }
     }
 
+    // ---- the start time of the mission
+    // The choices: as soon as possible (30 minutes from now) or a time of a day of the next 7 days, in steps of 15 minutes. The plan is built for the start (the server
+    // gets startTime) and tells whether the whole mission, the legs with the pauses, is free in the roster of the pilot (slot). The line of time shows the next 7 days
+    // with the flights of the roster (my-flights) and the interval of the mission of the chosen plan.
+    const GAP_MINUTES = 30;
+    const HORIZON_DAYS = 7;
+    const MS_PER_MINUTE = 60000;
+
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+    function fmtMinutes(minutes) {
+        return pad2(Math.floor(minutes / 60) % 24) + ':' + pad2(minutes % 60);
+    }
+
+    function startOfUtcDay(ms) {
+        const d = new Date(ms);
+        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    }
+
+    const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    function fmtDateTime(ms) {
+        const d = new Date(ms);
+        return WEEKDAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
+    }
+
+    function fmtTime(ms) {
+        const d = new Date(ms);
+        return pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
+    }
+
+    // the flights of the roster (my-flights) as the page of the roster has them; the finished and the cancelled flights are not in the way (the server thinks the same)
+    let rosterFlights = [];
+
+    function loadRoster() {
+        loadRosterFlights(function (flights) {
+            rosterFlights = flights;
+            renderStartPanel();
+        }, function () { /* keep what is there */ });
+    }
+
+    function flightsInTheWay() {
+        const now = Date.now();
+        return rosterFlights.filter(function (f) {
+            return f.status !== 'Finished' && f.status !== 'Cancelled' && f.arr >= now;
+        });
+    }
+
+    function fillStartPicker() {
+        const now = Date.now();
+        const today = startOfUtcDay(now);
+        const $day = $('#startDay').empty();
+        for (let i = 0; i <= HORIZON_DAYS; i++) {
+            const d = new Date(today + i * 86400000);
+            const label = WEEKDAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + (i === 0 ? ' (today)' : '');
+            $day.append($('<option></option>').attr('value', i).text(label));
+        }
+        const $time = $('#startTime').empty();
+        for (let m = 0; m < 24 * 60; m += 15) {
+            $time.append($('<option></option>').attr('value', m).text(fmtMinutes(m)));
+        }
+        // a start time which is not earlier than 30 minutes from now, to the next quarter
+        const first = Math.ceil((now + GAP_MINUTES * MS_PER_MINUTE - today) / (15 * MS_PER_MINUTE)) * 15;
+        $day.val(first >= 24 * 60 ? 1 : 0);
+        $time.val(first >= 24 * 60 ? first - 24 * 60 : first);
+    }
+
+    // a new quotation starts with "as soon as possible" and the roster as it is now
+    function resetStart() {
+        $('#startAsap').prop('checked', true);
+        fillStartPicker();
+        loadRoster();
+    }
+
+    // the chosen start, UTC milliseconds: 30 minutes from now for "as soon as possible"
+    function chosenStartMs() {
+        const now = Date.now();
+        if ($('input[name=startMode]:checked').val() !== 'at') {
+            return Math.ceil((now + GAP_MINUTES * MS_PER_MINUTE) / (5 * MS_PER_MINUTE)) * 5 * MS_PER_MINUTE;
+        }
+        const today = startOfUtcDay(now);
+        return today + (parseInt($('#startDay').val(), 10) * 24 * 60 + parseInt($('#startTime').val(), 10)) * MS_PER_MINUTE;
+    }
+
+    // the plan which is chosen now, or undefined
+    function currentPlan() {
+        return $('#planSelect').val() ? findPlanById($('#planSelect').val()) : undefined;
+    }
+
+    // the line of time from now to 7 days ahead: the days, the flights of the roster with 30 minutes around them, the interval of the mission of the plan
+    function renderTimeline(plan) {
+        const now = Date.now();
+        const rangeEnd = now + HORIZON_DAYS * 86400000;
+        const pct = function (ms) { return Math.max(0, Math.min(100, (ms - now) / (rangeEnd - now) * 100)); };
+        const box = function (cls, fromMs, toMs, title) {
+            if (toMs < now || fromMs > rangeEnd) {
+                return '';
+            }
+            const left = pct(fromMs);
+            const width = pct(toMs) - left;
+            return '<div class="' + cls + '" style="left: ' + left + '%; width: ' + Math.max(width, 0.2) + '%;" title="' + escapeHtml(title) + '"></div>';
+        };
+        let html = '<div class="tl-now" title="Now"></div>';
+        const today = startOfUtcDay(now);
+        for (let day = 1; day <= HORIZON_DAYS; day++) {
+            const t = today + day * 86400000;
+            if (t > now && t < rangeEnd) {
+                const d = new Date(t);
+                html += '<div class="tl-day" style="left: ' + pct(t) + '%;"><span>' + WEEKDAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + '</span></div>';
+            }
+        }
+        flightsInTheWay().forEach(function (f) {
+            const title = f.from + ' \u2192 ' + f.to + ', ' + fmtDateTime(f.dep) + '\u2013' + fmtTime(f.arr) + ' UTC';
+            html += box('tl-margin', f.dep - GAP_MINUTES * MS_PER_MINUTE, f.arr + GAP_MINUTES * MS_PER_MINUTE, title);
+            html += box('tl-flight', f.dep, f.arr, title);
+        });
+        if (plan && plan.startTime != null && plan.endTime != null) {
+            const free = !plan.slot || plan.slot.free;
+            html += box('tl-mission ' + (free ? 'free' : 'busy'), plan.startTime, plan.endTime,
+                'The mission: ' + fmtDateTime(plan.startTime) + ' \u2013 ' + fmtDateTime(plan.endTime) + ' UTC');
+        }
+        $('#startTimeline').html(html);
+    }
+
+    // The line, the words under it and the Book button, for the plan which is chosen now. The words come from the slot which the server has made for the plan.
+    function renderStartPanel() {
+        const atChosen = $('input[name=startMode]:checked').val() === 'at';
+        // the day and the time are shown only for "at a chosen time" (d-flex has !important, so the class is switched, not the style)
+        $('#startPicker').toggleClass('d-none', !atChosen).toggleClass('d-flex', atChosen);
+
+        const plan = currentPlan();
+        renderTimeline(plan);
+
+        const $slot = $('#startSlot');
+        const slot = plan ? plan.slot : null;
+        let canBook = false;
+        if (!plan || !plan.legs || !slot) {
+            $slot.html('<span class="text-secondary">Calculating\u2026</span>');
+        } else {
+            const span = fmtDateTime(plan.startTime) + ' \u2192 ' + fmtDateTime(plan.endTime) + ' UTC';
+            canBook = slot.free;
+            if (slot.free) {
+                $slot.html('<span class="text-success">\u2713 ' + span + ': the time is free in your roster.</span>');
+            } else if (slot.tooSoon) {
+                $slot.html('<span class="text-danger">Too soon: the earliest start is 30 minutes from now.</span>');
+            } else if (slot.tooLate) {
+                $slot.html('<span class="text-danger">Too late: the latest start is ' + HORIZON_DAYS + ' days from now.</span>');
+            } else if (slot.conflict) {
+                const cf = slot.conflict;
+                const earliest = Math.ceil((cf.arrivalTime + GAP_MINUTES * MS_PER_MINUTE) / (15 * MS_PER_MINUTE)) * 15 * MS_PER_MINUTE;
+                $slot.html('<span class="text-danger">' + span + ': conflicts with your flight ' + escapeHtml(cf.from) + ' \u2192 ' + escapeHtml(cf.to) + ' (' +
+                    fmtDateTime(cf.departureTime) + '\u2013' + fmtTime(cf.arrivalTime) + ' UTC).</span> ' +
+                    (earliest <= Date.now() + HORIZON_DAYS * 86400000
+                        ? '<button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnEarliestFree" data-start="' + earliest + '">Start at ' + fmtDateTime(earliest) + '</button>'
+                        : ''));
+            } else {
+                $slot.html('<span class="text-danger">' + span + ': this time cannot be booked.</span>');
+            }
+        }
+        $('#btnPlanBook').prop('disabled', !canBook);
+    }
+
+    // The start was changed: the plan is built again for it (the answer of an older request is dropped, see loadBuildPlans)
+    let replanTimer = null;
+
+    function startChanged() {
+        renderStartPanel();
+        $('#startSlot').html('<span class="text-secondary">Calculating\u2026</span>');
+        $('#btnPlanBook').prop('disabled', true);
+        clearTimeout(replanTimer);
+        replanTimer = setTimeout(function () {
+            loadBuildPlans({refresh: true, silent: true});
+        }, 250);
+    }
+
+    // sets the chosen start to a time (UTC milliseconds, to a quarter) of the next days
+    function setStartTo(ms) {
+        const today = startOfUtcDay(Date.now());
+        const minutes = Math.round((ms - today) / MS_PER_MINUTE);
+        $('#startAt').prop('checked', true);
+        $('#startDay').val(Math.floor(minutes / (24 * 60)));
+        $('#startTime').val(minutes % (24 * 60));
+        startChanged();
+    }
+
     // ---- the quotation instead of the missions
 
     // true while a plan is shown: a message then comes above the plan, without a plan it comes alone
     let planShown = false;
+    let planRequest = 0; // the number of the latest build-plans request
 
     function openQuoteView() {
         $('#missionsView').hide();
@@ -615,7 +855,10 @@
                     description: p.description ?? ('Plan ' + (idx + 1)),
                     legs: norm.legs,
                     salary: p.salary,
-                    messages: norm.messages
+                    messages: norm.messages,
+                    startTime: p.startTime,
+                    endTime: p.endTime,
+                    slot: p.slot
                 };
             }),
             messages: null
@@ -639,6 +882,7 @@
         const plan = findPlanById(planId);
         if (!plan) {
             renderLegs([]);
+            renderStartPanel();
             return;
         }
         if (plan.messages) {
@@ -650,9 +894,11 @@
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
                 $tb.append('<tr><td colspan="9" class="text-muted text-center">' + text + '</td></tr>');
             });
+            renderStartPanel();
             return;
         }
         renderLegs(plan.legs, plan.salary);
+        renderStartPanel();
     }
 
     function showMessagesModal(messages) {
@@ -729,7 +975,7 @@
             const distance = legCell(leg, ['distance'], '—');
 
             const row = '<tr>' +
-                '<td class="text-center">' + legGapSelectHtml(idx) + '</td>' +
+                '<td class="text-center">' + (idx === 0 ? '<span class="text-secondary" title="The first leg departs at the start chosen above">\u2014</span>' : legGapSelectHtml(idx)) + '</td>' +
                 '<td class="text-center">' + (idx + 1) + '</td>' +
                 '<td class="text-center text-nowrap">' + dof + '</td>' +
                 '<td class="text-center">' + from + '<br><span style="font-size: 0.8em;">' + depTime + '</span></td>' +
@@ -753,7 +999,7 @@
     // The first leg has a short list, the others a longer one. The values stay when the plan is rebuilt or another plan is chosen.
     const FIRST_LEG_GAPS = [[0.5, '30m'], [1, '1h'], [2, '2h']];
     const NEXT_LEG_GAPS = [[0.5, '30m'], [1, '1h'], [3, '3h'], [6, '6h'], [12, '12h'], [24, '24h']];
-    const legGaps = [0.5, 1, 1];
+    const legGaps = [0.5, 0.5, 0.5]; // the first one is the start (it is chosen above), the others are the pauses before the legs: 30 minutes, the least
 
     function legGapSelectHtml(idx) {
         const options = (idx === 0 ? FIRST_LEG_GAPS : NEXT_LEG_GAPS).map(function (o) {
@@ -767,7 +1013,9 @@
         return {
             intervals: legGaps.join(','),
             turnaroundTime: legGaps[1],
-            ferryBackToBase: $('#ferryBackToBase').is(':checked')
+            ferryBackToBase: $('#ferryBackToBase').is(':checked'),
+            // the first departure of the mission (UTC milliseconds): the pause of the first leg is not used any more
+            startTime: chosenStartMs()
         };
     }
 
@@ -818,7 +1066,9 @@
         selectedAircraftId = aircraftId;
         if (!options.refresh) {
             planShown = false;
+            resetStart();
         }
+        const request = ++planRequest;
 
         const preferredPlanId = options.refresh
             ? $('#planSelect').val()
@@ -826,6 +1076,9 @@
 
         setPlanOptionsBusy(true);
         airwaysAuth('GET', '/busy-birds/mission/build-plans', getBuildPlansParams(), function (response) {
+            if (request !== planRequest) {
+                return; // the start was changed meanwhile, a newer plan is on its way
+            }
             setPlanOptionsBusy(false);
             applyQuotedPrice(selectedMissionId, response);
             const result = normalizeBuildPlansResponse(response);
@@ -847,6 +1100,9 @@
                 preferredPlanId: preferredPlanId
             });
         }, function (xhr) {
+            if (request !== planRequest) {
+                return;
+            }
             setPlanOptionsBusy(false);
             const j = xhr && xhr.responseJSON;
             const result = normalizeBuildPlansResponse(j);
@@ -893,6 +1149,11 @@
         renderHeader();
         termsModal = new bootstrap.Modal(document.getElementById('termsModal'));
         $('#btnBackToMissions').on('click', closeQuoteView);
+        fillStartPicker();
+        $('input[name=startMode], #startDay, #startTime').on('change', startChanged);
+        $('#startSlot').on('click', '#btnEarliestFree', function () {
+            setStartTo(parseInt($(this).attr('data-start'), 10));
+        });
         $('#hourlyDetails').on('click', function () {
             if (currentTerms) {
                 showTermsModal('Your hourly rate', hourlyDetailsHtml(currentTerms));
