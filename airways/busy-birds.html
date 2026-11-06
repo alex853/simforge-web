@@ -37,6 +37,9 @@
         .tl { position: relative; height: 3.5rem; border: 1px solid var(--bs-border-color); border-radius: .4rem; background: var(--bs-body-bg); overflow: hidden; }
         .tl-day { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--bs-border-color); }
         .tl-day > span { position: absolute; top: 2px; left: 3px; font-size: .65rem; color: var(--bs-secondary-color); white-space: nowrap; }
+        .tl-hour { position: absolute; top: 0; bottom: 0; border-left: 1px dotted var(--bs-border-color); }
+        .tl-hour > span { position: absolute; top: 2px; left: 3px; font-size: .6rem; color: var(--bs-secondary-color); opacity: .8; }
+        .tl-scroll { --bs-btn-padding-x: .55rem; display: flex; align-items: center; }
         .tl-now { position: absolute; top: 0; bottom: 0; left: 0; border-left: 2px solid var(--bs-warning); }
         .tl-flight { position: absolute; top: 1.2rem; height: 1rem; background: var(--bs-primary); opacity: .85; border-radius: 2px; min-width: 2px; }
         .tl-margin { position: absolute; top: 1.2rem; height: 1rem; background: repeating-linear-gradient(135deg, transparent 0 3px, var(--bs-primary-border-subtle) 3px 5px); }
@@ -221,12 +224,17 @@
                         <span class="text-secondary small">UTC</span>
                     </div>
                     <div class="form-text">Within 7 days from now. The whole mission (the legs with the pauses) must keep 30 minutes from your other flights of the roster.</div>
-                    <div class="tl mt-2" id="startTimeline"></div>
+                    <div class="d-flex align-items-stretch gap-1 mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary tl-scroll" id="tlLeft" aria-label="Earlier" title="Earlier">&#9664;&#xFE0E;</button>
+                        <div class="tl flex-grow-1" id="startTimeline"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary tl-scroll" id="tlRight" aria-label="Later" title="Later">&#9654;&#xFE0E;</button>
+                    </div>
                     <div class="tl-legend mt-1">
                         <i style="background: var(--bs-primary);"></i>your flights
                         <i style="background: repeating-linear-gradient(135deg, transparent 0 2px, var(--bs-primary-border-subtle) 2px 4px); border: 1px solid var(--bs-primary-border-subtle);"></i>30 minutes around them
                         <i style="background: var(--bs-success);"></i>the mission
                         <i style="background: var(--bs-danger);"></i>the mission in conflict
+                        <span class="ms-3">48 hours are shown, the arrows move them</span>
                     </div>
                     <div id="startSlot" class="mt-1 small"></div>
                 </div>
@@ -684,6 +692,8 @@
 
     // a new quotation starts with "as soon as possible" and the roster as it is now
     function resetStart() {
+        tlStart = null;
+        tlKey = null;
         $('#startAsap').prop('checked', true);
         fillStartPicker();
         loadRoster();
@@ -704,26 +714,70 @@
         return $('#planSelect').val() ? findPlanById($('#planSelect').val()) : undefined;
     }
 
-    // the line of time from now to 7 days ahead: the days, the flights of the roster with 30 minutes around them, the interval of the mission of the plan
+    // The line of time shows 48 hours of the next 7 days; the arrows move the window by 6 hours, and when a plan appears or changes the window goes to it by itself, the least
+    // which shows the interval of the mission with 2 hours on both sides. The window has the days and the hours, the flights of the roster with 30 minutes around them
+    // and the interval of the mission of the plan.
+    const TL_WINDOW_MS = 48 * 3600000;
+    const TL_PAD_MS = 2 * 3600000;
+    const TL_STEP_MS = 6 * 3600000;
+    const TL_TICK_MS = 6 * 3600000;
+    let tlStart = null; // the start of the shown 48 hours, UTC milliseconds; null: from now
+    let tlKey = null;   // the interval of the mission which the window has been moved to
+
+    // the window may start from now to the end of the last day (or of the mission, if it goes beyond) less the window
+    function tlClamp(value, plan) {
+        const now = Date.now();
+        const end = Math.max(now + HORIZON_DAYS * 86400000, plan && plan.endTime != null ? plan.endTime + TL_PAD_MS : 0);
+        return Math.max(now, Math.min(end - TL_WINDOW_MS, value));
+    }
+
+    // moves the window the least to show [startMs - 2 h, endMs + 2 h]; a longer interval is shown from its start
+    function tlShow(startMs, endMs) {
+        const from = startMs - TL_PAD_MS;
+        const to = endMs + TL_PAD_MS;
+        if (to - from >= TL_WINDOW_MS || from < tlStart) {
+            tlStart = from;
+        } else if (to > tlStart + TL_WINDOW_MS) {
+            tlStart = to - TL_WINDOW_MS;
+        }
+    }
+
     function renderTimeline(plan) {
         const now = Date.now();
-        const rangeEnd = now + HORIZON_DAYS * 86400000;
-        const pct = function (ms) { return Math.max(0, Math.min(100, (ms - now) / (rangeEnd - now) * 100)); };
+        if (tlStart === null) {
+            tlStart = now;
+        }
+        if (plan && plan.startTime != null && plan.endTime != null) {
+            const key = plan.startTime + '|' + plan.endTime;
+            if (key !== tlKey) {
+                tlKey = key;
+                tlShow(plan.startTime, plan.endTime);
+            }
+        }
+        tlStart = tlClamp(tlStart, plan);
+        const winEnd = tlStart + TL_WINDOW_MS;
+
+        const pct = function (ms) { return (ms - tlStart) / TL_WINDOW_MS * 100; };
         const box = function (cls, fromMs, toMs, title) {
-            if (toMs < now || fromMs > rangeEnd) {
+            if (toMs <= tlStart || fromMs >= winEnd) {
                 return '';
             }
-            const left = pct(fromMs);
-            const width = pct(toMs) - left;
+            const left = pct(Math.max(fromMs, tlStart));
+            const width = pct(Math.min(toMs, winEnd)) - left;
             return '<div class="' + cls + '" style="left: ' + left + '%; width: ' + Math.max(width, 0.2) + '%;" title="' + escapeHtml(title) + '"></div>';
         };
-        let html = '<div class="tl-now" title="Now"></div>';
-        const today = startOfUtcDay(now);
-        for (let day = 1; day <= HORIZON_DAYS; day++) {
-            const t = today + day * 86400000;
-            if (t > now && t < rangeEnd) {
-                const d = new Date(t);
-                html += '<div class="tl-day" style="left: ' + pct(t) + '%;"><span>' + WEEKDAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + '</span></div>';
+
+        let html = '';
+        if (now >= tlStart && now < winEnd) {
+            html += '<div class="tl-now" style="left: ' + pct(now) + '%;" title="Now"></div>';
+        }
+        // the days (with a date) and the hours every 6 hours; the epoch begins at 00:00 UTC, so the multiples of 6 hours are the hours of the day
+        for (let t = Math.ceil(tlStart / TL_TICK_MS) * TL_TICK_MS; t < winEnd; t += TL_TICK_MS) {
+            const d = new Date(t);
+            if (d.getUTCHours() === 0) {
+                html += '<div class="tl-day" style="left: ' + pct(t) + '%;"><span>' + WEEKDAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + '</span></div>';
+            } else {
+                html += '<div class="tl-hour" style="left: ' + pct(t) + '%;"><span>' + pad2(d.getUTCHours()) + '</span></div>';
             }
         }
         flightsInTheWay().forEach(function (f) {
@@ -737,6 +791,18 @@
                 'The mission: ' + fmtDateTime(plan.startTime) + ' \u2013 ' + fmtDateTime(plan.endTime) + ' UTC');
         }
         $('#startTimeline').html(html);
+
+        // the arrows are blocked at the ends
+        $('#tlLeft').prop('disabled', tlStart <= tlClamp(0, plan));
+        $('#tlRight').prop('disabled', tlStart >= tlClamp(Number.MAX_SAFE_INTEGER, plan));
+    }
+
+    function scrollTimeline(deltaMs) {
+        if (tlStart === null) {
+            tlStart = Date.now();
+        }
+        tlStart = tlClamp(tlStart + deltaMs, currentPlan());
+        renderTimeline(currentPlan());
     }
 
     // The line, the words under it and the Book button, for the plan which is chosen now. The words come from the slot which the server has made for the plan.
@@ -1144,6 +1210,8 @@
         $('#btnBackToMissions').on('click', closeQuoteView);
         fillStartPicker();
         $('input[name=startMode], #startDay, #startTime').on('change', startChanged);
+        $('#tlLeft').on('click', function () { scrollTimeline(-TL_STEP_MS); });
+        $('#tlRight').on('click', function () { scrollTimeline(TL_STEP_MS); });
         $('#startSlot').on('click', '#btnEarliestFree', function () {
             setStartTo(parseInt($(this).attr('data-start'), 10));
         });
