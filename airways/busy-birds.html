@@ -214,7 +214,7 @@
                     <div class="d-flex flex-wrap align-items-center gap-3 mb-2 start-mode-row">
                         <div class="form-check mb-0">
                             <input class="form-check-input" type="radio" name="startMode" id="startAsap" value="asap" checked>
-                            <label class="form-check-label" for="startAsap">As soon as possible <span class="text-secondary">(in 30 minutes)</span></label>
+                            <label class="form-check-label" for="startAsap">As soon as possible <span class="text-secondary" id="asapNote">(in 30 minutes)</span></label>
                         </div>
                         <div class="form-check mb-0">
                             <input class="form-check-input" type="radio" name="startMode" id="startAt" value="at">
@@ -539,13 +539,36 @@
             const id = a.id;
             const reg = a.regNo ?? '';
             const type = a.typeCode ?? a.type ?? '';
-            const parts = [reg || ('#' + id), type, a.locationAirportIcao].filter(function (p) { return p; });
+            // an aircraft with booked missions of the pilot: the airport is where the last mission ends, and "from" is when the aircraft is free
+            const free = a.earliestStart > Date.now() + GAP_MINUTES * MS_PER_MINUTE ? 'from ' + fmtDateTime(a.earliestStart) : null;
+            const parts = [reg || ('#' + id), type, a.locationAirportIcao, free].filter(function (p) { return p; });
             $sel.append($('<option></option>').attr('value', id).text(parts.join(' \u00b7 ')));
         });
         $sel.prop('disabled', false);
         $('#aircraftHelp').text('');
+        // the address of the roster (the tile of the next flight) names the aircraft: the mission goes on with it
+        const wanted = new URLSearchParams(location.search).get('aircraft');
+        if (wanted && !aircraftFromAddressTaken) {
+            aircraftFromAddressTaken = true;
+            $sel.val(wanted);
+        }
         updateQuoteButton();
         loadTerms();
+        applyDefaultFromCity();
+    }
+
+    let aircraftFromAddressTaken = false;
+
+    // the earliest start which the chosen aircraft allows (UTC milliseconds): 0 for a free aircraft, after its last booked mission otherwise
+    function aircraftEarliestMs() {
+        const id = getSelectedAircraftId();
+        const chosen = id ? aircraft.find(function (a) { return sameId(a.id, id); }) : null;
+        return chosen && chosen.earliestStart ? chosen.earliestStart : 0;
+    }
+
+    // the earliest start of a mission: 30 minutes from now, or later when the aircraft is busy until then; to 5 minutes
+    function earliestStartMs() {
+        return Math.ceil(Math.max(Date.now() + GAP_MINUTES * MS_PER_MINUTE, aircraftEarliestMs()) / (5 * MS_PER_MINUTE)) * 5 * MS_PER_MINUTE;
     }
 
     // ---- The terms of the pilot on the chosen aircraft: the qualifications on the type, the pay for the flown hours and the share of the income.
@@ -687,10 +710,11 @@
         for (let m = 0; m < 24 * 60; m += 15) {
             $time.append($('<option></option>').attr('value', m).text(fmtMinutes(m)));
         }
-        // a start time which is not earlier than 30 minutes from now, to the next quarter
-        const first = Math.ceil((now + GAP_MINUTES * MS_PER_MINUTE - today) / (15 * MS_PER_MINUTE)) * 15;
-        $day.val(first >= 24 * 60 ? 1 : 0);
-        $time.val(first >= 24 * 60 ? first - 24 * 60 : first);
+        // a start time which is not earlier than the earliest start (30 minutes from now, or when the aircraft is free), to the next quarter
+        const first = Math.ceil((earliestStartMs() - today) / (15 * MS_PER_MINUTE)) * 15;
+        const dayIndex = Math.min(HORIZON_DAYS, Math.floor(first / (24 * 60)));
+        $day.val(dayIndex);
+        $time.val(first - dayIndex * 24 * 60 >= 24 * 60 ? 0 : first - dayIndex * 24 * 60);
     }
 
     // a new quotation starts with "as soon as possible" and the roster as it is now
@@ -706,7 +730,7 @@
     function chosenStartMs() {
         const now = Date.now();
         if ($('input[name=startMode]:checked').val() !== 'at') {
-            return Math.ceil((now + GAP_MINUTES * MS_PER_MINUTE) / (5 * MS_PER_MINUTE)) * 5 * MS_PER_MINUTE;
+            return earliestStartMs();
         }
         const today = startOfUtcDay(now);
         return today + (parseInt($('#startDay').val(), 10) * 24 * 60 + parseInt($('#startTime').val(), 10)) * MS_PER_MINUTE;
@@ -815,6 +839,10 @@
         $('#startPicker').toggleClass('d-none', !atChosen).toggleClass('d-flex', atChosen);
         $('#startTimeline').toggleClass('tl-pick', atChosen); // a click on the line chooses the start only in this mode
 
+        // "as soon as possible" is in 30 minutes, or later when the aircraft is busy until then
+        const earliest = earliestStartMs();
+        $('#asapNote').text(earliest > Date.now() + (GAP_MINUTES + 5) * MS_PER_MINUTE ? '(' + fmtDateTime(earliest) + ' UTC, when the aircraft is free)' : '(in 30 minutes)');
+
         const plan = currentPlan();
         renderTimeline(plan);
 
@@ -832,6 +860,10 @@
                 $slot.html('<span class="text-danger">Too soon: the earliest start is 30 minutes from now.</span>');
             } else if (slot.tooLate) {
                 $slot.html('<span class="text-danger">Too late: the latest start is ' + HORIZON_DAYS + ' days from now.</span>');
+            } else if (slot.aircraftBusy) {
+                const free = Math.ceil(slot.aircraftEarliestStart / (15 * MS_PER_MINUTE)) * 15 * MS_PER_MINUTE;
+                $slot.html('<span class="text-danger">' + span + ': the aircraft is busy, its booked missions end later. The earliest start for it is ' + fmtDateTime(slot.aircraftEarliestStart) + ' UTC.</span> ' +
+                    '<button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnEarliestFree" data-start="' + free + '">Start at ' + fmtDateTime(free) + '</button>');
             } else if (slot.conflict) {
                 const cf = slot.conflict;
                 const earliest = Math.ceil((cf.arrivalTime + GAP_MINUTES * MS_PER_MINUTE) / (15 * MS_PER_MINUTE)) * 15 * MS_PER_MINUTE;
@@ -865,7 +897,7 @@
         // the time goes to the nearest quarter and stays inside what the server accepts: from 30 minutes to 7 days from now
         const now = Date.now();
         const quarter = 15 * MS_PER_MINUTE;
-        const earliest = Math.ceil((now + GAP_MINUTES * MS_PER_MINUTE) / quarter) * quarter;
+        const earliest = Math.ceil(Math.max(now + GAP_MINUTES * MS_PER_MINUTE, aircraftEarliestMs()) / quarter) * quarter;
         const latest = Math.floor((now + HORIZON_DAYS * 86400000) / quarter) * quarter;
         ms = Math.max(earliest, Math.min(latest, Math.round(ms / quarter) * quarter));
         const today = startOfUtcDay(now);

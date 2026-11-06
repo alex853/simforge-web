@@ -19,7 +19,7 @@ function rosterContinuation(flights, keepAircraft) {
     if (!keepAircraft) {
         return {notBefore: last.arr + MIN_GAP_MILLIS};
     }
-    return {from: last.to, notBefore: last.arr + MIN_GAP_MILLIS, type: last.type, aircraft: last.reg};
+    return {from: last.to, notBefore: last.arr + MIN_GAP_MILLIS, type: last.type, aircraft: last.reg, aircraftId: last.acId};
 }
 
 // the address of the page of ShadowJet with the continuation in it
@@ -42,6 +42,15 @@ function shadowJetHref(continuation) {
 }
 
 
+// the address of the page of busyBirds with the continuation: the mission goes on with this aircraft. Nothing else is passed: the server knows where the last booked mission of the
+// aircraft ends and from when it is free (the page offers the aircraft at that place and time)
+function busyBirdsHref(continuation) {
+    if (!continuation || !continuation.aircraftId) {
+        return 'busy-birds.html';
+    }
+    return 'busy-birds.html?aircraft=' + encodeURIComponent(continuation.aircraftId);
+}
+
 // The flights which are not over yet: the booking can go on after them (the finished and the cancelled flights are over)
 function isRosterFlightActive(fl) {
     return fl.status !== 'Finished' && fl.status !== 'Cancelled';
@@ -58,7 +67,7 @@ function myFlightToRosterFlight(m) {
     }
     const t = m.transportFlight;
     return {
-        id: f.id, from: f.depIcao, to: f.destIcao, dep: dep, arr: arr, reg: m.aircraft.regNo, type: m.aircraft.type, status: f.status,
+        id: f.id, from: f.depIcao, to: f.destIcao, dep: dep, arr: arr, reg: m.aircraft.regNo, acId: m.aircraft.id, type: m.aircraft.type, status: f.status,
         operatorName: m.aircraft.operatorName, sold: t ? t.soldSeats : null, remained: t ? t.totalSeats - t.soldSeats : null,
         carried: t ? t.carriedPax : null, onBoard: t ? t.onBoard : null, income: t ? t.income : null, ferry: !t, diverted: !!f.diverted, tfStatus: t ? t.status : null,
         // the expected times, the divert and the conflict with the flight before it (null when there is nothing to tell), see ForecastDto of the server

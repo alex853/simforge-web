@@ -439,7 +439,9 @@
         if (nextDep) {
             c.notAfter = nextDep;
         }
-        return '<a class="stat next-tile" href="' + shadowJetHref(c) + '">' +
+        // busyBirds: the page of the missions with this aircraft, it is where the last flight ends (the server knows it); ShadowJet: the page of the flight with the airport and the type fixed
+        const busyBirds = String(last.operatorName).toLowerCase() === 'busybirds';
+        return '<a class="stat next-tile" href="' + (busyBirds ? busyBirdsHref(c) : shadowJetHref(c)) + '">' +
             '<div class="stat-label">Book the next flight</div>' +
             '<div class="flight-route">' + c.from + ' &rarr; ?</div>' +
             '<div class="stat-hint">Not earlier than ' + timeLabel(c.notBefore) + (nextDep ? ', before ' + timeLabel(nextDep) : '') + '</div>' +
@@ -525,9 +527,14 @@
     // for a flight (the least gap, a flight and the least gap again)
     function nextTileOfGroup(group, nextGroup) {
         const last = group.flights[group.flights.length - 1];
-        // only the chains of ShadowJet: how busyBirds flights go on in the roster is not decided yet
-        if (!isRosterFlightActive(last) || String(group.operatorName).toLowerCase() !== 'shadowjet') {
+        const operator = String(group.operatorName).toLowerCase();
+        if (!isRosterFlightActive(last) || (operator !== 'shadowjet' && operator !== 'busybirds')) {
             return '';
+        }
+        // busyBirds: the aircraft goes on after its last flight of the roster only (the server puts the next mission after the last mission of the aircraft), so only its last chain has the tile
+        if (operator === 'busybirds') {
+            const later = rosterFlights.some(function (fl) { return fl.reg === last.reg && fl.dep > last.dep && isRosterFlightActive(fl); });
+            return later ? '' : nextFlightTile(last, 0);
         }
         if (!nextGroup) {
             return nextFlightTile(last, 0);
