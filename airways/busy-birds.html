@@ -1072,19 +1072,12 @@
         }
     }
 
-    // The pause before every leg of the plan, hours: every leg after the first one departs this long after the arrival of the previous leg, the first one departs at the
-    // start chosen above. The page has no choice of the pauses (decided 2026-11-06): all of them are the least one, 30 minutes. The server still takes a pause for every leg
-    // (the parameter intervals), so the choice can come back.
-    const legGaps = [0.5, 0.5, 0.5];
-
-    // intervals is for the server (the time before every leg), turnaroundTime is the old parameter: the gap before the second leg
+    // What the server needs for a plan and for the booking: the first departure of the mission (UTC milliseconds) and whether the aircraft flies back to its base.
+    // The pauses between the legs are not asked: the server gives every leg the least pause, 30 minutes (decided 2026-11-06; the parameter pauses is there for a choice).
     function getPlanOptionParams() {
         return {
-            intervals: legGaps.join(','),
-            turnaroundTime: legGaps[1],
-            ferryBackToBase: $('#ferryBackToBase').is(':checked'),
-            // the first departure of the mission (UTC milliseconds): the pause of the first leg is not used any more
-            startTime: chosenStartMs()
+            startTime: chosenStartMs(),
+            ferryBackToBase: $('#ferryBackToBase').is(':checked')
         };
     }
 
@@ -1362,15 +1355,14 @@
             airwaysAuth('PUT', '/busy-birds/mission/book', Object.assign({
                 missionId: missionId,
                 aircraftId: aircraftId,
-                planId: plan.id,
-                ignorePilotState: true
+                planId: plan.id
             }, getPlanOptionParams()), function (response) {
                 // a refusal (no pilot, the pilot is elsewhere, no plan) is a normal 200 response with status "failure" and the reasons
                 if (response && response.status === 'failure') {
                     showMessagesModal(response.messages || ['Booking failed.']);
                     return;
                 }
-                window.location.href = 'flight-dashboard.html';
+                window.location.href = 'pilot-roster.html'; // the mission is in the roster now, it may be days ahead
             }, function (xhr) {
                 const j = xhr.responseJSON;
                 const plan = normalizePlanResponse(j);
