@@ -559,7 +559,7 @@
         }
         const actions = '<span class="gap-actions">' +
             '<a class="btn btn-outline-primary" href="' + shadowJetHref({notBefore: notBefore, notAfter: next.dep}) + '" title="A flight before ' + esc(timeLabel(next.dep)) + '">Book ShadowJet flight</a>' +
-            '<a class="btn btn-outline-primary" href="busy-birds.html">Book busyBirds flight</a></span>';
+            '<a class="btn btn-outline-primary" href="busy-birds.html?notBefore=' + notBefore + '&notAfter=' + next.dep + '" title="A mission in the window before ' + esc(timeLabel(next.dep)) + '">Book busyBirds flight</a></span>';
         return gapSeparator(gapMillis, null, actions);
     }
 

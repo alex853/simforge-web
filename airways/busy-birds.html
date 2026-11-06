@@ -48,6 +48,7 @@
         .tl-hour > span { position: absolute; top: 2px; left: 3px; font-size: .6rem; color: var(--bs-secondary-color); opacity: .8; }
         .tl-scroll { --bs-btn-padding-x: .55rem; display: flex; align-items: center; }
         .tl-now { position: absolute; top: 0; bottom: 0; left: 0; border-left: 2px solid var(--bs-warning); }
+        .tl-outside { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, transparent 0 4px, var(--bs-secondary-bg) 4px 6px); opacity: .9; pointer-events: none; }
         .tl-flight { position: absolute; top: 1.2rem; height: 1rem; background: var(--bs-primary); opacity: .85; border-radius: 2px; min-width: 2px; }
         .tl-margin { position: absolute; top: 1.2rem; height: 1rem; background: repeating-linear-gradient(135deg, transparent 0 3px, var(--bs-primary-border-subtle) 3px 5px); }
         .tl-mission { position: absolute; top: 2.4rem; height: .8rem; border-radius: 2px; min-width: 3px; }
@@ -244,6 +245,7 @@
                         <i style="background: var(--bs-danger);"></i>the mission in conflict
                         <span class="ms-3">48 hours are shown, the arrows move them</span>
                     </div>
+                    <div id="startWindow" class="mt-1 small text-secondary"></div>
                     <div id="startSlot" class="mt-1 small"></div>
                     <div id="startPlace"></div>
                 </div>
@@ -590,9 +592,15 @@
         return chosen && chosen.earliestStart ? chosen.earliestStart : 0;
     }
 
-    // the earliest start of a mission: 30 minutes from now, or later when the aircraft is busy until then; to 5 minutes
+    // The window to book into, from the address (the roster opens the page with it from the separator between its flights): ?notBefore=<ms>&notAfter=<ms>, UTC milliseconds.
+    // The mission starts not earlier than notBefore and has to end (with the 30 minutes of the gap) not later than notAfter. Both are optional.
+    const windowParams = new URLSearchParams(location.search);
+    const windowNotBefore = Number(windowParams.get('notBefore')) || 0;
+    const windowNotAfter = Number(windowParams.get('notAfter')) || 0;
+
+    // the earliest start of a mission: 30 minutes from now, or later when the aircraft is busy until then or the window has not begun; to 5 minutes
     function earliestStartMs() {
-        return Math.ceil(Math.max(Date.now() + GAP_MINUTES * MS_PER_MINUTE, aircraftEarliestMs()) / (5 * MS_PER_MINUTE)) * 5 * MS_PER_MINUTE;
+        return Math.ceil(Math.max(Date.now() + GAP_MINUTES * MS_PER_MINUTE, aircraftEarliestMs(), windowNotBefore) / (5 * MS_PER_MINUTE)) * 5 * MS_PER_MINUTE;
     }
 
     // ---- The terms of the pilot on the chosen aircraft: the qualifications on the type, the pay for the flown hours and the share of the income.
@@ -831,6 +839,13 @@
                 html += '<div class="tl-hour" style="left: ' + pct(t) + '%;"><span>' + pad2(d.getUTCHours()) + '</span></div>';
             }
         }
+        // the window of the booking: what is outside of it is hatched
+        if (windowNotBefore) {
+            html += box('tl-outside', tlStart, windowNotBefore, 'Before the window');
+        }
+        if (windowNotAfter) {
+            html += box('tl-outside', windowNotAfter, tlStart + TL_WINDOW_MS, 'After the window');
+        }
         flightsInTheWay().forEach(function (f) {
             const title = f.from + ' \u2192 ' + f.to + ', ' + fmtDateTime(f.dep) + '\u2013' + fmtTime(f.arr) + ' UTC';
             html += box('tl-margin', f.dep - GAP_MINUTES * MS_PER_MINUTE, f.arr + GAP_MINUTES * MS_PER_MINUTE, title);
@@ -870,6 +885,12 @@
         const plan = currentPlan();
         renderTimeline(plan);
 
+        // the window from the address: the words about it, and whether the mission fits into it (it has to end 30 minutes before notAfter)
+        $('#startWindow').text(windowNotBefore || windowNotAfter
+            ? 'The window to book into: ' + (windowNotBefore ? 'from ' + fmtDateTime(windowNotBefore) + ' UTC ' : '') + (windowNotAfter ? 'to ' + fmtDateTime(windowNotAfter) + ' UTC (the next flight of your roster)' : '')
+            : '');
+        const outsideWindow = !!(plan && plan.endTime != null && windowNotAfter && plan.endTime + GAP_MINUTES * MS_PER_MINUTE > windowNotAfter);
+
         const $slot = $('#startSlot');
         const slot = plan ? plan.slot : null;
         let canBook = false;
@@ -877,8 +898,10 @@
             $slot.html('<span class="text-secondary">Calculating\u2026</span>');
         } else {
             const span = fmtDateTime(plan.startTime) + ' \u2192 ' + fmtDateTime(plan.endTime) + ' UTC';
-            canBook = slot.free;
-            if (slot.free) {
+            canBook = slot.free && !outsideWindow;
+            if (outsideWindow) {
+                $slot.html('<span class="text-danger">' + span + ': the mission does not fit the window, it has to end by ' + fmtDateTime(windowNotAfter - GAP_MINUTES * MS_PER_MINUTE) + ' UTC.</span>');
+            } else if (slot.free) {
                 $slot.html('<span class="text-success">\u2713 ' + span + ': the time is free in your roster.</span>');
             } else if (slot.tooSoon) {
                 $slot.html('<span class="text-danger">Too soon: the earliest start is 30 minutes from now.</span>');
@@ -934,7 +957,7 @@
         // the time goes to the nearest quarter and stays inside what the server accepts: from 30 minutes to 7 days from now
         const now = Date.now();
         const quarter = 15 * MS_PER_MINUTE;
-        const earliest = Math.ceil(Math.max(now + GAP_MINUTES * MS_PER_MINUTE, aircraftEarliestMs()) / quarter) * quarter;
+        const earliest = Math.ceil(Math.max(now + GAP_MINUTES * MS_PER_MINUTE, aircraftEarliestMs(), windowNotBefore) / quarter) * quarter;
         const latest = Math.floor((now + HORIZON_DAYS * 86400000) / quarter) * quarter;
         ms = Math.max(earliest, Math.min(latest, Math.round(ms / quarter) * quarter));
         const today = startOfUtcDay(now);
