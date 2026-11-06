@@ -23,7 +23,6 @@
         .mission-row { cursor: pointer; }
         .mission-row.picked > td { background: var(--bs-primary-bg-subtle); }
         .mission-row .form-check-input { cursor: pointer; }
-        .leg-gap-select { width: 4.25rem; min-width: 0; padding-left: 0.4rem; padding-right: 1.4rem; }
         .plan-options-row > .col:last-child { min-width: 0; }
         .plan-options-row .ferry-check { padding-bottom: 0.15rem; }
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
@@ -250,7 +249,6 @@
                     <table class="table table-bordered table-striped table mb-0">
                         <thead class="table-light">
                         <tr>
-                            <th style="width: 5rem;" class="text-center" title="The pause before the leg: this long after the arrival of the previous leg (the first leg departs at the start chosen above)">After</th>
                             <th style="width: 2rem;" class="text-center">#</th>
                             <th style="width: 7.5rem;" class="text-center">DOF</th>
                             <th style="width: 5rem;" class="text-center">From</th>
@@ -809,10 +807,14 @@
     let planRequest = 0; // the number of the latest build-plans request
 
     function openQuoteView() {
+        // the page goes to the top only when the quotation opens: the plan is built again at every change of the start or of a pause, and the page must stay where it is then
+        const opening = !$('#quoteView').is(':visible');
         $('#missionsView').hide();
         $('#quoteView').show();
         $('#aircraftSelect').prop('disabled', true); // the plan is for this aircraft
-        window.scrollTo(0, 0);
+        if (opening) {
+            window.scrollTo(0, 0);
+        }
     }
 
     function closeQuoteView() {
@@ -892,7 +894,7 @@
             const arr = Array.isArray(plan.messages) ? plan.messages : [plan.messages];
             arr.forEach(function (m) {
                 const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
-                $tb.append('<tr><td colspan="9" class="text-muted text-center">' + text + '</td></tr>');
+                $tb.append('<tr><td colspan="8" class="text-muted text-center">' + text + '</td></tr>');
             });
             renderStartPanel();
             return;
@@ -961,7 +963,7 @@
         const $tb = $('#planLegsBody');
         $tb.empty();
         if (!legs || legs.length === 0) {
-            $tb.append('<tr><td colspan="9" class="text-muted text-center">No legs in response</td></tr>');
+            $tb.append('<tr><td colspan="8" class="text-muted text-center">No legs in response</td></tr>');
             return;
         }
         legs.forEach(function (leg, idx) {
@@ -975,7 +977,6 @@
             const distance = legCell(leg, ['distance'], '—');
 
             const row = '<tr>' +
-                '<td class="text-center">' + (idx === 0 ? '<span class="text-secondary" title="The first leg departs at the start chosen above">\u2014</span>' : legGapSelectHtml(idx)) + '</td>' +
                 '<td class="text-center">' + (idx + 1) + '</td>' +
                 '<td class="text-center text-nowrap">' + dof + '</td>' +
                 '<td class="text-center">' + from + '<br><span style="font-size: 0.8em;">' + depTime + '</span></td>' +
@@ -989,24 +990,16 @@
         });
         if (planSalary) {
             $tb.append('<tr class="table-light fw-bold">' +
-                '<td colspan="8" class="text-end">Total for the whole plan</td>' +
+                '<td colspan="7" class="text-end">Total for the whole plan</td>' +
                 '<td class="text-end"><div class="pay-line">' + money(planSalary.total) + '<span class="pay-mark" style="visibility: hidden;">F</span></div></td>' +
                 '</tr>');
         }
     }
 
-    // The time before every leg of the plan, hours: the first leg departs this long from now, every other leg this long after the arrival of the previous one.
-    // The first leg has a short list, the others a longer one. The values stay when the plan is rebuilt or another plan is chosen.
-    const FIRST_LEG_GAPS = [[0.5, '30m'], [1, '1h'], [2, '2h']];
-    const NEXT_LEG_GAPS = [[0.5, '30m'], [1, '1h'], [3, '3h'], [6, '6h'], [12, '12h'], [24, '24h']];
-    const legGaps = [0.5, 0.5, 0.5]; // the first one is the start (it is chosen above), the others are the pauses before the legs: 30 minutes, the least
-
-    function legGapSelectHtml(idx) {
-        const options = (idx === 0 ? FIRST_LEG_GAPS : NEXT_LEG_GAPS).map(function (o) {
-            return '<option value="' + o[0] + '"' + (legGaps[idx] === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
-        }).join('');
-        return '<select class="form-select form-select-sm leg-gap-select leg-gap" data-leg="' + idx + '" aria-label="Time before leg ' + (idx + 1) + '">' + options + '</select>';
-    }
+    // The pause before every leg of the plan, hours: every leg after the first one departs this long after the arrival of the previous leg, the first one departs at the
+    // start chosen above. The page has no choice of the pauses (decided 2026-11-06): all of them are the least one, 30 minutes. The server still takes a pause for every leg
+    // (the parameter intervals), so the choice can come back.
+    const legGaps = [0.5, 0.5, 0.5];
 
     // intervals is for the server (the time before every leg), turnaroundTime is the old parameter: the gap before the second leg
     function getPlanOptionParams() {
@@ -1049,7 +1042,7 @@
     }
 
     function setPlanOptionsBusy(busy) {
-        $('.leg-gap, #ferryBackToBase, #planSelect').prop('disabled', busy);
+        $('#ferryBackToBase, #planSelect').prop('disabled', busy);
     }
 
     function loadBuildPlans(options) {
@@ -1245,18 +1238,6 @@
                 return;
             }
             loadBuildPlans({missionId: missionId, aircraftId: aircraftId});
-        });
-
-        // a gap of a leg is chosen in the row of the leg, the plan is rebuilt with it
-        $('#planLegsBody').on('change', '.leg-gap', function () {
-            legGaps[parseInt($(this).attr('data-leg'), 10)] = parseFloat($(this).val());
-            if (!selectedMissionId || !selectedAircraftId) {
-                return;
-            }
-            if (!$('#quoteView').is(':visible')) {
-                return;
-            }
-            loadBuildPlans({refresh: true, silent: true});
         });
 
         $('#ferryBackToBase').on('change', function () {

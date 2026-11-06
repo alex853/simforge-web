@@ -370,17 +370,14 @@
             '</div>' + (move ? '<div class="small mt-2">' + moveNote(fl) + '</div>' : '') + '</div>';
     }
 
-    // the flight is going on (the preflight, the flying, the postflight) and there is nothing wrong with it: not diverted, not late, no conflict (earlier than planned is fine)
+    // the flight is going on (the preflight, the flying, the postflight) and it is not diverted and has no conflict: a delay is not a trouble for the colour (the label
+    // Delayed and the times tell about it), only a divert or a conflict take the tile from the blue one
     function isFlyingWithoutTrouble(fl) {
         const f = fl.forecast;
         if (!isInProgress(fl)) {
             return false;
         }
-        if (!f) {
-            return true;
-        }
-        const later = (f.expDep && f.expDep > fl.dep) || (f.expArr && f.expArr > fl.arr);
-        return !f.divertTo && !f.conflict && !later;
+        return !f || (!f.divertTo && !f.conflict);
     }
 
     function flightTile(fl, isLast) {
