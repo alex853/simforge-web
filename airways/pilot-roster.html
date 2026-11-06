@@ -52,11 +52,15 @@
         /* the tile of the next flight: half grey, half filled, a link */
         .gap-sep { display: flex; align-items: center; gap: .75rem; margin: 1.5rem 0; color: var(--bs-secondary-color); font-size: .75rem; }
         .gap-sep::before, .gap-sep::after { content: ""; flex: 1; border-top: var(--bs-border-width) solid var(--bs-border-color); }
-        /* the buttons to book a flight into the gap: they appear when the pointer is over the separator (always shown where there is no hover, on a phone); the place is kept, so nothing jumps */
-        .gap-sep.gap-bookable { padding: .35rem 0; margin: 1rem 0; }
-        .gap-sep .gap-actions { display: flex; gap: .5rem; opacity: 0; pointer-events: none; transition: opacity .15s; }
+        /* the buttons to book a flight into the gap appear over the line and its text (the text goes away) when the pointer is over the separator; where there is no hover (a phone) they are shown always */
+        .gap-sep { position: relative; }
+        .gap-sep.gap-bookable { padding: .45rem 0; margin: 1rem 0; }
+        .gap-actions .btn { --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .45rem; --bs-btn-font-size: .58rem; --bs-btn-border-radius: .3rem; }
+        .gap-sep .gap-actions { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; gap: .5rem; padding: 0 .75rem; background: var(--bs-body-bg);
+            opacity: 0; pointer-events: none; transition: opacity .15s; white-space: nowrap; }
         .gap-sep.gap-bookable:hover .gap-actions, .gap-sep.gap-bookable:focus-within .gap-actions { opacity: 1; pointer-events: auto; }
-        @media (hover: none) { .gap-sep .gap-actions { opacity: 1; pointer-events: auto; } }
+        .gap-sep.gap-bookable:hover > span:first-child, .gap-sep.gap-bookable:focus-within > span:first-child { visibility: hidden; }
+        @media (hover: none) { .gap-sep .gap-actions { position: static; transform: none; opacity: 1; pointer-events: auto; padding: 0; background: none; } }
         .next-tile { display: block; height: auto; margin-bottom: 0; text-decoration: none; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); border-style: dashed; opacity: .85; }
         .next-tile:hover { opacity: 1; color: var(--bs-body-color); border-color: var(--bs-primary-border-subtle); }
         .next-tile .flight-route { color: var(--bs-secondary-color); }
@@ -554,8 +558,8 @@
             return gapSeparator(gapMillis);
         }
         const actions = '<span class="gap-actions">' +
-            '<a class="btn btn-sm btn-outline-primary" href="' + shadowJetHref({notBefore: notBefore, notAfter: next.dep}) + '" title="A flight before ' + esc(timeLabel(next.dep)) + '">Book ShadowJet flight</a>' +
-            '<a class="btn btn-sm btn-outline-primary" href="busy-birds.html">Book busyBirds flight</a></span>';
+            '<a class="btn btn-outline-primary" href="' + shadowJetHref({notBefore: notBefore, notAfter: next.dep}) + '" title="A flight before ' + esc(timeLabel(next.dep)) + '">Book ShadowJet flight</a>' +
+            '<a class="btn btn-outline-primary" href="busy-birds.html">Book busyBirds flight</a></span>';
         return gapSeparator(gapMillis, null, actions);
     }
 
