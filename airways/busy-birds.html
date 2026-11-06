@@ -33,6 +33,8 @@
         /* the numbers of the narrow tiles of the quotation are not cut with dots */
         .start-box { border: 1px solid var(--bs-border-color); border-radius: .5rem; padding: .75rem 1rem; }
         .start-box .form-select { width: auto; }
+        .start-mode-row { min-height: 2rem; }
+        .tl.tl-pick { cursor: crosshair; }
         /* the line of time: from now to 7 days ahead, the flights of the roster and the interval of the mission */
         .tl { position: relative; height: 3.5rem; border: 1px solid var(--bs-border-color); border-radius: .4rem; background: var(--bs-body-bg); overflow: hidden; }
         .tl-day { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--bs-border-color); }
@@ -208,7 +210,8 @@
                     <div class="mb-2">
                         <span class="fw-semibold">Start</span>
                     </div>
-                    <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+                    <!-- the day and the time are right of "At a chosen time", in the same row: the row has the height of the selects, so nothing jumps when they appear -->
+                    <div class="d-flex flex-wrap align-items-center gap-3 mb-2 start-mode-row">
                         <div class="form-check mb-0">
                             <input class="form-check-input" type="radio" name="startMode" id="startAsap" value="asap" checked>
                             <label class="form-check-label" for="startAsap">As soon as possible <span class="text-secondary">(in 30 minutes)</span></label>
@@ -217,11 +220,11 @@
                             <input class="form-check-input" type="radio" name="startMode" id="startAt" value="at">
                             <label class="form-check-label" for="startAt">At a chosen time</label>
                         </div>
-                    </div>
-                    <div class="flex-wrap align-items-center gap-2 d-none" id="startPicker">
-                        <select id="startDay" class="form-select form-select-sm" aria-label="Day"></select>
-                        <select id="startTime" class="form-select form-select-sm" aria-label="Time, UTC"></select>
-                        <span class="text-secondary small">UTC</span>
+                        <div class="flex-wrap align-items-center gap-2 d-none" id="startPicker">
+                            <select id="startDay" class="form-select form-select-sm" aria-label="Day"></select>
+                            <select id="startTime" class="form-select form-select-sm" aria-label="Time, UTC"></select>
+                            <span class="text-secondary small">UTC</span>
+                        </div>
                     </div>
                     <div class="form-text">Within 7 days from now. The whole mission (the legs with the pauses) must keep 30 minutes from your other flights of the roster.</div>
                     <div class="d-flex align-items-stretch gap-1 mt-2">
@@ -810,6 +813,7 @@
         const atChosen = $('input[name=startMode]:checked').val() === 'at';
         // the day and the time are shown only for "at a chosen time" (d-flex has !important, so the class is switched, not the style)
         $('#startPicker').toggleClass('d-none', !atChosen).toggleClass('d-flex', atChosen);
+        $('#startTimeline').toggleClass('tl-pick', atChosen); // a click on the line chooses the start only in this mode
 
         const plan = currentPlan();
         renderTimeline(plan);
@@ -858,7 +862,13 @@
 
     // sets the chosen start to a time (UTC milliseconds, to a quarter) of the next days
     function setStartTo(ms) {
-        const today = startOfUtcDay(Date.now());
+        // the time goes to the nearest quarter and stays inside what the server accepts: from 30 minutes to 7 days from now
+        const now = Date.now();
+        const quarter = 15 * MS_PER_MINUTE;
+        const earliest = Math.ceil((now + GAP_MINUTES * MS_PER_MINUTE) / quarter) * quarter;
+        const latest = Math.floor((now + HORIZON_DAYS * 86400000) / quarter) * quarter;
+        ms = Math.max(earliest, Math.min(latest, Math.round(ms / quarter) * quarter));
+        const today = startOfUtcDay(now);
         const minutes = Math.round((ms - today) / MS_PER_MINUTE);
         $('#startAt').prop('checked', true);
         $('#startDay').val(Math.floor(minutes / (24 * 60)));
@@ -1212,6 +1222,17 @@
         $('input[name=startMode], #startDay, #startTime').on('change', startChanged);
         $('#tlLeft').on('click', function () { scrollTimeline(-TL_STEP_MS); });
         $('#tlRight').on('click', function () { scrollTimeline(TL_STEP_MS); });
+        // "At a chosen time": a click on the line moves the mission there (to a quarter of an hour)
+        $('#startTimeline').on('click', function (e) {
+            if ($('input[name=startMode]:checked').val() !== 'at' || tlStart === null) {
+                return;
+            }
+            const rect = this.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            if (x >= 0 && x <= 1) {
+                setStartTo(tlStart + x * TL_WINDOW_MS);
+            }
+        });
         $('#startSlot').on('click', '#btnEarliestFree', function () {
             setStartTo(parseInt($(this).attr('data-start'), 10));
         });
