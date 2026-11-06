@@ -907,7 +907,9 @@
         $('#startPlace').html(place
             ? '<div class="alert alert-warning py-2 mb-0 mt-2 small d-flex gap-2 align-items-start"><span aria-hidden="true">&#9888;</span><span><b>Your pilot will not be at the aircraft.</b> ' +
               'At the start of the mission (' + fmtDateTime(plan.startTime) + ' UTC) your pilot is ' +
-              (place.afterFrom
+              (place.pilotAt
+                  ? 'in <b>' + escapeHtml(place.pilotAt) + '</b> now, not at an airport'
+                  : place.afterFrom
                   ? 'expected at <b>' + escapeHtml(place.expected) + '</b>, after your flight ' + escapeHtml(place.afterFrom) + ' \u2192 ' + escapeHtml(place.afterTo)
                   : 'at <b>' + escapeHtml(place.expected) + '</b> now') +
               ', and the aircraft is at <b>' + escapeHtml(place.departure) + '</b>. You can book it, but the pilot has to get to ' + escapeHtml(place.departure) + ' first.</span></div>'

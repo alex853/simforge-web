@@ -52,6 +52,11 @@
         /* the tile of the next flight: half grey, half filled, a link */
         .gap-sep { display: flex; align-items: center; gap: .75rem; margin: 1.5rem 0; color: var(--bs-secondary-color); font-size: .75rem; }
         .gap-sep::before, .gap-sep::after { content: ""; flex: 1; border-top: var(--bs-border-width) solid var(--bs-border-color); }
+        /* the buttons to book a flight into the gap: they appear when the pointer is over the separator (always shown where there is no hover, on a phone); the place is kept, so nothing jumps */
+        .gap-sep.gap-bookable { padding: .35rem 0; margin: 1rem 0; }
+        .gap-sep .gap-actions { display: flex; gap: .5rem; opacity: 0; pointer-events: none; transition: opacity .15s; }
+        .gap-sep.gap-bookable:hover .gap-actions, .gap-sep.gap-bookable:focus-within .gap-actions { opacity: 1; pointer-events: auto; }
+        @media (hover: none) { .gap-sep .gap-actions { opacity: 1; pointer-events: auto; } }
         .next-tile { display: block; height: auto; margin-bottom: 0; text-decoration: none; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); border-style: dashed; opacity: .85; }
         .next-tile:hover { opacity: 1; color: var(--bs-body-color); border-color: var(--bs-primary-border-subtle); }
         .next-tile .flight-route { color: var(--bs-secondary-color); }
@@ -391,7 +396,9 @@
         if (!p) {
             return '';
         }
-        const where = p.afterFrom
+        const where = p.pilotAt
+            ? 'Your pilot is in ' + esc(p.pilotAt) + ' now, not at an airport'
+            : p.afterFrom
             ? 'After your previous flight (' + esc(p.afterFrom) + ' &rarr; ' + esc(p.afterTo) + ') your pilot is expected at ' + esc(p.expected)
             : 'Your pilot is at ' + esc(p.expected) + ' now';
         return '<div class="small text-warning-emphasis mb-1 px-1">&#9888; ' + where + ', but this flight departs from ' + esc(p.departure) + '.</div>';
@@ -419,10 +426,10 @@
         return placeNoteHtml(fl) + tile + box;
     }
 
-    const SECTION_GAP_MILLIS = 24 * 60 * 60 * 1000;
+    const SECTION_GAP_MILLIS = 4 * 60 * 60 * 1000;
 
     // The sections: the neighbour flights go together while the aircraft is the same and the gap between the arrival of a flight and the departure of the next one is not
-    // longer than 24 hours. Another aircraft or a longer gap starts a new section (its own tile of the aircraft and a line before it).
+    // longer than 4 hours. Another aircraft or a longer gap starts a new section (its own tile of the aircraft and a line before it).
     function groupFlights(flights) {
         const groups = [];
         flights.forEach(function (fl) {
@@ -516,28 +523,50 @@
                 '<button type="button" class="btn btn-sm btn-danger" id="resolveConflicts">Resolve conflicts</button>' + '</div>';
         }
         // the tile of the next flight (only after a flight which is not over) is a part of the last section: the tile of the aircraft is as high as the flights and this tile together
-        // The first flight is far ahead: the pilot may book a flight in the window before it (the same buttons, smaller, and a line under them)
-        const firstActive = flights.find(isRosterFlightActive);
-        if (firstActive && firstActive.dep - Date.now() > WINDOW_MIN_MILLIS) {
-            html += '<div class="row g-2 justify-content-center"><div class="col-6 col-md-3">' +
-                '<a class="btn btn-sm btn-outline-primary w-100" href="shadow-jet.html?notAfter=' + firstActive.dep + '" title="A flight before ' + esc(timeLabel(firstActive.dep)) + '">Book ShadowJet flight</a></div>' +
-                '<div class="col-6 col-md-3"><a class="btn btn-sm btn-outline-primary w-100" href="busy-birds.html">Book busyBirds flight</a></div></div>' + gapSeparator(firstActive.dep - Date.now());
-        }
         const groups = groupFlights(flights);
+        // the window before the first flight which is not over, when there is nothing before it (no finished flights shown): a separator with the buttons, as between the flights
+        const firstGroup = groups[0];
+        if (isRosterFlightActive(firstGroup.flights[0]) && firstGroup.flights[0].dep - Date.now() > WINDOW_MIN_MILLIS) {
+            html += separatorHtml(null, firstGroup, firstGroup.flights[0].dep - Date.now());
+        }
         groups.forEach(function (group, i) {
-            html += (i > 0 ? gapSeparator(group.flights[0].dep - groups[i - 1].flights[groups[i - 1].flights.length - 1].arr) : '') + groupHtml(group, null, nextTileOfGroup(group, groups[i + 1]));
+            if (i > 0) {
+                const prevLast = groups[i - 1].flights[groups[i - 1].flights.length - 1];
+                html += separatorHtml(groups[i - 1], group, group.flights[0].dep - prevLast.arr);
+            }
+            html += groupHtml(group, null, nextTileOfGroup(group, groups[i + 1]));
         });
-        html += '<hr class="my-4">';
+        html += gapSeparator(0, 'No more flights planned');
         $body.html(html);
     }
 
+    // The separator between two sections. Between the finished flights it is only a line. When the flight after it is not over (between the last finished flight and the first
+    // unfinished one, between the unfinished ones, before the first one) the buttons to book a flight into the gap appear when the pointer is over it, if the gap has room for a flight.
+    // The window starts now at the earliest and ends with the departure of the next flight.
+    function separatorHtml(prevGroup, nextGroup, gapMillis) {
+        const next = nextGroup.flights[0];
+        if (!isRosterFlightActive(next)) {
+            return gapSeparator(gapMillis);
+        }
+        const prev = prevGroup ? prevGroup.flights[prevGroup.flights.length - 1] : null;
+        const notBefore = Math.max(Date.now(), prev ? prev.arr + MIN_GAP_MILLIS : 0);
+        if (next.dep - notBefore < 3 * MIN_GAP_MILLIS) {
+            return gapSeparator(gapMillis);
+        }
+        const actions = '<span class="gap-actions">' +
+            '<a class="btn btn-sm btn-outline-primary" href="' + shadowJetHref({notBefore: notBefore, notAfter: next.dep}) + '" title="A flight before ' + esc(timeLabel(next.dep)) + '">Book ShadowJet flight</a>' +
+            '<a class="btn btn-sm btn-outline-primary" href="busy-birds.html">Book busyBirds flight</a></span>';
+        return gapSeparator(gapMillis, null, actions);
+    }
+
     // The separator between the chains of flights with the gap in the middle, rounded down to the hours: "23 hours", "3 days 5 hours", "less than an hour"
-    function gapSeparator(millis) {
+    // text: the own text instead of the length of the gap; actions: the html of the buttons which appear over the separator
+    function gapSeparator(millis, text, actions) {
         const hours = Math.floor(millis / 3600000);
         const days = Math.floor(hours / 24);
         const plural = function (n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); };
-        const text = hours < 1 ? 'less than an hour' : days === 0 ? plural(hours, 'hour') : plural(days, 'day') + (hours % 24 > 0 ? ' ' + plural(hours % 24, 'hour') : '');
-        return '<div class="gap-sep"><span>' + text + '</span></div>';
+        const gapText = hours < 1 ? 'less than an hour' : days === 0 ? plural(hours, 'hour') : plural(days, 'day') + (hours % 24 > 0 ? ' ' + plural(hours % 24, 'hour') : '');
+        return '<div class="gap-sep' + (actions ? ' gap-bookable' : '') + '"><span>' + (text || gapText) + '</span>' + (actions || '') + '</div>';
     }
 
     // The tile "Book the next flight" after a chain: after the last chain always, after the other ones when the chain is not over and the gap to the next chain has room
