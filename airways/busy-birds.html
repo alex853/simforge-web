@@ -50,12 +50,9 @@
 <main class="container-lg py-4">
     <div id="pageHeader"></div>
 
-    <p class="text-secondary mb-4">Check your pilot, select an aircraft and a mission, get a quotation, then book.</p>
+    <p class="text-secondary mb-4">Select an aircraft and a mission, get a quotation, then book.</p>
 
     <div id="alertHost"></div>
-
-    <!-- the state, the location, the awake time and the duty time of the pilot: the same tiles as on the page of the pilot, but only the numbers, without buttons -->
-    <div id="pilotTiles"></div>
 
     <!-- the double tile (two tiles in one): the choice of the aircraft -->
     <div class="row g-3 mb-4">
@@ -86,8 +83,6 @@
             </div>
         </div>
     </div>
-
-    <div id="bookingAlert"></div>
 
     <div class="row g-4">
         <!-- sidebar goes first on narrow screens -->
@@ -406,47 +401,57 @@
         updateQuoteButton();
     }
 
-    // "City from" starts at the current city of the pilot: its own city, or the biggest city of its airport (the same as the tab of G7 does), as long as the
-    // user has not picked a city. The cities of an airport come from the public /map/airport/info, biggest first, matched by id.
+    // "City from" starts at the biggest city of the airport of the chosen aircraft, as long as the user has not picked a city (the pilot does not matter: a mission
+    // is booked for any place and time). The cities of an airport come from the public /map/airport/info, biggest first, matched by id.
     let fromCityChosen = false;
-    let airportCityIds = null; // city ids of the airport of the pilot, biggest first; null until loaded
+    const airportCityIds = {}; // ICAO -> city ids of the airport, biggest first; null while loading
 
     function loadAirportCities(icao) {
+        if (airportCityIds.hasOwnProperty(icao)) {
+            return;
+        }
+        airportCityIds[icao] = null;
         fetch(airwaysServiceUrl + '/map/airport/info?icao=' + encodeURIComponent(icao))
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (info) {
                 const cities = info && Array.isArray(info.cities) ? info.cities.slice() : [];
                 cities.sort(function (a, b) { return (b.population || 0) - (a.population || 0); });
-                airportCityIds = cities.map(function (c) { return c.id; });
+                airportCityIds[icao] = cities.map(function (c) { return c.id; });
                 applyDefaultFromCity();
             })
             .catch(function (e) {
                 console.warn('could not load the cities of ' + icao, e);
-                airportCityIds = [];
-                applyDefaultFromCity();
+                airportCityIds[icao] = [];
             });
     }
 
     function applyDefaultFromCity() {
-        if (fromCityChosen || !allCities || pilotInfo === undefined) {
+        if (fromCityChosen || !allCities) {
             return;
         }
+        const aircraftId = getSelectedAircraftId();
+        const chosen = aircraftId ? aircraft.find(function (a) { return sameId(a.id, aircraftId); }) : null;
+        const icao = chosen ? String(chosen.locationAirportIcao || '').toUpperCase() : '';
+        if (!icao) {
+            return;
+        }
+        if (!airportCityIds.hasOwnProperty(icao)) {
+            loadAirportCities(icao);
+            return;
+        }
+        const ids = airportCityIds[icao];
+        if (!ids) {
+            return; // the cities of the airport are not loaded yet
+        }
         let city = null;
-        if (pilotInfo && !pilotInfo.airportIcao && pilotInfo.cityName) {
-            city = allCities.find(function (c) { return c.name === pilotInfo.cityName; });
-        } else if (pilotInfo && pilotInfo.airportIcao) {
-            if (!airportCityIds) {
-                return; // the cities of the airport are not loaded yet
-            }
-            for (let i = 0; i < airportCityIds.length && !city; i++) {
-                city = allCities.find(function (c) { return sameId(c.id, airportCityIds[i]); });
-            }
+        for (let i = 0; i < ids.length && !city; i++) {
+            city = allCities.find(function (c) { return sameId(c.id, ids[i]); });
         }
         if (city) {
             filterFrom = String(city.id);
             fromCityChosen = true;
+            filtersChanged();
         }
-        filtersChanged();
     }
 
     // All free aircraft of busyBirds as the server gave them; the dropdown shows only the ones at the airport of the pilot
@@ -457,42 +462,31 @@
         updateAircraftDropdown();
     }
 
-    // The dropdown needs both the aircraft and the pilot (pilotInfo is loaded in parallel, see renderPilotBlock)
+    // The dropdown shows all free aircraft of busyBirds wherever they stand: the place and the state of the pilot do not matter for a booking
     function updateAircraftDropdown() {
-        if (allAircraft === null || pilotInfo === undefined) {
+        if (allAircraft === null) {
             return;
         }
 
         const $sel = $('#aircraftSelect');
         $sel.empty();
-
-        // the airports of the pilot: its airport, or the airports of its city (the pilot travels to the airport of the aircraft before the start)
-        const airports = pilotInfo && Array.isArray(pilotInfo.bookingAirports)
-            ? pilotInfo.bookingAirports.map(function (icao) { return String(icao).toUpperCase(); })
-            : [];
-        const airport = airports.join(', ');
-        aircraft = airports.length
-            ? allAircraft.filter(function (a) { return airports.includes(String(a.locationAirportIcao ?? '').toUpperCase()); })
-            : [];
+        aircraft = allAircraft;
 
         if (aircraft.length === 0) {
             $sel.append('<option value="">No aircraft</option>');
             $sel.prop('disabled', true);
             updateQuoteButton();
             loadTerms();
-            $('#aircraftHelp').text(!pilotInfo ? 'Your pilot is not known, so there is no aircraft to choose.'
-                : !airport ? 'Your pilot is not at an airport or in a city.'
-                : 'No aircraft at ' + airport + '.');
+            $('#aircraftHelp').text('There are no free aircraft.');
             return;
         }
-        $sel.append('<option value="">Choose aircraft at ' + escapeHtml(airport) + '…</option>');
+        $sel.append('<option value="">Choose aircraft\u2026</option>');
         aircraft.forEach(function (a) {
             const id = a.id;
             const reg = a.regNo ?? '';
             const type = a.typeCode ?? a.type ?? '';
-            // a pilot in a city sees the aircraft of several airports, so the airport is shown
-            const parts = [reg || ('#' + id), type, airports.length > 1 ? a.locationAirportIcao : null].filter(function (p) { return p; });
-            $sel.append($('<option></option>').attr('value', id).text(parts.join(' · ')));
+            const parts = [reg || ('#' + id), type, a.locationAirportIcao].filter(function (p) { return p; });
+            $sel.append($('<option></option>').attr('value', id).text(parts.join(' \u00b7 ')));
         });
         $sel.prop('disabled', false);
         $('#aircraftHelp').text('');
@@ -881,36 +875,12 @@
         return (v != null && v !== '') ? String(v) : null;
     }
 
-    // The pilot block is built from two calls: GET /pilot (who and where: facts) and GET /busy-birds/booking-status (may a flight be booked at all).
-    // undefined - not loaded yet, null - failed or there is no pilot.
+    // The header with the avatar, the same as on the pages of the pilot: the small title is busyBirds, the big one is the page. The pilot is only
+    // asked for the avatar: undefined - not loaded yet, null - failed or there is no pilot.
     let pilotInfo;
-    let bookingStatus;
 
-    // The header with the avatar, the same as on the pages of the pilot: the small title is busyBirds, the big one is the page.
     function renderHeader() {
         $('#pageHeader').html(pilotHeader({kind: 'busyBirds', title: 'Mission booking', avatarImage: pilotInfo ? pilotInfo.avatarImage : null}));
-    }
-
-    // The tiles of the pilot (one row, the tiles are the width of four in a row) and the answer of the booking status.
-    function renderTiles() {
-        if (pilotInfo) {
-            $('#pilotTiles').html(tiles([stateTile(pilotInfo), locationTile(pilotInfo), awakeTile(pilotInfo, false), dutyTile(pilotInfo)]));
-        } else if (pilotInfo === null) {
-            $('#pilotTiles').html('<div class="text-secondary mb-4">Pilot information is not available.</div>');
-        }
-    }
-
-    function renderPilotBlock() {
-        if (pilotInfo === undefined || bookingStatus === undefined) {
-            return;
-        }
-        renderHeader();
-        renderTiles();
-        if (bookingStatus && !bookingStatus.canBook) {
-            $('#bookingAlert').html('<div class="alert alert-warning mb-4">' + escapeHtml(bookingStatus.problem || 'Flights cannot be booked now.') + '</div>');
-        } else {
-            $('#bookingAlert').empty();
-        }
     }
 
     function escapeHtml(s) {
@@ -939,25 +909,10 @@
 
         airwaysAuth('GET', '/pilot', {}, function (p) {
             pilotInfo = p;
-            renderPilotBlock();
-            updateAircraftDropdown();
-            if (p.airportIcao) {
-                loadAirportCities(p.airportIcao);
-            } else {
-                applyDefaultFromCity();
-            }
+            renderHeader();
         }, function () {
             pilotInfo = null;
-            renderPilotBlock();
-            updateAircraftDropdown();
-            applyDefaultFromCity();
-        });
-        airwaysAuth('GET', '/busy-birds/booking-status', {}, function (s) {
-            bookingStatus = s;
-            renderPilotBlock();
-        }, function () {
-            bookingStatus = null;
-            renderPilotBlock();
+            renderHeader();
         });
 
         renderMissions();
@@ -982,16 +937,8 @@
         $('#aircraftSelect').on('change', function () {
             updateQuoteButton();
             loadTerms();
+            applyDefaultFromCity();
         });
-        setInterval(function () {
-            if (document.hidden) {
-                return;
-            }
-            airwaysAuth('GET', '/pilot', {}, function (p) {
-                pilotInfo = p;
-                renderTiles();
-            }, function () { /* keep what is shown */ });
-        }, 60 * 1000);
         setInterval(function () {
             if (!document.hidden && getSelectedAircraftId()) {
                 loadTerms();
@@ -1087,7 +1034,8 @@
             airwaysAuth('PUT', '/busy-birds/mission/book', Object.assign({
                 missionId: missionId,
                 aircraftId: aircraftId,
-                planId: plan.id
+                planId: plan.id,
+                ignorePilotState: true
             }, getPlanOptionParams()), function (response) {
                 // a refusal (no pilot, the pilot is elsewhere, no plan) is a normal 200 response with status "failure" and the reasons
                 if (response && response.status === 'failure') {
