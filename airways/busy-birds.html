@@ -23,6 +23,11 @@
         .mission-row { cursor: pointer; }
         .mission-row.picked > td { background: var(--bs-primary-bg-subtle); }
         .mission-row .form-check-input { cursor: pointer; }
+        /* a mission with a group which does not fit into the chosen aircraft: gray, cannot be picked */
+        .mission-row.too-big { cursor: not-allowed; }
+        .mission-row.too-big > td { color: var(--bs-secondary-color); opacity: .6; }
+        .mission-row.too-big .form-check-input { cursor: not-allowed; }
+        .seats-note { font-size: .75rem; }
         .plan-options-row > .col:last-child { min-width: 0; }
         .plan-options-row .ferry-check { padding-bottom: 0.15rem; }
         .plan-options-row .ferry-check .form-check-label { line-height: 1.35; }
@@ -406,14 +411,24 @@
         loadMissions();
     }
 
+    // the seats of the chosen aircraft for a mission, null while no aircraft is chosen (then every mission is shown as usual)
+    function chosenAircraftSeats() {
+        const id = getSelectedAircraftId();
+        const chosen = id ? aircraft.find(function (a) { return sameId(a.id, id); }) : null;
+        return chosen && typeof chosen.seats === 'number' ? chosen : null;
+    }
+
     function renderMissions() {
         const visible = missions;
+        const seatsOf = chosenAircraftSeats();
         const $tb = $('#missionsBody');
         $tb.empty();
 
         $('#missionsCount').text(String(visible.length));
 
-        if (pickedMissionId !== null && !visible.some(function (m) { return sameId(m.id, pickedMissionId); })) {
+        // a mission which does not fit into the aircraft cannot stay picked
+        const doesNotFit = function (m) { return seatsOf !== null && m.pax > seatsOf.seats; };
+        if (pickedMissionId !== null && !visible.some(function (m) { return sameId(m.id, pickedMissionId) && !doesNotFit(m); })) {
             pickedMissionId = null;
         }
 
@@ -429,13 +444,20 @@
             const id = m.id;
             const dist = m.distance ?? m.distanceNm ?? '';
             const picked = sameId(id, pickedMissionId);
-            const $row = $('<tr class="mission-row"></tr>').toggleClass('picked', picked);
+            const tooBig = doesNotFit(m);
+            const $row = $('<tr class="mission-row"></tr>').toggleClass('picked', picked).toggleClass('too-big', tooBig);
             $row.append($('<td></td>').append(
                 $('<input type="radio" class="form-check-input mission-radio" name="missionId">')
                     .attr('value', id)
                     .prop('checked', picked)
+                    .prop('disabled', tooBig)
             ));
-            $row.append($('<td></td>').text(m.fromCityName ?? '').attr('title', m.fromCityName ?? ''));
+            const $from = $('<td></td>').attr('title', tooBig ? 'Not enough seats: ' + seatsOf.regNo + ' has ' + seatsOf.seats + ', the mission has ' + m.pax + ' passengers' : (m.fromCityName ?? ''));
+            $from.append(document.createTextNode(m.fromCityName ?? ''));
+            if (tooBig) {
+                $from.append($('<div class="seats-note text-danger-emphasis"></div>').text('Not enough seats: ' + (seatsOf.regNo ?? 'the aircraft') + ' has ' + seatsOf.seats));
+            }
+            $row.append($from);
             $row.append($('<td></td>').text(m.toCityName ?? '').attr('title', m.toCityName ?? ''));
             $row.append($('<td class="text-end"></td>').text(m.pax ?? ''));
             $row.append($('<td class="text-end text-nowrap"></td>').text(dist !== '' && dist !== null ? String(dist) : '—'));
@@ -552,6 +574,7 @@
             aircraftFromAddressTaken = true;
             $sel.val(wanted);
         }
+        renderMissions();
         updateQuoteButton();
         loadTerms();
         applyDefaultFromCity();
@@ -1300,6 +1323,7 @@
         });
 
         $('#aircraftSelect').on('change', function () {
+            renderMissions(); // the seats of the aircraft decide which missions fit
             updateQuoteButton();
             loadTerms();
             applyDefaultFromCity();
@@ -1329,6 +1353,9 @@
 
         // a click on a row picks the mission
         $('#missionsBody').on('click', 'tr.mission-row', function (e) {
+            if ($(this).hasClass('too-big')) {
+                return; // the group does not fit into the aircraft
+            }
             const $radio = $(this).find('input.mission-radio');
             if (!$(e.target).is('input')) {
                 $radio.prop('checked', true);

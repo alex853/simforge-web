@@ -252,12 +252,16 @@
         const num = function (n) { return n === null || n === undefined ? '&mdash;' : String(n); };
         // by the state of the flight: before the departure the tickets which were sold and remained; in the departure, the flying and the arrival the passengers on board; in
         // the postflight (the deboarding makes the number on board go down) and in the end the passengers carried
+        // A busyBirds flight does not sell tickets: its group is booked as a whole and nobody is added, so before the departure there is one number, the passengers
+        const busyBirds = String(fl.operatorName).toLowerCase() === 'busybirds';
         const tickets = (fl.status === 'Postflight' || fl.status === 'Finished')
             ? '<div><span class="sales-label">Carried PAX</span><span class="fw-semibold">' + num(fl.carried) + '</span></div>'
             : (isFlying(fl)
                 ? '<div><span class="sales-label">On board</span><span class="fw-semibold">' + num(fl.onBoard) + '</span></div>'
-                : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
-                  '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>');
+                : (busyBirds
+                    ? '<div><span class="sales-label">Passengers</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>'
+                    : '<div><span class="sales-label">Sold tickets</span><span class="fw-semibold">' + num(fl.sold) + '</span></div>' +
+                      '<div><span class="sales-label">Remained</span><span class="fw-semibold">' + num(fl.remained) + '</span></div>'));
         // the state of the transport flight over the numbers: now only the open check-in (a green bold line), the other states come later (todo ak1 below)
         // the state of the transport flight in a bold green line over the numbers: the check-in, the boarding and the deboarding
         const stateLine = {CheckIn: 'Check-in open', Boarding: 'Boarding', Deboarding: 'Deboarding'}[fl.tfStatus];
