@@ -30,6 +30,8 @@
         .pay-line { white-space: nowrap; }
         /* a button in the top right corner of a tile (Details), as on the other tiles (.stat-corner is in css/details.css) */
         .stat.has-corner { position: relative; }
+        /* the numbers of the narrow tiles of the quotation are not cut with dots */
+        .stat-value.quote-small { font-size: 1.5rem; overflow: visible; text-overflow: clip; }
         .terms-sub { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--bs-secondary-color); margin-bottom: 0.5rem; }
         .terms-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
         .terms-result { border-top: 1px solid var(--bs-border-color); margin-top: 0.5rem; padding-top: 0.5rem; }
@@ -82,6 +84,8 @@
         </div>
     </div>
 
+    <!-- the missions, the route and Get quote; they give way to the quotation when a quote is asked -->
+    <div id="missionsView">
     <div class="row g-4">
         <!-- sidebar goes first on narrow screens -->
         <div class="col-lg-4 order-first order-lg-last">
@@ -138,6 +142,88 @@
             </section>
         </div>
     </div>
+    </div>
+
+    <!-- the quotation of the chosen mission: the tiles of the mission and the details of the plan, instead of the missions -->
+    <div id="quoteView" style="display: none;">
+        <div class="d-flex align-items-center mb-3">
+            <button type="button" id="btnBackToMissions" class="btn btn-outline-secondary">&larr; Back to missions</button>
+            <h2 class="h5 mb-0 ms-3">Mission quotation</h2>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6">
+                <div class="stat">
+                    <div class="stat-label">Mission</div>
+                    <div class="stat-value text-break" id="quoteRoute"></div>
+                    <div class="stat-hint" id="quoteAircraft"></div>
+                </div>
+            </div>
+            <div class="col-4 col-md-2">
+                <div class="stat">
+                    <div class="stat-label">PAX</div>
+                    <div class="stat-value quote-small" id="quotePax"></div>
+                </div>
+            </div>
+            <div class="col-4 col-md-2">
+                <div class="stat">
+                    <div class="stat-label">Distance</div>
+                    <div class="stat-value quote-small" id="quoteDistance"></div>
+                </div>
+            </div>
+            <div class="col-4 col-md-2">
+                <div class="stat">
+                    <div class="stat-label">Mission income</div>
+                    <div class="stat-value money quote-small" id="quoteIncome"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="quoteMessages"></div>
+
+        <section class="card section mb-4" id="quotePlanSection">
+            <div class="card-header">
+                <span class="section-title">Plan</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2 align-items-end mb-3 plan-options-row">
+                    <div class="col-md-4 col-lg-5">
+                        <label class="form-label mb-1" for="planSelect">Plan</label>
+                        <select id="planSelect" class="form-select form-select-sm">
+                            <option value="" disabled selected>Select plan…</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <div class="form-check mb-1 ferry-check">
+                            <input type="checkbox" class="form-check-input" id="ferryBackToBase" name="ferryBackToBase" checked>
+                            <label class="form-check-label" for="ferryBackToBase">Ferry flight back to base</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped table mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width: 5rem;" class="text-center" title="The time before the leg: the first leg departs this long from now, every other leg this long after the arrival of the previous one">After</th>
+                            <th style="width: 2rem;" class="text-center">#</th>
+                            <th style="width: 7.5rem;" class="text-center">DOF</th>
+                            <th style="width: 5rem;" class="text-center">From</th>
+                            <th style="width: 5rem;" class="text-center">To</th>
+                            <th style="width: 6rem;" class="text-center">Type</th>
+                            <th style="width: 3rem;" class="text-center">PAX</th>
+                            <th style="width: 6rem;" class="text-center">Distance</th>
+                            <th style="width: 6rem;" class="text-center" title="What the pilot gets for the leg: flight pay and, for a revenue leg, the income share">Pilot pay</th>
+                        </tr>
+                        </thead>
+                        <tbody id="planLegsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer text-end">
+                <button type="button" id="btnPlanBook" class="btn btn-success">Book</button>
+            </div>
+        </section>
+    </div>
 </main>
 
 <!-- Why the hourly rate or the income share is what it is: the base, the deductions and the result -->
@@ -153,90 +239,6 @@
     </div>
 </div>
 
-<!-- Plan modal (messages or legs) -->
-<div class="modal fade" id="planModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="planModalTitle">Mission quotation</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="planMetaWrap" class="mb-2" style="display: none;">
-                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-2">
-                        <div>
-                            <div class="text-muted">Aircraft</div>
-                            <div>
-                                <span class="fw-bold" id="planMetaAcReg"></span>
-                                <span class="text-muted" id="planMetaAcType"></span>
-                                <span class="text-muted" id="planMetaAcLoc"></span>
-                            </div>
-                        </div>
-                        <div class="text-end" id="planMetaTerms" style="display: none;">
-                            <div><span class="text-muted">Your hourly pay</span> <span class="fw-bold" id="planMetaHourly"></span></div>
-                            <div><span class="text-muted">Income share</span> <span class="fw-bold" id="planMetaShare"></span></div>
-                        </div>
-                    </div>
-                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-                        <div>
-                            <div class="text-muted">Mission</div>
-                            <div class="fw-bold" id="planMetaMissionRoute"></div>
-                        </div>
-                        <div class="text-end">
-                            <div class="text-muted">Mission income</div>
-                            <div class="fw-bold" id="planMetaMissionPay"></div>
-                        </div>
-                    </div>
-                    <hr class="my-2">
-                </div>
-
-                <div id="planMessagesWrap" style="display: none;">
-                    <ul class="mb-0 ps-3" id="planMessagesList"></ul>
-                </div>
-
-                <div id="planLegsWrap" style="display: none;">
-                    <div class="row g-2 align-items-end mb-3 plan-options-row">
-                        <div class="col-md-4 col-lg-5">
-                            <label class="form-label mb-1" for="planSelect">Plan</label>
-                            <select id="planSelect" class="form-select form-select-sm">
-                                <option value="" disabled selected>Select plan…</option>
-                            </select>
-                        </div>
-                        <div class="col">
-                            <div class="form-check mb-1 ferry-check">
-                                <input type="checkbox" class="form-check-input" id="ferryBackToBase" name="ferryBackToBase" checked>
-                                <label class="form-check-label" for="ferryBackToBase">Ferry flight back to base</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped table mb-0">
-                            <thead class="table-light">
-                            <tr>
-                                <th style="width: 5rem;" class="text-center" title="The time before the leg: the first leg departs this long from now, every other leg this long after the arrival of the previous one">After</th>
-                                <th style="width: 2rem;" class="text-center">#</th>
-                                <th style="width: 7.5rem;" class="text-center">DOF</th>
-                                <th style="width: 5rem;" class="text-center">From</th>
-                                <th style="width: 5rem;" class="text-center">To</th>
-                                <th style="width: 6rem;" class="text-center">Type</th>
-                                <th style="width: 3rem;" class="text-center">PAX</th>
-                                <th style="width: 6rem;" class="text-center">Distance</th>
-                                <th style="width: 6rem;" class="text-center" title="What the pilot gets for the leg: flight pay and, for a revenue leg, the income share">Pilot pay</th>
-                            </tr>
-                            </thead>
-                            <tbody id="planLegsBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary btn" data-bs-dismiss="modal">Back</button>
-                <button type="button" id="btnPlanBook" class="btn btn-success btn" style="display: none;">Book</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 
     let missions = [];
@@ -248,7 +250,6 @@
     let filterTo = '';
     let legsPayload = [];
     let buildPlans = [];
-    let planModal;
 
     function showAlert(type, message) {
         const html = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
@@ -542,37 +543,44 @@
         return a != null && b != null && String(a) === String(b);
     }
 
-    function refreshPlanMeta() {
+    // The tiles of the quotation: the mission and the aircraft it is quoted for (the terms of the pilot are the tiles at the top of the page)
+    function renderQuoteTiles() {
         const m = missions.find(function (x) { return sameId(x.id, selectedMissionId); });
         const a = aircraft.find(function (x) { return sameId(x.id, selectedAircraftId); });
-        if (!m || !a) {
-            $('#planMetaWrap').hide();
+        if (!m) {
             return;
         }
-
-        const acReg = a.regNo ?? ('#' + a.id);
-        const acType = a.typeCode ?? a.type ?? '';
-        const acLoc = a.locationAirportIcao ?? a.locationAirportName ?? a.locationAirportId ?? '';
-
-        const route = (m.fromCityName ?? '') + ' → ' + (m.toCityName ?? '');
-        const pay = missionPayHtml(m);
-
-        $('#planMetaAcReg').text(acReg);
-        $('#planMetaAcType').text(acType ? (' · ' + acType) : '');
-        $('#planMetaAcLoc').text(acLoc ? (' · ' + acLoc) : '');
-        $('#planMetaMissionRoute').text(route);
-        $('#planMetaMissionPay').html(pay);
-
-        // the terms of the pilot on this aircraft, they are the numbers of the block above the missions
-        if (currentTerms) {
-            $('#planMetaHourly').html(moneyHtml(currentTerms.effectiveHourlyRate));
-            $('#planMetaShare').text(formatNumber(currentTerms.effectiveIncomeSharePercent) + '%');
-            $('#planMetaTerms').show();
+        $('#quoteRoute').text((m.fromCityName ?? '') + ' \u2192 ' + (m.toCityName ?? ''));
+        $('#quotePax').text(m.pax ?? '');
+        const dist = m.distance ?? m.distanceNm;
+        $('#quoteDistance').text(dist !== undefined && dist !== null && dist !== '' ? dist + ' nm' : '\u2014');
+        $('#quoteIncome').html(missionPayHtml(m));
+        if (a) {
+            const parts = [a.regNo ?? ('#' + a.id), a.typeCode ?? a.type ?? '', a.locationAirportIcao ?? ''].filter(function (p) { return p; });
+            $('#quoteAircraft').text('Aircraft ' + parts.join(' \u00b7 '));
         } else {
-            $('#planMetaTerms').hide();
+            $('#quoteAircraft').text('');
         }
+    }
 
-        $('#planMetaWrap').show();
+    // ---- the quotation instead of the missions
+
+    // true while a plan is shown: a message then comes above the plan, without a plan it comes alone
+    let planShown = false;
+
+    function openQuoteView() {
+        $('#missionsView').hide();
+        $('#quoteView').show();
+        $('#aircraftSelect').prop('disabled', true); // the plan is for this aircraft
+        window.scrollTo(0, 0);
+    }
+
+    function closeQuoteView() {
+        $('#quoteView').hide();
+        $('#missionsView').show();
+        $('#aircraftSelect').prop('disabled', aircraft.length === 0);
+        $('#quoteMessages').empty();
+        planShown = false;
     }
 
     function normalizePlanResponse(response) {
@@ -648,24 +656,16 @@
     }
 
     function showMessagesModal(messages) {
-        $('#planModalTitle').text('Messages');
-        $('#planMetaWrap').hide();
-        $('#planLegsWrap').hide();
-        $('#planMessagesWrap').show();
-        $('#btnPlanBook').hide();
+        openQuoteView();
+        $('#quotePlanSection').toggle(planShown);
+        renderQuoteTiles();
 
-        const $list = $('#planMessagesList');
-        $list.empty();
         const arr = Array.isArray(messages) ? messages : (messages != null ? [messages] : []);
-        if (arr.length === 0) {
-            $list.append($('<li></li>').text('No details.'));
-        } else {
-            arr.forEach(function (m) {
-                const text = typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
-                $list.append($('<li></li>').text(text));
-            });
-        }
-        planModal.show();
+        const lines = arr.length === 0 ? ['No details.'] : arr.map(function (m) {
+            return typeof m === 'string' ? m : (m && m.message != null ? String(m.message) : JSON.stringify(m));
+        });
+        $('#quoteMessages').html('<div class="alert alert-warning"><ul class="mb-0 ps-3">' +
+            lines.map(function (t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ul></div>');
     }
 
     function legCell(leg, keyCandidates, fallback) {
@@ -781,11 +781,11 @@
     function showLegsModal(plans, options) {
         options = options || {};
         buildPlans = plans;
-        $('#planModalTitle').text('Mission quotation');
-        $('#planMessagesWrap').hide();
-        $('#planLegsWrap').show();
-        $('#btnPlanBook').show();
-        refreshPlanMeta();
+        planShown = true;
+        openQuoteView();
+        $('#quoteMessages').empty();
+        $('#quotePlanSection').show();
+        renderQuoteTiles();
         renderPlanSelect(plans);
         let planId = plans[0].id;
         if (options.preferredPlanId != null) {
@@ -798,9 +798,6 @@
         }
         $('#planSelect').val(String(planId));
         applySelectedPlan(planId);
-        if (!options.skipShowModal) {
-            planModal.show();
-        }
     }
 
     function setPlanOptionsBusy(busy) {
@@ -819,6 +816,9 @@
         }
         selectedMissionId = missionId;
         selectedAircraftId = aircraftId;
+        if (!options.refresh) {
+            planShown = false;
+        }
 
         const preferredPlanId = options.refresh
             ? $('#planSelect').val()
@@ -844,7 +844,6 @@
                 return;
             }
             showLegsModal(result.plans, {
-                skipShowModal: !!options.refresh,
                 preferredPlanId: preferredPlanId
             });
         }, function (xhr) {
@@ -892,8 +891,8 @@
     $(document).ready(function () {
         initSiteMenu('busy-birds');
         renderHeader();
-        planModal = new bootstrap.Modal(document.getElementById('planModal'));
         termsModal = new bootstrap.Modal(document.getElementById('termsModal'));
+        $('#btnBackToMissions').on('click', closeQuoteView);
         $('#hourlyDetails').on('click', function () {
             if (currentTerms) {
                 showTermsModal('Your hourly rate', hourlyDetailsHtml(currentTerms));
@@ -993,7 +992,7 @@
             if (!selectedMissionId || !selectedAircraftId) {
                 return;
             }
-            if (!$('#planLegsWrap').is(':visible')) {
+            if (!$('#quoteView').is(':visible')) {
                 return;
             }
             loadBuildPlans({refresh: true, silent: true});
@@ -1003,7 +1002,7 @@
             if (!selectedMissionId || !selectedAircraftId) {
                 return;
             }
-            if (!$('#planLegsWrap').is(':visible')) {
+            if (!$('#quoteView').is(':visible')) {
                 return;
             }
             loadBuildPlans({refresh: true, silent: true});
