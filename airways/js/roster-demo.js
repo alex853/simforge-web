@@ -77,7 +77,9 @@ function myFlightToRosterFlight(m) {
         // the actual blocks off and blocks on (UTC millis, null while they have not happened), and the airport where the flight has landed when it is not its destination (ICAO)
         actDep: f.actualDeparture || null, actArr: f.actualArrival || null, landedAt: f.landedIcao || null,
         // the landing at a wrong airport was not declared as the divert (an unplanned landing)
-        unplanned: !!f.unplanned
+        unplanned: !!f.unplanned,
+        // the pilot is not expected where the flight departs: {expected, departure, afterFrom, afterTo} (ICAO; afterFrom and afterTo are null when it is the place where the pilot is now), null when fine
+        placeProblem: m.placeProblem || null
     };
 }
 

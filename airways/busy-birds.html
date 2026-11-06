@@ -245,6 +245,7 @@
                         <span class="ms-3">48 hours are shown, the arrows move them</span>
                     </div>
                     <div id="startSlot" class="mt-1 small"></div>
+                    <div id="startPlace"></div>
                 </div>
 
                 <div class="row g-2 align-items-end mb-3 plan-options-row">
@@ -900,6 +901,17 @@
             }
         }
         $('#btnPlanBook').prop('disabled', !canBook);
+
+        // the warning (the booking is not stopped by it): the pilot is not expected where the aircraft starts the mission
+        const place = plan && plan.placeProblem ? plan.placeProblem : null;
+        $('#startPlace').html(place
+            ? '<div class="alert alert-warning py-2 mb-0 mt-2 small d-flex gap-2 align-items-start"><span aria-hidden="true">&#9888;</span><span><b>Your pilot will not be at the aircraft.</b> ' +
+              'At the start of the mission (' + fmtDateTime(plan.startTime) + ' UTC) your pilot is ' +
+              (place.afterFrom
+                  ? 'expected at <b>' + escapeHtml(place.expected) + '</b>, after your flight ' + escapeHtml(place.afterFrom) + ' \u2192 ' + escapeHtml(place.afterTo)
+                  : 'at <b>' + escapeHtml(place.expected) + '</b> now') +
+              ', and the aircraft is at <b>' + escapeHtml(place.departure) + '</b>. You can book it, but the pilot has to get to ' + escapeHtml(place.departure) + ' first.</span></div>'
+            : '');
     }
 
     // The start was changed: the plan is built again for it (the answer of an older request is dropped, see loadBuildPlans)
@@ -991,7 +1003,8 @@
                     messages: norm.messages,
                     startTime: p.startTime,
                     endTime: p.endTime,
-                    slot: p.slot
+                    slot: p.slot,
+                    placeProblem: p.placeProblem
                 };
             }),
             messages: null

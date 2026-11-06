@@ -384,6 +384,19 @@
         return !f || (!f.divertTo && !f.conflict);
     }
 
+    // The note above a flight which departs not where the pilot is expected: after the flight before it, or where the pilot is now (the server counts it, placeProblem).
+    // It only warns, nothing is forbidden: the pilot gets to the aircraft himself.
+    function placeNoteHtml(fl) {
+        const p = fl.placeProblem;
+        if (!p) {
+            return '';
+        }
+        const where = p.afterFrom
+            ? 'After your previous flight (' + esc(p.afterFrom) + ' &rarr; ' + esc(p.afterTo) + ') your pilot is expected at ' + esc(p.expected)
+            : 'Your pilot is at ' + esc(p.expected) + ' now';
+        return '<div class="small text-warning-emphasis mb-1 px-1">&#9888; ' + where + ', but this flight departs from ' + esc(p.departure) + '.</div>';
+    }
+
     function flightTile(fl, isLast) {
         const f = fl.forecast;
         const conflict = f ? f.conflict : null;
@@ -403,7 +416,7 @@
             (diverted ? '<div class="small was-route">Was ' + fl.from + ' &rarr; ' + fl.to + '</div>' : '') +
             '<div class="stat-hint">' + timesHtml(fl) + '</div>' +
             '</div>';
-        return tile + box;
+        return placeNoteHtml(fl) + tile + box;
     }
 
     const SECTION_GAP_MILLIS = 24 * 60 * 60 * 1000;
