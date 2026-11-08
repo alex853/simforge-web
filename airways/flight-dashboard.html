@@ -607,7 +607,8 @@
 
     function checkHtml(name) {
         const text = CHECK_TEXTS[name] ?? name.replace(/^The pilot is at the departure airport ([A-Z0-9]{4})$/, 'The pilot is at the departure airport $1, as per Airways info');
-        return esc(text).replace(/(?<![A-Za-z])[A-Z]{4}(?![A-Za-z])/g, '<b>$&</b>');
+        // the airport codes and the dates with the time (the start of a flight opens at one) are bold
+        return esc(text).replace(/(?<![A-Za-z])[A-Z]{4}(?![A-Za-z])|\d{4}-\d{2}-\d{2} \d{2}:\d{2}/g, '<b>$&</b>');
     }
 
     // The flying stage: two columns, a button and under it what it does and its conditions. Landing on the left (or the note that the tracker lands by itself), Divert on the right:
@@ -734,7 +735,7 @@
             case 'Dispatched': {
                 const starts = (status.actions ?? []).filter(a => a.name === 'start-flight' || a.name === 'start-flight-manual');
                 const stuck = starts.length > 0 && starts.every(a => !a.allowed || isBlocked(status, a.name));
-                return 'The aircraft is assigned to you and stands at ' + bold(f.dep) + '. The flight is planned for ' + bold(f.pdep) + ' UTC. When you are at the airport and ready to begin, '
+                return 'The aircraft is assigned to you and stands at ' + bold(f.dep) + '. The flight is planned for ' + bold(f.pdep) + ' UTC, the start opens ' + bold('3') + ' hours before it. When you are at the airport and ready to begin, '
                     + 'start the flight: with the sim tracker the flight follows the sim (' + FOUR_STEPS + '), in the manual mode you press these steps yourself.'
                     + (stuck ? ' Fix the red conditions below first.' : '');
             }
@@ -1164,12 +1165,14 @@
         const f = {dep: 'KAUS', dest: 'MMMX', fmId: '1', fmSt: 'Dispatched', tfId: 't1', tfSt: 'Scheduled', pdep: '19:05', parr: '20:51', etkf: '19:15', eldg: '20:41', earr: '20:51',
             acRg: 'N172SP', acTp: 'C172', adep: null, atkf: null, aldg: null, aarr: null, stkts: 153, ttkts: 220, ckdIn: 0, ponBrd: 0, autoFinish: true, brdStart: '18:36', brdEnd: '18:55', cinStart: '17:05', cinEnd: '18:35'};
         const dutyOk = !name.endsWith('over-limit');
+        const tooEarly = name === 'too-early';
+        const startWindow = {name: 'The flight can be started not earlier than 3 hours before the planned departure (from 2026-11-12 09:00 UTC)', result: !tooEarly};
         const limits = [{name: 'The awake time is within the limit (the pilot is not overtired)', result: true},
             {name: 'The duty time in 24 hours is within the limit', result: dutyOk},
             {name: 'The flight time in 30 days is within the limit', result: true},
             {name: 'The flight time in 365 days is within the limit', result: true}];
-        let actions = [{name: 'start-flight', allowed: dutyOk, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, {name: 'The aircraft is idle at the departure airport KAUS', result: true}, ...limits]},
-            {name: 'start-flight-manual', allowed: dutyOk, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, ...limits]}];
+        let actions = [{name: 'start-flight', allowed: dutyOk && !tooEarly, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, {name: 'The aircraft is idle at the departure airport KAUS', result: true}, ...limits, startWindow]},
+            {name: 'start-flight-manual', allowed: dutyOk && !tooEarly, checks: [{name: 'The pilot is at the departure airport KAUS', result: true}, ...limits, startWindow]}];
         let mode = null;
         let scheduleWarning = null;
         switch (name) {
