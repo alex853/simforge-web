@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>airways / Avatars</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="../js/requests.js"></script>
+
+    <style>
+        body { background: #f4f6fa; }
+        .avatar-table { background: #fff; }
+        .avatar-table th { position: sticky; top: 0; background: #fff; z-index: 2; box-shadow: 0 1px 0 var(--bs-border-color); text-align: center; }
+        .avatar-table th.left, .avatar-table td.left { text-align: left; }
+        .avatar-table td { vertical-align: middle; text-align: center; }
+        .avatar-table img { width: 32px; height: 32px; image-rendering: auto; }
+        .avatar-table td.name { font-family: ui-monospace, Consolas, monospace; font-size: .9rem; }
+        .avatar-table td.id { color: var(--bs-secondary-color); font-size: .85rem; }
+        /* a forbidden picture is shown nowhere: its row is dimmed */
+        .avatar-table tr.is-forbidden td:not(.flag-forbidden) { opacity: .45; }
+        .avatar-table tr.is-saving { background: #fff8e1; }
+        .avatar-table tr.is-failed { background: #fdecea; }
+        .avatar-table input[type=checkbox] { width: 1.25rem; height: 1.25rem; cursor: pointer; }
+        .hint { color: var(--bs-secondary-color); font-size: .9rem; }
+        #token-box { max-width: 380px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar bg-body border-bottom">
+    <div class="container-lg">
+        <a class="navbar-brand" href="../index.html">simforge / airways</a>
+        <span class="navbar-text">Avatars (admin)</span>
+    </div>
+</nav>
+
+<main class="container-lg py-4">
+    <div id="token-box" class="card card-body mb-3" style="display: none;">
+        <div class="small mb-2">The admin token is not set in this browser.</div>
+        <div class="input-group input-group-sm">
+            <input id="token-input" type="password" class="form-control" placeholder="admin token" autocomplete="off">
+            <button class="btn btn-primary" id="token-save" type="button">Save</button>
+        </div>
+    </div>
+
+    <h1 class="h4">Avatars</h1>
+    <p class="hint mb-2">
+        Four independent flags of every picture. <b>forbidden</b>: shown nowhere, even to the one who has it. <b>common</b>: a passenger gets it at random.
+        <b>pilot</b>: a pilot may choose it for himself. <b>special</b>: for the special journeys. A change is written to the file of the server at once.
+        A picture which a pilot has chosen stays his even when the pilot flag is taken off.
+    </p>
+
+    <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+        <input id="filter" type="search" class="form-control form-control-sm" style="max-width: 260px;" placeholder="filter by name" autocomplete="off">
+        <div id="counts" class="hint"></div>
+        <div id="message" class="small text-danger"></div>
+    </div>
+
+    <table class="table table-sm table-hover avatar-table align-middle">
+        <thead>
+        <tr>
+            <th class="left">#</th>
+            <th>icon</th>
+            <th class="left">name</th>
+            <th>forbidden</th>
+            <th>common</th>
+            <th>pilot</th>
+            <th>special</th>
+        </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+    </table>
+</main>
+
+<script>
+    // the 32x32 icons of FatCow (the same ones as the pilot avatars of the pages)
+    const ICONS_PATH = '../../fatcow/FatCow_Icons32x32/';
+    const FLAGS = ['forbidden', 'common', 'pilot', 'special'];
+    let avatars = [];
+
+    function esc(text) {
+        return $('<div>').text(text ?? '').html();
+    }
+
+    function showError(e) {
+        const status = e && e.status;
+        if (status === 401 || status === 403) {
+            $('#token-box').show();
+            $('#message').text('The server does not accept the admin token (' + status + ').');
+        } else {
+            $('#message').text('Error' + (status ? ' ' + status : '') + (e && e.responseJSON && e.responseJSON.message ? ': ' + e.responseJSON.message : ''));
+        }
+    }
+
+    function rowHtml(a) {
+        const cells = FLAGS.map(flag => '<td class="flag-' + flag + '"><input type="checkbox" data-flag="' + flag + '"' + (a[flag] ? ' checked' : '') + ' aria-label="' + flag + '"></td>').join('');
+        return '<tr data-file="' + esc(a.file) + '" class="' + (a.forbidden ? 'is-forbidden' : '') + '">'
+            + '<td class="left id">' + a.id + '</td>'
+            + '<td><img src="' + ICONS_PATH + encodeURIComponent(a.file) + '" alt="" width="32" height="32" loading="lazy"></td>'
+            + '<td class="left name">' + esc(a.file) + '</td>' + cells + '</tr>';
+    }
+
+    function renderCounts() {
+        $('#counts').text(avatars.length + ' pictures: ' + FLAGS.map(flag => avatars.filter(a => a[flag]).length + ' ' + flag).join(', '));
+    }
+
+    function render() {
+        $('#rows').html(avatars.map(rowHtml).join(''));
+        renderCounts();
+        applyFilter();
+    }
+
+    function applyFilter() {
+        const text = $('#filter').val().trim().toLowerCase();
+        $('#rows tr').each(function () {
+            $(this).toggle(!text || $(this).data('file').toLowerCase().indexOf(text) !== -1);
+        });
+    }
+
+    function load() {
+        airwaysAuthAdmin('GET', '/admin/avatars', {}, function (list) {
+            $('#message').text('');
+            avatars = list;
+            render();
+        }, showError);
+    }
+
+    // a change goes to the server at once; the box is what the server answered, a failed change is put back
+    $('#rows').on('change', 'input[type=checkbox]', function () {
+        const box = $(this);
+        const row = box.closest('tr');
+        const file = row.data('file');
+        const flag = box.data('flag');
+        const value = box.prop('checked');
+        row.addClass('is-saving').removeClass('is-failed');
+        box.prop('disabled', true);
+        airwaysAuthAdmin('POST', '/admin/avatars/flag?' + $.param({file: file, flag: flag, value: value}), {}, function (saved) {
+            $('#message').text('');
+            const index = avatars.findIndex(a => a.file === saved.file);
+            if (index >= 0) {
+                avatars[index] = saved;
+            }
+            row.replaceWith(rowHtml(saved));
+            renderCounts();
+            applyFilter();
+        }, function (e) {
+            box.prop('checked', !value).prop('disabled', false);
+            row.removeClass('is-saving').addClass('is-failed');
+            showError(e);
+        });
+    });
+
+    $('#filter').on('input', applyFilter);
+
+    $('#token-save').on('click', function () {
+        try {
+            localStorage.setItem('airways.admin.token', $('#token-input').val().trim());
+        } catch (e) { /* no storage */ }
+        $('#token-box').hide();
+        load();
+    });
+
+    try {
+        if (!(localStorage.getItem('airways.admin.token') ?? '').trim()) {
+            $('#token-box').show();
+        }
+    } catch (e) {
+        $('#token-box').show();
+    }
+
+    load();
+</script>
+</body>
+</html>
