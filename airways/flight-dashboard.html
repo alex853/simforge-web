@@ -73,6 +73,16 @@
         .hl-bad { background: var(--bs-danger); color: #fff; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .hl-warn { background: #ffc107; color: #212529; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
+        /* the row of the passengers on board: 16x16 icons, they lie on each other when there are many; the initials show when the mouse is over an icon */
+        .pax-strip { display: flex; align-items: center; gap: .75rem; margin: 0 0 1rem; padding: .4rem .75rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: var(--bs-body-bg); }
+        .pax-caption { flex: none; color: var(--bs-secondary-color); font-size: .72rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+        .pax-row { position: relative; flex: 1 1 auto; min-width: 0; height: 16px; }
+        .pax { position: absolute; top: 0; width: 16px; height: 16px; line-height: 0; cursor: default; }
+        .pax img { width: 16px; height: 16px; display: block; }
+        .pax:hover { z-index: 100000 !important; }
+        .pax:hover img { outline: 1px solid var(--bs-secondary-color); }
+        .pax-pilot img { outline: 1px solid var(--bs-primary); }
+        #paxTip { position: fixed; z-index: 100001; display: none; transform: translate(-50%, -100%); padding: .05rem .4rem; border-radius: .25rem; background: #212529; color: #fff; font-size: .75rem; font-weight: 600; pointer-events: none; white-space: nowrap; }
         /* the explanation of the stage: what the pilot does and what happens to the passengers (two paragraphs under the title of the stage) */
         .stage-notes { margin-bottom: 1rem; }
         .stage-notes p { margin: 0 0 .5rem; }
@@ -100,6 +110,7 @@
     <div id="pageHeader"></div>
     <div id="banners"></div>
     <div id="tiles"></div>
+    <div id="paxStrip"></div>
     <div id="area"></div>
     <div class="todo-list" id="todoList"></div>
 </main>
@@ -914,6 +925,124 @@
     let statusLoadFailed = false;
     let stub = null;
 
+    // ---- the row of the passengers on board (docs/avatars.md): the server gives the avatars in the order of the row (GET /flight-dashboard/passengers), they are asked again
+    // when the number on board or the status of the transport flight changes; the icons are the 16x16 ones of FatCow
+
+    const PAX_ICONS_PATH = '../fatcow/FatCow_Icons16x16/';
+    const PAX_ON_BOARD_STATUSES = ['Boarding', 'WaitingForDeparture', 'Departure', 'Flying', 'Arrival', 'WaitingForDeboarding', 'Deboarding'];
+    const PAX_SIZE = 16;
+    const PAX_GAP = 2;
+    let passengers = [];
+    let passengersVersion = 0;
+    let passengersKey = null;       // what the row was asked for: the flight, the status of the transport flight and the number on board
+    let passengersPainted = null;   // what is painted: the version of the row and the width
+
+    function setPassengers(list) {
+        passengers = list;
+        passengersVersion++;
+    }
+
+    function renderPassengers(status) {
+        const f = status.flight;
+        const wanted = f && f.tfId !== null && f.tfId !== undefined && PAX_ON_BOARD_STATUSES.includes(f.tfSt) && (f.ponBrd ?? 0) > 0;
+        if (!wanted) {
+            passengersKey = null;
+            if (passengers.length > 0) {
+                setPassengers([]);
+            }
+            paintPassengers();
+            return;
+        }
+        const key = f.fmId + '|' + f.tfSt + '|' + f.ponBrd;
+        if (key === passengersKey) {
+            paintPassengers();
+            return;
+        }
+        passengersKey = key;
+        if (stub !== null) {
+            setPassengers(stubPassengers(f));
+            paintPassengers();
+            return;
+        }
+        airwaysAuth('GET', '/flight-dashboard/passengers', {flightId: f.fmId}, function (r) {
+            if (passengersKey === key) {
+                setPassengers(r.passengers);
+                paintPassengers();
+            }
+        }, function () {
+            if (passengersKey === key) {
+                passengersKey = null; // asked again with the next status
+            }
+        });
+    }
+
+    // The row lies on the width of the box: the icons are side by side while they fit, then every one lies on the previous one by as much as needed, but by half of the
+    // icon at most: when there are more, the row goes on in a new line (a line holds as many icons as lie on each other by half).
+    function paintPassengers() {
+        const box = $('#paxStrip');
+        if (passengers.length === 0) {
+            box.empty();
+            passengersPainted = null;
+            return;
+        }
+        if (box.children().length === 0) {
+            box.html('<div class="pax-strip"><span class="pax-caption">On board</span><div class="pax-row"></div></div>');
+        }
+        const row = box.find('.pax-row');
+        const width = Math.floor(row.width());
+        if (width < PAX_SIZE) {
+            return; // the box is not shown now
+        }
+        const painted = passengersVersion + '|' + width;
+        if (painted === passengersPainted) {
+            return;
+        }
+        passengersPainted = painted;
+        const n = passengers.length;
+        const natural = PAX_SIZE + PAX_GAP;
+        const minStep = PAX_SIZE / 2;
+        const perLine = Math.floor((width - PAX_SIZE) / minStep) + 1;
+        const inLine = Math.min(n, perLine);
+        const step = inLine <= 1 ? natural : Math.max(minStep, Math.min(natural, (width - PAX_SIZE) / (inLine - 1)));
+        const lines = Math.ceil(n / perLine);
+        row.css('height', (lines * PAX_SIZE + (lines - 1) * PAX_GAP) + 'px');
+        row.html(passengers.map((p, i) => '<span class="pax' + (p.kind === 'pilot' ? ' pax-pilot' : '') + '" style="left:' + ((i % perLine) * step).toFixed(2) + 'px;top:'
+            + (Math.floor(i / perLine) * (PAX_SIZE + PAX_GAP)) + 'px;z-index:' + i + '" data-tip="'
+            + esc((p.kind === 'pilot' ? 'Pilot ' : '') + p.initials) + '"><img src="' + PAX_ICONS_PATH + encodeURIComponent(p.icon) + '" alt="" width="16" height="16"></span>').join(''));
+    }
+
+    // the initials above the icon: by the mouse, and by a tap on a screen without a mouse (it goes away by itself)
+    let paxTipTimer = null;
+
+    function showPaxTip(icon) {
+        let tip = $('#paxTip');
+        if (tip.length === 0) {
+            tip = $('<div id="paxTip"></div>').appendTo('body');
+        }
+        const rect = icon[0].getBoundingClientRect();
+        tip.text(icon.data('tip')).css({left: rect.left + rect.width / 2, top: rect.top - 4, display: 'block'});
+    }
+
+    function hidePaxTip() {
+        clearTimeout(paxTipTimer);
+        $('#paxTip').hide();
+    }
+
+    // Passengers of the stubs (?stub=...): the number of the stub on board, the same every time; one of them is a pilot who is carried
+    function stubPassengers(f) {
+        const icons = ['user_nun.png', 'user_cowboy.png', 'user_ninja.png', 'user_student.png', 'user_chief.png', 'user_police_female.png', 'user_oldman.png', 'user_king.png', 'user_sailor.png', 'user_medical.png'];
+        let seed = 12345;
+        const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648);
+        const result = [];
+        for (let i = 0; i < f.ponBrd; i++) {
+            const first = String.fromCharCode(65 + next() % 26);
+            const second = String.fromCharCode(65 + next() % 26);
+            result.push({kind: 'pax', initials: first + second, icon: icons[next() % icons.length]});
+        }
+        result.splice(Math.floor(result.length / 3), 0, {kind: 'pilot', initials: 'AK', icon: 'user_pilot.png'});
+        return result;
+    }
+
     function render() {
         const status = lastStatus;
         if (!status) {
@@ -938,6 +1067,7 @@
 
         $('#tiles').html(status.flight === null ? rowHtml(noFlightRow(status)) : buildRows(status.flight, lastPilot, status).map(rowHtml).join(''));
         $('#area').html(areaHtml(status));
+        renderPassengers(status);
         $('#todoList').html(todos.size === 0 ? '' : '<div class="todo">TODO for the server:</div><ul class="todo mb-0">' + [...todos].map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>');
 
         $('.action-button').on('click', function () {
@@ -1191,6 +1321,12 @@
                 actions = [{name: 'finish-boarding', allowed: true, checks: []}];
                 mode = 'SIM_TRACKER';
                 break;
+            case 'crowd':
+                // a full aircraft in the boarding: the icons lie on each other
+                Object.assign(f, {fmSt: 'Preflight', tfSt: 'Boarding', ckdIn: 220, ponBrd: 220});
+                actions = [{name: 'finish-boarding', allowed: true, checks: []}];
+                mode = 'SIM_TRACKER';
+                break;
             case 'departure':
                 Object.assign(f, {fmSt: 'Departure', tfSt: 'WaitingForDeparture', ckdIn: 151, ponBrd: 151, adep: '19:07'});
                 actions = [];
@@ -1334,6 +1470,19 @@
             divertModal.hide();
             sendAction('divert', {icao: ''});
         });
+
+        $(document).on('mouseenter', '.pax', function () {
+            showPaxTip($(this));
+        }).on('mouseleave', '.pax', hidePaxTip).on('click', '.pax', function () {
+            showPaxTip($(this));
+            clearTimeout(paxTipTimer);
+            paxTipTimer = setTimeout(hidePaxTip, 2500);
+        });
+        $(window).on('resize', paintPassengers);
+        // the width of the row also changes without a resize of the window (a pane, a scrollbar): the row is laid again
+        if (window.ResizeObserver) {
+            new ResizeObserver(() => paintPassengers()).observe(document.getElementById('paxStrip'));
+        }
 
         stub = new URLSearchParams(location.search).get('stub');
         if (stub !== null) {
