@@ -105,14 +105,19 @@ function formatHours(minutes) {
 
 // The duty in the last 24 hours (the sliding window, not the calendar day): the finished flights of the logbook and the flight in progress up to now,
 // each from Start flight to Finish flight. It must not exceed 14 hours; orange from 12 hours.
-function dutyTile(p) {
+// The page of the pilot has the button Details (how the number is made: the ribbon of the last 24 hours), the other pages only show the number.
+function dutyTile(p, withButtons) {
     const d = p.duty;
     if (!d) {
         return {label: 'Duty time, 24 h', html: '<span class="location-away">Unknown</span>'};
     }
     const hint = 'Max ' + formatClock(d.limitMinutes);
-    return limitTile('Duty time, 24 h', d.last24HoursMinutes, d.limitMinutes, d.limitMinutes - 120, formatClock, hint,
+    const tile = limitTile('Duty time, 24 h', d.last24HoursMinutes, d.limitMinutes, d.limitMinutes - 120, formatClock, hint,
         {near: 'Close to the duty time limit', over: 'Duty time limit exceeded'});
+    if (withButtons) {
+        tile.actions = '<button type="button" class="btn btn-sm btn-outline-secondary" id="dutyButton">Details</button>';
+    }
+    return tile;
 }
 // The flight time (blocks off to blocks on, with the flight in progress) in the last 30 days: not more than 80 hours, orange from 70.
 function flightTime30Tile(p) {

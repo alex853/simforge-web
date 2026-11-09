@@ -42,6 +42,27 @@
         .picker-tile:hover { border-color: var(--bs-border-color); }
         .picker-tile.selected { border-color: var(--bs-primary); background: var(--bs-primary-bg-subtle); }
         .picker-tile img { width: 64px; height: 64px; image-rendering: pixelated; }
+        /* the ribbon of the duty: from 25 hours ago to one hour on, the marks at 24 hours ago and now, the ears (before the left mark and after now) are half faded */
+        .duty-ribbon-wrap { margin-top: 2rem; margin-bottom: 2.4rem; }
+        .duty-ribbon { position: relative; height: 64px; background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+        .duty-seg { position: absolute; top: 12px; bottom: 12px; min-width: 2px; padding: 0 .3rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .75rem;
+            line-height: 38px; color: #fff; border-radius: .25rem; }
+        .duty-seg-flight { background: var(--bs-primary); }
+        .duty-seg-gap { top: 24px; bottom: 24px; line-height: 16px; background: var(--bs-warning); border-radius: .15rem; }
+        .duty-seg-planned { color: var(--bs-primary); background: repeating-linear-gradient(135deg, var(--bs-primary-bg-subtle), var(--bs-primary-bg-subtle) 6px, transparent 6px, transparent 12px);
+            border: 1px dashed var(--bs-primary); }
+        .duty-ear { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+        .duty-ear-left { left: 0; background: linear-gradient(to left, transparent, color-mix(in srgb, var(--bs-body-bg) 55%, transparent)); }
+        .duty-ear-right { right: 0; background: linear-gradient(to right, transparent, color-mix(in srgb, var(--bs-body-bg) 55%, transparent)); }
+        .duty-mark { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--bs-body-color); pointer-events: none; }
+        .duty-mark-label { position: absolute; top: calc(100% + 1.6rem); transform: translateX(-50%); font-size: .8rem; font-weight: 600; white-space: nowrap; }
+        .duty-axis { position: relative; height: 1.3rem; margin-top: .2rem; font-size: .7rem; color: var(--bs-secondary-color); }
+        .duty-axis span { position: absolute; transform: translateX(-50%); }
+        /* how long a piece is, above it */
+        .duty-len { position: absolute; top: -1.4rem; transform: translateX(-50%); font-size: .75rem; font-weight: 600; white-space: nowrap; pointer-events: none; }
+        .duty-len-gap { font-weight: 400; color: var(--bs-warning-text-emphasis); }
+        .duty-len-planned { color: var(--bs-primary); font-weight: 400; }
+        .duty-key { display: inline-block; width: 1.4rem; height: .7rem; margin-right: .3rem; vertical-align: middle; border-radius: .15rem; }
         /* the two big buttons of the third row: as wide as a tile and as high as they are wide */
         .fly-button { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1 / 1; padding: 1rem; font-size: 1.7rem; font-weight: 700;
             line-height: 1.2; text-align: center; white-space: normal; border-radius: .75rem; }
@@ -147,6 +168,19 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="bankModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- How the duty time of the last 24 hours is made, see GET /pilot/duty-details -->
+<div class="modal fade" id="dutyModal" tabindex="-1" aria-labelledby="dutyModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="dutyModalTitle">Duty time, last 24 hours</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="dutyModalBody"></div>
         </div>
     </div>
 </div>
@@ -330,7 +364,7 @@
             ${pilotHeader({title: initialsTitleHtml(p.initials), avatarImage: p.avatarImage})}
 
             ${tiles([stateTile(p), locationTile(p, true), settingsTile(p), bankTile(p)])}
-            ${tiles([awakeTile(p, true), dutyTile(p), flightTime30Tile(p), flightTime365Tile(p)])}
+            ${tiles([awakeTile(p, true), dutyTile(p, true), flightTime30Tile(p), flightTime365Tile(p)])}
 
             ${flyButtons()}
         `);
@@ -339,6 +373,7 @@
         $('.initials-edit').on('click', () => initialsModal.show());
         $('#travelButton').on('click', () => travelModal.show());
         $('#bankButton').on('click', openBankDetails);
+        $('#dutyButton').on('click', openDutyDetails);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => askToWakeUp(p));
     }
@@ -626,6 +661,86 @@
         });
     }
 
+    // ---- Details of the duty time: the ribbon from 25 hours ago to one hour on (the window of 24 hours and an hour on both sides), the flights from Start flight to Finish
+    // flight, the gaps between flights which count as duty, the planned flights of the next hour, and the numbers the tile is made of. The server counts all of it
+    // (GET /pilot/duty-details), the page only draws.
+    let dutyModal;
+    const DUTY_RIBBON_BEHIND = 25 * 3600000;
+    const DUTY_RIBBON_AHEAD = 3600000;
+
+    // 'HH:MM', with the day ('8 Nov') when it is not the day of now (UTC)
+    function dutyClock(ms, now) {
+        const d = new Date(ms);
+        const hhmm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+        return Math.floor(ms / 86400000) === Math.floor(now / 86400000)
+            ? hhmm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ' + hhmm;
+    }
+
+    function renderDutyDetails(d) {
+        const from = d.now - DUTY_RIBBON_BEHIND;
+        const span = DUTY_RIBBON_BEHIND + DUTY_RIBBON_AHEAD;
+        const pct = t => Math.max(0, Math.min(100, (t - from) / span * 100));
+        const clock = ms => dutyClock(ms, d.now);
+
+        // a piece of the ribbon: the bar with the tooltip (what it is, from when to when) and above it how long it is (the part which is in the last 24 hours counts)
+        const bar = function (s) {
+            const left = pct(s.from);
+            const width = pct(s.to) - left;
+            if (width <= 0) {
+                return '';
+            }
+            const unfinished = s.type === 'flight' && d.onDuty && s.to >= d.now;
+            let title;
+            if (s.type === 'gap') {
+                title = 'Gap between flights, less than ' + formatClock(d.gapLimitMinutes) + ': it counts as duty time (' + clock(s.from) + ' – ' + clock(s.to) + ' UTC)';
+            } else if (s.type === 'planned') {
+                title = 'Planned flight ' + s.route + ', starts at ' + clock(s.from) + ', ends at ' + clock(s.to) + ' UTC. It is not in the duty time yet';
+            } else {
+                title = (s.route ? 'Flight ' + s.route : 'Flight in progress') + ', started at ' + clock(s.from) + ' UTC, ' + (unfinished ? 'not finished yet' : 'finished at ' + clock(s.to) + ' UTC');
+            }
+            const minutes = s.type === 'planned' ? Math.round((s.to - s.from) / 60000) : s.minutesInWindow;
+            const centre = left + width / 2;
+            const label = minutes > 0 ? '<div class="duty-len duty-len-' + s.type + '" style="left:' + centre + '%">' + formatClock(minutes) + '</div>' : '';
+            return '<div class="duty-seg duty-seg-' + s.type + '" style="left:' + left + '%;width:' + width + '%" title="' + esc(title) + '"></div>' + label;
+        };
+
+        const windowMark = pct(d.windowStart);
+        const nowMark = pct(d.now);
+        let ticks = '';
+        for (let t = Math.ceil(from / 10800000) * 10800000; t <= d.now + DUTY_RIBBON_AHEAD; t += 10800000) {
+            ticks += '<span style="left:' + pct(t) + '%">' + String(new Date(t).getUTCHours()).padStart(2, '0') + ':00</span>';
+        }
+
+        const ribbon = '<div class="duty-ribbon-wrap"><div class="duty-ribbon">'
+            + d.segments.map(bar).join('') + d.planned.map(bar).join('')
+            + '<div class="duty-ear duty-ear-left" style="width:' + windowMark + '%"></div>'
+            + '<div class="duty-ear duty-ear-right" style="width:' + (100 - nowMark) + '%"></div>'
+            + '<div class="duty-mark" style="left:' + windowMark + '%"><span class="duty-mark-label">24 h ago</span></div>'
+            + '<div class="duty-mark" style="left:' + nowMark + '%"><span class="duty-mark-label">now</span></div>'
+            + '</div><div class="duty-axis">' + ticks + '</div></div>';
+
+        const key = '<div class="small text-secondary mt-2">'
+            + '<span class="me-3"><span class="duty-key" style="background:var(--bs-primary)"></span>Flight, from Start flight to Finish flight</span>'
+            + '<span class="me-3"><span class="duty-key" style="background:var(--bs-warning)"></span>Gap between flights, counts as duty</span>'
+            + '<span><span class="duty-key" style="border:1px dashed var(--bs-primary)"></span>Planned flight (not counted yet)</span></div>';
+
+        const cls = d.totalMinutes > d.limitMinutes ? 'duty-over' : (d.totalMinutes >= d.limitMinutes - 120 ? 'duty-near' : 'duty-ok');
+        const total = '<div class="mt-3"><span class="text-secondary">Duty time in the last 24 hours:</span> <b class="' + cls + '">' + formatClock(d.totalMinutes)
+            + '</b> <span class="text-secondary">of ' + formatClock(d.limitMinutes) + '</span></div>';
+
+        return ribbon + key + total;
+    }
+
+    function openDutyDetails() {
+        $('#dutyModalBody').html('<div class="text-muted">Loading...</div>');
+        dutyModal.show();
+        airwaysAuth('GET', '/pilot/duty-details', {}, function (details) {
+            $('#dutyModalBody').html(renderDutyDetails(details));
+        }, function () {
+            $('#dutyModalBody').html('<div class="text-danger">Failed to load the details</div>');
+        });
+    }
+
     function loadPilot() {
         airwaysAuth('GET', '/pilot', {}, renderPilot, function (e) {
             if (e && e.status === 401) {
@@ -645,6 +760,7 @@
         initTravelModal();
         wakeModal = new bootstrap.Modal(document.getElementById('wakeModal'));
         bankModal = new bootstrap.Modal(document.getElementById('bankModal'));
+        dutyModal = new bootstrap.Modal(document.getElementById('dutyModal'));
         $('#wakeConfirm').on('click', function () {
             wakeModal.hide();
             sleepOrWake('/pilot/wake');
