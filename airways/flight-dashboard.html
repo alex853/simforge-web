@@ -81,8 +81,9 @@
         .pax { position: absolute; top: 0; width: 16px; height: 16px; line-height: 0; cursor: default; transition: left .7s ease, top .7s ease, opacity .5s ease; }
         .pax img { width: 16px; height: 16px; display: block; }
         .pax:hover { z-index: 100000 !important; }
-        .pax:hover img { outline: 1px solid var(--bs-secondary-color); }
-        .pax-pilot img { outline: 1px solid var(--bs-primary); }
+        /* the frames are drawn inside of the icon: the row cuts off what is outside of it (the top row lost the top of the frame) */
+        .pax:hover img { outline: 1px solid var(--bs-secondary-color); outline-offset: -1px; }
+        .pax-pilot img { outline: 1px solid var(--bs-primary); outline-offset: -1px; }
         .pax-leaving { pointer-events: none; }
         #paxTip { position: fixed; z-index: 100001; display: none; transform: translate(-50%, -100%); padding: .05rem .4rem; border-radius: .25rem; background: #212529; color: #fff; font-size: .75rem; font-weight: 600; pointer-events: none; white-space: nowrap; }
         /* the explanation of the stage: what the pilot does and what happens to the passengers (two paragraphs under the title of the stage) */
