@@ -144,14 +144,27 @@
                 <label class="form-label" for="rs-time" id="rs-time-label">New departure</label>
                 <select class="form-select" id="rs-time"></select>
                 <div class="list-group d-none" id="rs-options"></div>
+                <!-- any other time, up to 7 days from the planned departure (the server checks the same limit) -->
+                <div class="mt-3 d-none" id="rs-other-box">
+                    <div class="small text-secondary mb-1">Or any other time, up to 7 days from the planned departure:</div>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="rs-other-day" aria-label="Day"></select>
+                        <select class="form-select form-select-sm" id="rs-other-clock" aria-label="Time (UTC)"></select>
+                    </div>
+                    <div class="small mt-1" id="rs-other-effect"></div>
+                </div>
                 <p class="small text-secondary mt-2 mb-0" id="rs-hint"></p>
                 <div class="form-check mt-3">
                     <input class="form-check-input" type="checkbox" id="rs-with-next">
                     <label class="form-check-label" for="rs-with-next">Move the flights after it too, when they need it</label>
                 </div>
                 <div class="d-none mt-2" id="rs-next-box">
-                    <label class="form-label" for="rs-next-time">New departure</label>
-                    <select class="form-select" id="rs-next-time"></select>
+                    <label class="form-label" for="rs-next-day">New departure</label>
+                    <div class="d-flex gap-2">
+                        <select class="form-select" id="rs-next-day" aria-label="Day"></select>
+                        <select class="form-select" id="rs-next-clock" aria-label="Time (UTC)"></select>
+                    </div>
+                    <input type="hidden" id="rs-next-time">
                     <div class="mt-2" id="rs-next-plan"></div>
                 </div>
                 <div class="alert alert-danger py-2 mt-3 mb-0 d-none" id="rs-error"></div>
@@ -210,6 +223,38 @@
         const hhmm = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
         const sameDay = Math.floor(millis / 86400000) === Math.floor(Date.now() / 86400000);
         return sameDay ? hhmm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ' + hhmm;
+    }
+
+    // The choice of a time by a day (UTC dates from min to max) and the time of the day (every 15 minutes): the times outside of min..max are disabled. onPick gets the chosen
+    // time in milliseconds, or 0 while it is not chosen (or is not allowed).
+    function setupDayTimePicker($day, $clock, min, max, onPick) {
+        const DAY = 86400000;
+        const STEP = 900000;
+        let days = '<option value="" selected disabled>Day</option>';
+        for (let d = Math.floor(min / DAY) * DAY; d <= max; d += DAY) {
+            days += '<option value="' + d + '">' + new Date(d).toLocaleDateString('en-GB', {weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC'}) + '</option>';
+        }
+        let clocks = '<option value="" selected disabled>Time (UTC)</option>';
+        for (let off = 0; off < DAY; off += STEP) {
+            clocks += '<option value="' + off + '">' + pad2(Math.floor(off / 3600000)) + ':' + pad2(Math.floor(off % 3600000 / 60000)) + '</option>';
+        }
+        $day.html(days);
+        $clock.html(clocks);
+        function refresh() {
+            const day = parseInt($day.val(), 10);
+            $clock.find('option[value!=""]').each(function () {
+                const t = day + parseInt(this.value, 10);
+                this.disabled = !day || t < min || t > max;
+            });
+            const off = parseInt($clock.val(), 10);
+            if ($clock.val() !== '' && (!day || day + off < min || day + off > max)) {
+                $clock.val('');
+            }
+            const chosenOff = parseInt($clock.val(), 10);
+            onPick(day && $clock.val() !== '' ? day + chosenOff : 0);
+        }
+        $day.off('change').on('change', refresh);
+        $clock.off('change').on('change', refresh);
     }
 
     // The id of the first flight of the roster which is not over: only it has the menu (the square button with three dots in the corner of its tile) with the action Fly, it goes
@@ -748,6 +793,20 @@
         // by the difference to its planned departure
         const rescheduleModal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
         let rescheduledFlight = null;
+        // the time chosen by the day and the time of the day (any time up to 7 days from the planned departure), 0 when the list is used
+        let otherChosen = 0;
+        const OTHER_MAX_MS = 7 * 86400000;
+        const MIN_GAP_MS = 30 * 60000;
+        function showOtherEffect(t) {
+            const r = rescheduledFlight.reschedule;
+            const duration = rescheduledFlight.arr - rescheduledFlight.dep;
+            let html = '<b>' + timeLabel(t) + ' &rarr; ' + timeLabel(t + duration) + '</b> ';
+            const short = r.after ? Math.ceil((t + duration + MIN_GAP_MS - r.after.time) / 60000) : 0;
+            html += short > 0
+                ? '<span class="text-danger">the flight after it (planned ' + timeLabel(r.after.time) + ') would be ' + short + ' min short: tick &laquo;Move the flights after it too&raquo;</span>'
+                : '<span class="text-success">no conflict</span>';
+            $('#rs-other-effect').html(html);
+        }
         $(document).on('click', '.reschedule-flight', function () {
             const fl = rosterFlights.find(function (f) { return String(f.id) === $(this).attr('data-flight-id'); }.bind(this));
             if (!fl || !fl.reschedule) {
@@ -764,8 +823,11 @@
             $('#rs-with-next').prop('checked', false);
             $('#rs-next-box').addClass('d-none');
             $('#rs-next-plan').empty();
-            $('#rs-time, #rs-time-label, #rs-options, #rs-notice, #rs-hint').css('display', '');
+            $('#rs-time, #rs-time-label, #rs-options, #rs-notice, #rs-hint, #rs-other-box').css('display', '');
             $('#rs-options').addClass('d-none').empty();
+            otherChosen = 0;
+            $('#rs-other-box').addClass('d-none');
+            $('#rs-other-effect').empty();
             $('#rs-time, #rs-time-label').removeClass('d-none');
             // the neighbours of the flight in the roster (when the server tells them)
             const context = [];
@@ -804,6 +866,18 @@
                     }).join(''));
                 }
                 $('#rs-confirm').prop('disabled', true);
+                // any other time: from the earliest one after the flight before it, up to 7 days from the planned departure
+                $('#rs-other-box').removeClass('d-none');
+                setupDayTimePicker($('#rs-other-day'), $('#rs-other-clock'), r.from, fl.dep + OTHER_MAX_MS, function (t) {
+                    otherChosen = t;
+                    if (t) {
+                        $('#rs-options input').prop('checked', false);
+                        showOtherEffect(t);
+                    } else {
+                        $('#rs-other-effect').empty();
+                    }
+                    $('#rs-confirm').prop('disabled', !t && !$('#rs-options input:checked').length);
+                });
                 rescheduleModal.show();
                 return;
             }
@@ -827,6 +901,11 @@
             $('#rs-confirm').prop('disabled', !$(this).val());
         });
         $('#rs-options').on('change', 'input', function () {
+            // a time of the list is chosen: the other time is dropped
+            otherChosen = 0;
+            $('#rs-other-day, #rs-other-clock').val('');
+            $('#rs-other-clock').find('option').prop('disabled', false);
+            $('#rs-other-effect').empty();
             $('#rs-confirm').prop('disabled', false);
         });
         // 'Reschedule together with the next flights': any time after the flight before it (up to a day on, every 15 minutes), the server counts what the flights after it do
@@ -848,21 +927,18 @@
             const on = $(this).prop('checked');
             $('#rs-next-box').toggleClass('d-none', !on);
             // the choice of the single flight is hidden while the other one is on (the elements which are hidden by d-none stay hidden)
-            $('#rs-time, #rs-time-label, #rs-options, #rs-notice, #rs-hint').css('display', on ? 'none' : '');
+            $('#rs-time, #rs-time-label, #rs-options, #rs-notice, #rs-hint, #rs-other-box').css('display', on ? 'none' : '');
             $('#rs-error').addClass('d-none').text('');
             if (!on) {
                 $('#rs-confirm').prop('disabled', true);
                 return;
             }
             const r = rescheduledFlight.reschedule;
-            const step = r.stepMinutes * 60000;
-            let options = '<option value="" selected disabled>Choose the time</option>';
-            for (let t = r.from; t <= r.from + 24 * 3600000; t += step) {
-                if (t !== rescheduledFlight.dep) {
-                    options += '<option value="' + t + '">' + timeLabel(t) + ' &rarr; ' + timeLabel(t + (rescheduledFlight.arr - rescheduledFlight.dep)) + '</option>';
-                }
-            }
-            $('#rs-next-time').html(options);
+            // any time from the earliest one after the flight before it up to 7 days from the planned departure
+            $('#rs-next-time').val('');
+            setupDayTimePicker($('#rs-next-day'), $('#rs-next-clock'), r.from, rescheduledFlight.dep + OTHER_MAX_MS, function (t) {
+                $('#rs-next-time').val(t || '').trigger('change');
+            });
             $('#rs-next-plan').empty();
             $('#rs-confirm').prop('disabled', true);
         });
@@ -903,7 +979,7 @@
                 });
                 return;
             }
-            const chosen = parseInt($('#rs-options').hasClass('d-none') ? $('#rs-time').val() : $('#rs-options input:checked').val(), 10);
+            const chosen = otherChosen || parseInt($('#rs-options').hasClass('d-none') ? $('#rs-time').val() : $('#rs-options input:checked').val(), 10);
             if (!rescheduledFlight || !chosen) {
                 return;
             }
