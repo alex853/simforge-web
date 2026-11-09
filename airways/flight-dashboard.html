@@ -73,15 +73,17 @@
         .hl-bad { background: var(--bs-danger); color: #fff; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .hl-warn { background: #ffc107; color: #212529; font-weight: 600; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
         .action-note { color: var(--bs-secondary-color); font-size: .9rem; }
-        /* the row of the passengers on board: 16x16 icons, they lie on each other when there are many; the initials show when the mouse is over an icon */
+        /* the row of the passengers on board, a queue of 16x16 icons: the row cuts what is out of it (an icon comes in from the right end and goes out at the left end); the
+           initials show when the mouse is over an icon */
         .pax-strip { display: flex; align-items: center; gap: .75rem; margin: 0 0 1rem; padding: .4rem .75rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: var(--bs-body-bg); }
         .pax-caption { flex: none; color: var(--bs-secondary-color); font-size: .72rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
-        .pax-row { position: relative; flex: 1 1 auto; min-width: 0; height: 16px; }
-        .pax { position: absolute; top: 0; width: 16px; height: 16px; line-height: 0; cursor: default; }
+        .pax-row { position: relative; flex: 1 1 auto; min-width: 0; height: 16px; overflow: hidden; transition: height .5s ease; }
+        .pax { position: absolute; top: 0; width: 16px; height: 16px; line-height: 0; cursor: default; transition: left .7s ease, top .7s ease, opacity .5s ease; }
         .pax img { width: 16px; height: 16px; display: block; }
         .pax:hover { z-index: 100000 !important; }
         .pax:hover img { outline: 1px solid var(--bs-secondary-color); }
         .pax-pilot img { outline: 1px solid var(--bs-primary); }
+        .pax-leaving { pointer-events: none; }
         #paxTip { position: fixed; z-index: 100001; display: none; transform: translate(-50%, -100%); padding: .05rem .4rem; border-radius: .25rem; background: #212529; color: #fff; font-size: .75rem; font-weight: 600; pointer-events: none; white-space: nowrap; }
         /* the explanation of the stage: what the pilot does and what happens to the passengers (two paragraphs under the title of the stage) */
         .stage-notes { margin-bottom: 1rem; }
@@ -925,90 +927,190 @@
     let statusLoadFailed = false;
     let stub = null;
 
-    // ---- the row of the passengers on board (docs/avatars.md): the server gives the avatars in the order of the row (GET /flight-dashboard/passengers), they are asked again
-    // when the number on board or the status of the transport flight changes; the icons are the 16x16 ones of FatCow
+    // ---- the row of the passengers on board (docs/avatars.md). The status brings the whole row (status.passengers, compact). The page keeps the icons which are on the screen and brings
+    // them to what the status says, one change after another: a passenger who boards comes in from the right end of the row and goes left to his place (the first stops at the left
+    // end, the next next to it); when the row is full the icons lie on each other by 2 pixels at most (the step is not less than 14), then the row goes on in a new line; at the deboarding the first
+    // one (the left one) goes out to the left and the others move apart. The changes of one status are played over the time in which the next status is expected, so a few passengers
+    // do not appear at once. The row is on the screen from the check-in (empty, only the caption) to the end of the deboarding.
 
     const PAX_ICONS_PATH = '../fatcow/FatCow_Icons16x16/';
-    const PAX_ON_BOARD_STATUSES = ['Boarding', 'WaitingForDeparture', 'Departure', 'Flying', 'Arrival', 'WaitingForDeboarding', 'Deboarding'];
+    const PAX_STRIP_STATUSES = ['CheckIn', 'WaitingForBoarding', 'Boarding', 'WaitingForDeparture', 'Departure', 'Flying', 'Arrival', 'WaitingForDeboarding', 'Deboarding'];
     const PAX_SIZE = 16;
-    const PAX_GAP = 2;
-    let passengers = [];
-    let passengersVersion = 0;
-    let passengersKey = null;       // what the row was asked for: the flight, the status of the transport flight and the number on board
-    let passengersPainted = null;   // what is painted: the version of the row and the width
+    const PAX_LINE_GAP = 2;
+    const PAX_MIN_STEP = 14;             // the icons are not closer than 14 pixels (they lie on each other by 2 pixels at most), then the row goes on in a new line
+    const PAX_MOVE_MS = 700;
+    const PAX_MAX_PLAYED = 80;      // more changes than this at once are not played (the page was opened, the connection came back): the row is just put right
+    let paxShown = [];              // the passengers on the screen: {id, initials, icon, kind, el}
+    let paxTargetKey = null;        // the ids of the row of the last status, to see that it is the same row
+    let paxOps = [];                // the changes which are not played yet: {type: 'in', passenger} or {type: 'out', id}
+    let paxSpacing = 1000;
+    let paxTimer = null;
+    let paxLastStatusAt = 0;
+    let paxPrimed = false;          // the first status of the page is put on the screen at once, the later ones are played
+    let paxWanted = false;
 
-    function setPassengers(list) {
-        passengers = list;
-        passengersVersion++;
+    function stripWanted(status) {
+        const f = status.flight;
+        return !!(f && f.tfId && PAX_STRIP_STATUSES.includes(f.tfSt) && ((f.stkts ?? 0) > 0 || (status.passengers && status.passengers.count > 0)));
+    }
+
+    function decodePassengers(row) {
+        const result = [];
+        if (row) {
+            for (let i = 0; i < row.count; i++) {
+                result.push({id: row.ids[i], initials: row.initials.substr(i * 2, 2), icon: row.iconTable[row.icons[i]], kind: row.kinds.charAt(i) === 'p' ? 'pilot' : 'pax'});
+            }
+        }
+        return result;
     }
 
     function renderPassengers(status) {
-        const f = status.flight;
-        const wanted = f && f.tfId !== null && f.tfId !== undefined && PAX_ON_BOARD_STATUSES.includes(f.tfSt) && (f.ponBrd ?? 0) > 0;
-        if (!wanted) {
-            passengersKey = null;
-            if (passengers.length > 0) {
-                setPassengers([]);
-            }
-            paintPassengers();
+        paxWanted = stripWanted(status);
+        const first = !paxPrimed;
+        paxPrimed = true;
+        if (!paxWanted && paxShown.length === 0 && paxOps.length === 0) {
+            $('#paxStrip').empty();
+            paxTargetKey = null;
             return;
         }
-        const key = f.fmId + '|' + f.tfSt + '|' + f.ponBrd;
-        if (key === passengersKey) {
-            paintPassengers();
+        if ($('#paxStrip').children().length === 0) {
+            $('#paxStrip').html('<div class="pax-strip"><span class="pax-caption">On board</span><div class="pax-row"></div></div>');
+        }
+        setPaxTarget(paxWanted ? decodePassengers(status.passengers) : [], first);
+    }
+
+    function makePaxElement(p) {
+        const el = document.createElement('span');
+        el.className = 'pax' + (p.kind === 'pilot' ? ' pax-pilot' : '');
+        el.setAttribute('data-tip', (p.kind === 'pilot' ? 'Pilot ' : '') + p.initials);
+        el.innerHTML = '<img src="' + PAX_ICONS_PATH + encodeURIComponent(p.icon) + '" alt="" width="16" height="16">';
+        return el;
+    }
+
+    // The row of the status is the target: the passengers who are not on the screen come in, the ones who are not in the row any more go out.
+    function setPaxTarget(target, instantly) {
+        const now = Date.now();
+        const interval = paxLastStatusAt === 0 ? 3000 : Math.min(10000, Math.max(1000, now - paxLastStatusAt));
+        paxLastStatusAt = now;
+        const key = target.map(p => p.id).join(',');
+        if (key === paxTargetKey) {
+            layoutPassengers();
             return;
         }
-        passengersKey = key;
-        if (stub !== null) {
-            setPassengers(stubPassengers(f));
-            paintPassengers();
+        paxTargetKey = key;
+
+        const targetIds = new Set(target.map(p => p.id));
+        const shownIds = new Set(paxShown.map(p => p.id));
+        const ops = [];
+        paxShown.filter(p => !targetIds.has(p.id)).forEach(p => ops.push({type: 'out', id: p.id}));
+        target.filter(p => !shownIds.has(p.id)).forEach(p => ops.push({type: 'in', passenger: p}));
+        clearTimeout(paxTimer);
+        paxTimer = null;
+        if (instantly || ops.length > PAX_MAX_PLAYED) {
+            putPaxRight(target);
             return;
         }
-        airwaysAuth('GET', '/flight-dashboard/passengers', {flightId: f.fmId}, function (r) {
-            if (passengersKey === key) {
-                setPassengers(r.passengers);
-                paintPassengers();
+        paxOps = ops;
+        // the changes of this status are played one after another over the time of the next status
+        paxSpacing = Math.min(4000, Math.max(150, interval / Math.max(1, ops.length)));
+        runPaxOps();
+    }
+
+    // The row is put on the screen at once, without moving anything.
+    function putPaxRight(target) {
+        $('#paxStrip .pax-row').empty();
+        paxOps = [];
+        paxShown = target.map(p => Object.assign({el: makePaxElement(p)}, p));
+        const row = $('#paxStrip .pax-row');
+        paxShown.forEach(p => {
+            p.el.style.transition = 'none';
+            row[0].appendChild(p.el);
+        });
+        layoutPassengers();
+        row[0].getBoundingClientRect();
+        paxShown.forEach(p => { p.el.style.transition = ''; });
+        paxFinishSoon();
+    }
+
+    function runPaxOps() {
+        paxTimer = null;
+        if (paxOps.length === 0) {
+            return;
+        }
+        applyPaxOp(paxOps.shift());
+        if (paxOps.length > 0) {
+            paxTimer = setTimeout(runPaxOps, paxSpacing);
+        } else {
+            paxFinishSoon();
+        }
+    }
+
+    function applyPaxOp(op) {
+        const row = $('#paxStrip .pax-row');
+        if (row.length === 0) {
+            return;
+        }
+        if (op.type === 'in') {
+            const p = Object.assign({el: makePaxElement(op.passenger)}, op.passenger);
+            // it comes in from the right end of the row: it is put there without a move and then goes to its place; the row is a queue, so its place is the end (a journey with an
+            // earlier id is the exception, it takes its place in the order of the ids and the others move aside)
+            p.el.style.transition = 'none';
+            p.el.style.opacity = '0';
+            p.el.style.left = (Math.floor(row.width()) + PAX_SIZE) + 'px';
+            row[0].appendChild(p.el);
+            const index = paxShown.findIndex(q => q.id > p.id);
+            paxShown.splice(index < 0 ? paxShown.length : index, 0, p);
+            p.el.getBoundingClientRect();
+            p.el.style.transition = '';
+            p.el.style.opacity = '1';
+        } else {
+            const index = paxShown.findIndex(q => q.id === op.id);
+            if (index < 0) {
+                return;
             }
-        }, function () {
-            if (passengersKey === key) {
-                passengersKey = null; // asked again with the next status
-            }
+            // it goes out to the left, the rest of the row moves to fill the place (or moves apart, when the row is full)
+            const p = paxShown.splice(index, 1)[0];
+            p.el.classList.add('pax-leaving');
+            p.el.style.left = (-PAX_SIZE * 2) + 'px';
+            p.el.style.opacity = '0';
+            p.el.style.zIndex = '0';
+            setTimeout(() => p.el.remove(), PAX_MOVE_MS + 100);
+        }
+        layoutPassengers();
+    }
+
+    // The places of the icons by their order: side by side while they fit, then lying on each other by 2 pixels at most (the step is not less than 14), then in a new line (the lines are more, the icons are not
+    // put closer).
+    function layoutPassengers() {
+        const row = $('#paxStrip .pax-row');
+        if (row.length === 0) {
+            return;
+        }
+        const width = Math.floor(row.width());
+        if (width < PAX_SIZE) {
+            return;
+        }
+        const n = paxShown.length;
+        const perLine = Math.floor((width - PAX_SIZE) / PAX_MIN_STEP) + 1;
+        const inLine = Math.min(n, perLine);
+        const step = inLine <= 1 ? PAX_SIZE : Math.max(PAX_MIN_STEP, Math.min(PAX_SIZE, (width - PAX_SIZE) / (inLine - 1)));
+        const lines = Math.max(1, Math.ceil(n / perLine));
+        row.css('height', (lines * PAX_SIZE + (lines - 1) * PAX_LINE_GAP) + 'px');
+        paxShown.forEach((p, i) => {
+            p.el.style.left = ((i % perLine) * step).toFixed(2) + 'px';
+            p.el.style.top = (Math.floor(i / perLine) * (PAX_SIZE + PAX_LINE_GAP)) + 'px';
+            p.el.style.zIndex = String(i);
         });
     }
 
-    // The row lies on the width of the box: the icons are side by side while they fit, then every one lies on the previous one by as much as needed, but by half of the
-    // icon at most: when there are more, the row goes on in a new line (a line holds as many icons as lie on each other by half).
-    function paintPassengers() {
-        const box = $('#paxStrip');
-        if (passengers.length === 0) {
-            box.empty();
-            passengersPainted = null;
-            return;
-        }
-        if (box.children().length === 0) {
-            box.html('<div class="pax-strip"><span class="pax-caption">On board</span><div class="pax-row"></div></div>');
-        }
-        const row = box.find('.pax-row');
-        const width = Math.floor(row.width());
-        if (width < PAX_SIZE) {
-            return; // the box is not shown now
-        }
-        const painted = passengersVersion + '|' + width;
-        if (painted === passengersPainted) {
-            return;
-        }
-        passengersPainted = painted;
-        const n = passengers.length;
-        const natural = PAX_SIZE + PAX_GAP;
-        const minStep = PAX_SIZE / 2;
-        const perLine = Math.floor((width - PAX_SIZE) / minStep) + 1;
-        const inLine = Math.min(n, perLine);
-        const step = inLine <= 1 ? natural : Math.max(minStep, Math.min(natural, (width - PAX_SIZE) / (inLine - 1)));
-        const lines = Math.ceil(n / perLine);
-        row.css('height', (lines * PAX_SIZE + (lines - 1) * PAX_GAP) + 'px');
-        row.html(passengers.map((p, i) => '<span class="pax' + (p.kind === 'pilot' ? ' pax-pilot' : '') + '" style="left:' + ((i % perLine) * step).toFixed(2) + 'px;top:'
-            + (Math.floor(i / perLine) * (PAX_SIZE + PAX_GAP)) + 'px;z-index:' + i + '" data-tip="'
-            + esc((p.kind === 'pilot' ? 'Pilot ' : '') + p.initials) + '"><img src="' + PAX_ICONS_PATH + encodeURIComponent(p.icon) + '" alt="" width="16" height="16"></span>').join(''));
+    // The row goes away when the passengers are not expected any more (the deboarding is over) and the last icons have gone out.
+    function paxFinishSoon() {
+        setTimeout(function () {
+            if (!paxWanted && paxShown.length === 0 && paxOps.length === 0) {
+                $('#paxStrip').empty();
+                paxTargetKey = null;
+            }
+        }, PAX_MOVE_MS + 200);
     }
 
     // the initials above the icon: by the mouse, and by a tap on a screen without a mouse (it goes away by itself)
@@ -1028,19 +1130,22 @@
         $('#paxTip').hide();
     }
 
-    // Passengers of the stubs (?stub=...): the number of the stub on board, the same every time; one of them is a pilot who is carried
-    function stubPassengers(f) {
-        const icons = ['user_nun.png', 'user_cowboy.png', 'user_ninja.png', 'user_student.png', 'user_chief.png', 'user_police_female.png', 'user_oldman.png', 'user_king.png', 'user_sailor.png', 'user_medical.png'];
+    // The row of the stubs (?stub=...): the number of the stub on board, the same every time, the way the server gives it (compact); one of the passengers is a pilot who is carried
+    function stubRow(count) {
+        const files = ['user_nun.png', 'user_cowboy.png', 'user_ninja.png', 'user_student.png', 'user_chief.png', 'user_police_female.png', 'user_oldman.png', 'user_king.png', 'user_sailor.png', 'user_medical.png'];
+        if (count <= 0) {
+            return null;
+        }
         let seed = 12345;
         const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648);
-        const result = [];
-        for (let i = 0; i < f.ponBrd; i++) {
-            const first = String.fromCharCode(65 + next() % 26);
-            const second = String.fromCharCode(65 + next() % 26);
-            result.push({kind: 'pax', initials: first + second, icon: icons[next() % icons.length]});
+        const row = {count: count, ids: [], initials: '', kinds: '', iconTable: files, icons: []};
+        for (let i = 0; i < count; i++) {
+            row.ids.push((1000 + Math.floor(i / 4)) * 4096 + i % 4);
+            row.initials += String.fromCharCode(65 + next() % 26) + String.fromCharCode(65 + next() % 26);
+            row.kinds += i === 7 ? 'p' : 'x';
+            row.icons.push(next() % files.length);
         }
-        result.splice(Math.floor(result.length / 3), 0, {kind: 'pilot', initials: 'AK', icon: 'user_pilot.png'});
-        return result;
+        return row;
     }
 
     function render() {
@@ -1288,7 +1393,19 @@
 
     // ---- stub data of the stages (?stub=before-start), shaped like the answers of the server: the page shows them without the server
 
+    // the number on board of the live stubs (?stub=boarding-live, ?stub=deboarding-live): it changes every 2 seconds, to see how the row moves
+    let stubLiveCount = 0;
+
     function stubStatus(name) {
+        const status = stubStatusWithoutRow(name);
+        const f = status.flight;
+        if (f && f.tfId && PAX_STRIP_STATUSES.includes(f.tfSt)) {
+            status.passengers = stubRow(name.endsWith('-live') ? stubLiveCount : f.ponBrd);
+        }
+        return status;
+    }
+
+    function stubStatusWithoutRow(name) {
         if (name === 'no-flight') {
             return {mode: null, actions: [], sim: {status: 'Connected'}, flight: null, pilot: {state: 'PERSON_NOT_IDLE'}};
         }
@@ -1319,6 +1436,16 @@
             case 'boarding':
                 Object.assign(f, {fmSt: 'Preflight', tfSt: 'Boarding', ckdIn: 151, ponBrd: 112});
                 actions = [{name: 'finish-boarding', allowed: true, checks: []}];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'boarding-live':
+                Object.assign(f, {fmSt: 'Preflight', tfSt: 'Boarding', ckdIn: 220, ponBrd: stubLiveCount});
+                actions = [{name: 'finish-boarding', allowed: true, checks: []}];
+                mode = 'SIM_TRACKER';
+                break;
+            case 'deboarding-live':
+                Object.assign(f, {fmSt: 'Postflight', tfSt: 'Deboarding', ckdIn: 220, ponBrd: stubLiveCount, adep: '19:07', atkf: '19:18', aldg: '20:51'});
+                actions = [];
                 mode = 'SIM_TRACKER';
                 break;
             case 'crowd':
@@ -1478,10 +1605,10 @@
             clearTimeout(paxTipTimer);
             paxTipTimer = setTimeout(hidePaxTip, 2500);
         });
-        $(window).on('resize', paintPassengers);
+        $(window).on('resize', layoutPassengers);
         // the width of the row also changes without a resize of the window (a pane, a scrollbar): the row is laid again
         if (window.ResizeObserver) {
-            new ResizeObserver(() => paintPassengers()).observe(document.getElementById('paxStrip'));
+            new ResizeObserver(() => layoutPassengers()).observe(document.getElementById('paxStrip'));
         }
 
         stub = new URLSearchParams(location.search).get('stub');
@@ -1491,6 +1618,17 @@
             lastPilot = stub === 'over-limit' || stub === 'wrong-landing-over-limit' ? Object.assign({}, STUB_PILOT, {duty: {last24HoursMinutes: 890, limitMinutes: 840}})
                 : (stub === 'travelling' ? Object.assign({}, STUB_PILOT, {state: 'Travelling', destinationIcao: 'KAUS'}) : STUB_PILOT);
             render();
+            if (stub === 'boarding-live' || stub === 'deboarding-live') {
+                // one or two passengers every 2 seconds (when the row is full the next line begins)
+                stubLiveCount = stub === 'boarding-live' ? 0 : 200;
+                lastStatus = stubStatus(stub);
+                render();
+                setInterval(function () {
+                    stubLiveCount = Math.max(0, Math.min(220, stubLiveCount + (stub === 'boarding-live' ? 1 + Math.floor(Math.random() * 2) : -(1 + Math.floor(Math.random() * 2)))));
+                    lastStatus = stubStatus(stub);
+                    render();
+                }, 2000);
+            }
             return;
         }
         loadStatus();
@@ -1500,6 +1638,13 @@
                 loadStatus();
             }
         }, 10000);
+        // while the passengers board or get off the status is asked more often, so the icons of the row come one after another and not in a crowd
+        setInterval(function () {
+            const flight = lastStatus && lastStatus.flight;
+            if (!actionInProgress && flight && (flight.tfSt === 'Boarding' || flight.tfSt === 'Deboarding')) {
+                loadStatus();
+            }
+        }, 3000);
         // /pilot is read again only where its numbers change and are shown: before the start of a flight (the awake time falls, the limits of the start),
         // without a flight, while the pilot travels (the place of the arrival), and when it has not been loaded. During the flight nothing of it is shown.
         setInterval(function () {
