@@ -108,6 +108,8 @@
         <div class="d-flex align-items-center gap-2">
             <span class="text-secondary small" id="reloadedAt"></span>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="reloadRoster" title="Load the flights again; it is done by itself once a minute">Reload</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="copyCalendarLink"
+                    title="Copy the link of your flights calendar. In Google Calendar: Other calendars, From URL, paste the link">Copy calendar link</button>
             <div class="btn-group btn-group-sm" role="group" aria-label="Which flights are shown" id="flightsFilter">
                 <button type="button" class="btn btn-outline-secondary" data-filter="recent"
                         title="The flights which are not over and the ones which ended not earlier than 12 hours ago">Recent flights</button>
@@ -723,6 +725,25 @@
         }
         reloadRoster();
         $('#reloadRoster').on('click', reloadRoster);
+        // 'Copy calendar link': the server gives the path of the link of the pilot, the address of the server is added here
+        $('#copyCalendarLink').on('click', function () {
+            const button = $(this);
+            const label = 'Copy calendar link';
+            function say(text) {
+                button.text(text);
+                setTimeout(function () { button.text(label); }, 2500);
+            }
+            airwaysAuth('GET', '/pilot/calendar-link', {}, function (r) {
+                const url = airwaysServiceUrl + r.path;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(function () { say('Link copied'); }, function () { window.prompt('Calendar link', url); });
+                } else {
+                    window.prompt('Calendar link', url);
+                }
+            }, function () {
+                say('Calendar is not available yet');
+            });
+        });
         // 'Reschedule': the times are from the earliest to the latest which keep the flight between its neighbours (the server counts them), every 15 minutes; the flight is moved
         // by the difference to its planned departure
         const rescheduleModal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
