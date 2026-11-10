@@ -520,8 +520,12 @@
     function airlineEstimateHtml(place) {
         const a = place.airline;
         if (!a.found) {
-            return '<div class="mt-2 text-danger">' + esc(place.problem ?? 'No route found') + '</div>'
-                + '<div class="mt-2 small text-secondary">The route is looked for by the flights of the last days, there may be more of them later.</div>';
+            // no route in the flights of the last days is only a note: it does not stop the travel, the journey keeps looking for a flight, and a problem (too close, no money) is red
+            return '<div class="mt-2">' + esc(a.note ?? 'No route found') + '.</div>'
+                + '<div class="mt-2 text-secondary">This does not stop the travel: the journey keeps looking for a flight, and new flights appear all the time. The price is not known yet.'
+                + ' The account must have at least <span class="money">' + moneyHtml(a.reserve) + '</span>.</div>'
+                + (place.problem ? '<div class="text-danger mt-2">' + esc(place.problem) + '</div>' : '')
+                + '<div class="mt-2 small text-secondary">The estimate is by the flights of the last days: nothing is booked, and the start of the travel is not open yet.</div>';
         }
         return '<div class="mt-2">The actual route and the price will be decided automatically: the first flight that is found. Below are the most likely routes.</div>'
             + a.routes.map(airlineRouteHtml).join('')
