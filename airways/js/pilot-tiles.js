@@ -15,14 +15,19 @@ function stateTile(p) {
 }
 
 // At an airport or in a city the place is a big green title. When the pilot is nowhere (in the flight, on the way) it is a thin quiet line.
+// The page of the pilot has the button History (where the pilot has travelled and arrived, the events of the server), the other pages only show the place.
 function locationTile(p, withButtons) {
+    // Travel is at the top right, History at the bottom right: two buttons at the top do not fit a narrow tile
+    const actionsBottom = withButtons ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="locationHistoryButton">History</button>' : undefined;
+    const actions = withButtons && p.state === 'Idle' ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="travelButton">Travel</button>' : undefined;
     if (p.locationType === 'Airport' && p.airportIcao) {
         return {
             label: 'Location',
             value: `<a class="entity-link location-place" href="${airportUrl(p.airportIcao)}">${esc(p.airportIcao)}</a>`,
             hint: esc(p.airportName ?? ''),
-            // only a free pilot at an airport can travel (the page of the pilot has the button, the other pages only show the place)
-            actions: withButtons && p.state === 'Idle' ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="travelButton">Travel</button>' : undefined
+            // only a free pilot at an airport can travel
+            actions: actions,
+            actionsBottom: actionsBottom
         };
     }
     if (p.locationType === 'City' && p.cityName) {
@@ -31,15 +36,16 @@ function locationTile(p, withButtons) {
             value: `<span class="location-place">${esc(p.cityName)}</span>`,
             hint: 'In the city',
             // a free pilot in a city travels to the airports of the city
-            actions: withButtons && p.state === 'Idle' ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="travelButton">Travel</button>' : undefined
+            actions: actions,
+            actionsBottom: actionsBottom
         };
     }
     if (p.locationType === 'Hotel') {
-        return {label: 'Location', html: '<span class="location-away">In a hotel</span>'};
+        return {label: 'Location', html: '<span class="location-away">In a hotel</span>', actions: actions, actionsBottom: actionsBottom};
     }
     // travelling by itself: where to
     const away = p.state === 'OnDuty' ? 'Piloting an aircraft' : (p.destinationIcao ? 'On the way to ' + esc(p.destinationIcao) : (p.destinationCity ? 'On the way to ' + esc(p.destinationCity) : 'On the way'));
-    return {label: 'Location', html: `<span class="location-away">${away}</span>`};
+    return {label: 'Location', html: `<span class="location-away">${away}</span>`, actions: actions, actionsBottom: actionsBottom};
 }
 
 // minutes as a clock with the sign: 750 -> '12:30', -80 -> '\u22121:20'
@@ -147,8 +153,9 @@ function tiles(list) {
     <div class="row g-3 mb-4">
         ${list.map(t => `
         <div class="col-6 col-md-3">
-            <div class="stat${t.actions ? ' has-corner' : ''}${t.placeholder ? ' stat-placeholder' : ''}">
+            <div class="stat${t.actions ? ' has-corner' : ''}${t.actionsBottom ? ' has-corner-bottom' : ''}${t.placeholder ? ' stat-placeholder' : ''}">
                 ${t.actions ? `<div class="stat-corner">${t.actions}</div>` : ''}
+                ${t.actionsBottom ? `<div class="stat-corner-bottom">${t.actionsBottom}</div>` : ''}
                 <div class="stat-label">${esc(t.label)}</div>
                 ${t.html !== undefined ? `<div class="stat-small">${t.html}</div>` : `<div class="stat-value">${t.value}</div>`}
                 ${t.hint ? `<div class="stat-hint" title="${t.hint}">${t.hint}</div>` : ''}

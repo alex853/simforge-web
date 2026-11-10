@@ -185,6 +185,19 @@
     </div>
 </div>
 
+<!-- Where the pilot has travelled and arrived, the newest first, see GET /pilot/location-history -->
+<div class="modal fade" id="locationHistoryModal" tabindex="-1" aria-labelledby="locationHistoryModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="locationHistoryModalTitle">Location history</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="locationHistoryModalBody"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Wake up asks first: a sleep under two hours gives nothing, a longer one makes the awake time grow -->
 <div class="modal fade" id="wakeModal" tabindex="-1" aria-labelledby="wakeModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" style="--bs-modal-width: 440px;">
@@ -374,6 +387,7 @@
         $('#travelButton').on('click', () => travelModal.show());
         $('#bankButton').on('click', openBankDetails);
         $('#dutyButton').on('click', openDutyDetails);
+        $('#locationHistoryButton').on('click', openLocationHistory);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => askToWakeUp(p));
     }
@@ -741,6 +755,32 @@
         });
     }
 
+    // ---- the history of the places: the events of the travel (started, arrived) from the event log of the server, the newest first, the texts are made by the server
+    let locationHistoryModal;
+
+    function renderLocationHistory(events) {
+        if (!events.length) {
+            return '<div class="text-muted">Nothing yet: the history keeps the last 30 days of the travels</div>';
+        }
+        const now = Date.now();
+        return '<ul class="list-unstyled mb-0">' + events.map(function (e) {
+            const when = new Date(e.time);
+            const day = Math.floor(e.time / 86400000) === Math.floor(now / 86400000) ? '' : when.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ';
+            const hhmm = String(when.getUTCHours()).padStart(2, '0') + ':' + String(when.getUTCMinutes()).padStart(2, '0');
+            return '<li class="d-flex gap-3 py-1 border-bottom"><span class="text-secondary text-nowrap money">' + day + hhmm + '</span><span>' + esc(e.text) + '</span></li>';
+        }).join('') + '</ul>';
+    }
+
+    function openLocationHistory() {
+        $('#locationHistoryModalBody').html('<div class="text-muted">Loading...</div>');
+        locationHistoryModal.show();
+        airwaysAuth('GET', '/pilot/location-history', {}, function (events) {
+            $('#locationHistoryModalBody').html(renderLocationHistory(events));
+        }, function () {
+            $('#locationHistoryModalBody').html('<div class="text-danger">Failed to load the history</div>');
+        });
+    }
+
     function loadPilot() {
         airwaysAuth('GET', '/pilot', {}, renderPilot, function (e) {
             if (e && e.status === 401) {
@@ -761,6 +801,7 @@
         wakeModal = new bootstrap.Modal(document.getElementById('wakeModal'));
         bankModal = new bootstrap.Modal(document.getElementById('bankModal'));
         dutyModal = new bootstrap.Modal(document.getElementById('dutyModal'));
+        locationHistoryModal = new bootstrap.Modal(document.getElementById('locationHistoryModal'));
         $('#wakeConfirm').on('click', function () {
             wakeModal.hide();
             sleepOrWake('/pilot/wake');

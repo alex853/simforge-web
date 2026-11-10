@@ -267,7 +267,11 @@ body {
 /* the buttons of a tile sit in its top right corner, in the free place of the label row, so they do not make the tile higher */
 .stat.has-corner { position: relative; }
 .stat-corner { position: absolute; top: .45rem; right: .6rem; }
-.stat-corner .btn { --bs-btn-padding-y: .05rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .8rem; line-height: 1.3; }
+.stat-corner .btn, .stat-corner-bottom .btn { --bs-btn-padding-y: .05rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .8rem; line-height: 1.3; }
+/* the second place for a button of a tile: the bottom right corner (the Location tile has Travel at the top and History here, two buttons at the top do not fit a narrow tile); the hint leaves room for it */
+.stat.has-corner-bottom { position: relative; }
+.stat-corner-bottom { position: absolute; bottom: .45rem; right: .6rem; }
+.stat.has-corner-bottom .stat-hint { padding-right: 3.6rem; }
 .money-negative { color: var(--bs-danger); }
 
 /* the most used items of the menu as links in the bar (siteMenuQuickHtml in js/requests.js): plain text like the items of the menu, the text does not wrap */
