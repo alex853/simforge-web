@@ -393,7 +393,7 @@
     }
 
     // ---- Travel: the pilot goes from an airport or a city to an airport or a city. The menu is made by the server for the place where the pilot is (the quick
-    // places on top, then the ways: Mach 3 only from an airport to an airport, by airline only from a city and not made yet, by ground from anywhere to anywhere,
+    // places on top, then the ways: Mach 3 only from an airport to an airport, by airline only from a city (the estimate of the flights, the price and the days, the start is not open yet), by ground from anywhere to anywhere,
     // the warp drive for the pilot who has it). Mach 3 asks for the code of an airport, by ground and the warp drive for a city or an airport; then the question with
     // the distance, the time and the money, and Go pays and sends the pilot.
     let travelModal = null;
@@ -463,7 +463,8 @@
         $('#travelError').text('');
         $('#travelMatches').empty();
         $('#travelQuery').val('');
-        $('#travelQueryLabel').text(method === 'Mach3' ? 'Where to? Type the ICAO code of an airport' : 'Where to? Type the name of a city or the ICAO code of an airport');
+        $('#travelQueryLabel').text(method === 'Mach3' ? 'Where to? Type the ICAO code of an airport'
+            : (method === 'Airline' ? 'Where to? Type the name of a city' : 'Where to? Type the name of a city or the ICAO code of an airport'));
         $('#travelModalTitle').text(title);
         travelShowView('where');
         setTimeout(() => $('#travelQuery').trigger('focus'), 150);
@@ -497,9 +498,51 @@
         });
     }
 
+    // The estimate of a travel by airline: the most likely routes (the first one is how the journey would go, then the other ways the flights allow, a rarer direct flight or a
+    // stopover), each with its flights (the airports, the distance, how often they fly, the ticket), the tickets in all and the days; then what the account must have (the tickets of
+    // the first route and the reserve). The pilot does not choose: the route and the price are decided by the first flight which is found, the routes only show the scale of the time
+    // and the money. The start is not open yet: Go stays locked and the note says so.
+    function airlineRouteHtml(route) {
+        const legs = route.legs.map(function (leg) {
+            return '<div class="d-flex justify-content-between gap-3"><span>' + esc(leg.from) + ' &rarr; ' + esc(leg.to)
+                + ' <span class="small text-secondary">' + Math.round(leg.distanceNm).toLocaleString() + ' nm &middot; ' + leg.flightsPerWeek + ' a week</span></span>'
+                + '<span class="money">' + moneyHtml(leg.price) + '</span></div>';
+        }).join('');
+        const days = route.minDays === route.maxDays ? route.minDays + ' d' : route.minDays + '-' + route.maxDays + ' days';
+        return '<div class="border rounded p-2 mt-2">'
+            + '<div class="d-flex justify-content-between gap-3"><span class="fw-semibold">' + esc(route.title) + '</span>'
+            + '<span class="small text-secondary">about ' + days + '</span></div>'
+            + legs
+            + '<div class="d-flex justify-content-between gap-3 border-top mt-1 pt-1"><span class="small text-secondary">Tickets</span><span class="money fw-semibold">' + moneyHtml(route.price) + '</span></div>'
+            + '</div>';
+    }
+
+    function airlineEstimateHtml(place) {
+        const a = place.airline;
+        if (!a.found) {
+            return '<div class="mt-2 text-danger">' + esc(place.problem ?? 'No route found') + '</div>'
+                + '<div class="mt-2 small text-secondary">The route is looked for by the flights of the last days, there may be more of them later.</div>';
+        }
+        return '<div class="mt-2">The actual route and the price will be decided automatically: the first flight that is found. Below are the most likely routes.</div>'
+            + a.routes.map(airlineRouteHtml).join('')
+            + '<div class="mt-2 small text-secondary">In fact, completely different routes are possible, and you cannot choose one. These are shown to give you the scale of the time and the cost. A flight is 1-2 days.</div>'
+            + '<div class="mt-2 small text-secondary">The account must have <span class="money">' + moneyHtml(a.needed) + '</span>: the tickets of the first route and ' + moneyHtml(a.reserve) + ' more.</div>'
+            + (place.problem ? '<div class="text-danger mt-2">' + esc(place.problem) + '</div>' : '')
+            + '<div class="mt-2 small text-secondary">The estimate is by the flights of the last days: nothing is booked, and the start of the travel is not open yet.</div>';
+    }
+
     // the question: where, how far, how long, how much; Go is not possible when the server says why the pilot cannot go
     function travelAsk(place, back) {
         travelChoice = Object.assign({}, travelChoice, {place: place, back: back});
+        if (place.airline) {
+            $('#travelConfirmText').html(`
+                <div><span class="fw-semibold">Travel by airline to ${esc(place.title)}</span>${place.subtitle ? ' <span class="text-secondary">' + esc(place.subtitle) + '</span>' : ''}</div>
+                <div class="mt-1 small text-secondary">Distance ${Math.round(place.distanceNm).toLocaleString()} nm</div>
+                ${airlineEstimateHtml(place)}`);
+            $('#travelConfirmGo').prop('disabled', true);
+            travelShowView('confirm');
+            return;
+        }
         const money = place.price > 0 ? moneyHtml(place.price) : 'Free';
         $('#travelConfirmText').html(`
             <div class="fw-semibold">${esc(travelChoice.title)}</div>
@@ -536,7 +579,9 @@
         // the code of an airport is in capitals as it is typed: Mach 3 takes only a code; the other ways take a city too, so only a short word of letters (up to 4, a code) is capitalised
         $('#travelQuery').on('input', function () {
             const value = this.value;
-            const capitals = travelChoice && travelChoice.method === 'Mach3' ? value.toUpperCase() : (/^[A-Za-z]{1,4}$/.test(value) ? value.toUpperCase() : value);
+            // by airline only the names of cities are typed, nothing is capitalised
+            const capitals = travelChoice && travelChoice.method === 'Mach3' ? value.toUpperCase()
+                : (travelChoice && travelChoice.method === 'Airline' ? value : (/^[A-Za-z]{1,4}$/.test(value) ? value.toUpperCase() : value));
             if (capitals !== value) {
                 const pos = this.selectionStart;
                 this.value = capitals;
