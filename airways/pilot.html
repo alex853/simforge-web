@@ -377,6 +377,7 @@
             ${pilotHeader({title: initialsTitleHtml(p.initials), avatarImage: p.avatarImage})}
 
             ${tiles([stateTile(p), locationTile(p, true), settingsTile(p), bankTile(p)])}
+            ${airlineTravelTiles(p) ? tiles(airlineTravelTiles(p)) : ''}
             ${tiles([awakeTile(p, true), dutyTile(p, true), flightTime30Tile(p), flightTime365Tile(p)])}
 
             ${flyButtons()}
@@ -393,7 +394,7 @@
     }
 
     // ---- Travel: the pilot goes from an airport or a city to an airport or a city. The menu is made by the server for the place where the pilot is (the quick
-    // places on top, then the ways: Mach 3 only from an airport to an airport, by airline only from a city (the estimate of the flights, the price and the days, the start is not open yet), by ground from anywhere to anywhere,
+    // places on top, then the ways: Mach 3 only from an airport to an airport, by airline only from a city (the estimate of the flights, the price and the days; Go starts the journey of the pilot), by ground from anywhere to anywhere,
     // the warp drive for the pilot who has it). Mach 3 asks for the code of an airport, by ground and the warp drive for a city or an airport; then the question with
     // the distance, the time and the money, and Go pays and sends the pilot.
     let travelModal = null;
@@ -500,8 +501,8 @@
 
     // The estimate of a travel by airline: the most likely routes (the first one is how the journey would go, then the other ways the flights allow, a rarer direct flight or a
     // stopover), each with its flights (the airports, the distance, how often they fly, the ticket), the tickets in all and the days; then what the account must have (the tickets of
-    // the first route and the reserve). The pilot does not choose: the route and the price are decided by the first flight which is found, the routes only show the scale of the time
-    // and the money. The start is not open yet: Go stays locked and the note says so.
+    // the first route, twice as much is advised, nothing is checked). The pilot does not choose: the route and the price are decided by the first flight which is found, the routes only show the scale of the time
+    // and the money. Go starts the travel (the journey of the pilot looks for the flights).
     function airlineRouteHtml(route) {
         const legs = route.legs.map(function (leg) {
             return '<div class="d-flex justify-content-between gap-3"><span>' + esc(leg.from) + ' &rarr; ' + esc(leg.to)
@@ -523,16 +524,16 @@
             // no route in the flights of the last days is only a note: it does not stop the travel, the journey keeps looking for a flight, and a problem (too close, no money) is red
             return '<div class="mt-2">' + esc(a.note ?? 'No route found') + '.</div>'
                 + '<div class="mt-2 text-secondary">This does not stop the travel: the journey keeps looking for a flight, and new flights appear all the time. The price is not known yet.'
-                + ' The account must have at least <span class="money">' + moneyHtml(a.reserve) + '</span>.</div>'
+                + ' In fact, the costs may be more than expected and we cannot say how much, so have enough on the account, just in case: not to get stuck in the middle of nowhere.</div>'
                 + (place.problem ? '<div class="text-danger mt-2">' + esc(place.problem) + '</div>' : '')
-                + '<div class="mt-2 small text-secondary">The estimate is by the flights of the last days: nothing is booked, and the start of the travel is not open yet.</div>';
+                + '<div class="mt-2 small text-secondary">The estimate is by the flights of the last days: nothing is booked, and nothing is paid until the pilot gets off a flight.</div>';
         }
         return '<div class="mt-2">The actual route and the price will be decided automatically: the first flight that is found. Below are the most likely routes.</div>'
             + a.routes.map(airlineRouteHtml).join('')
             + '<div class="mt-2 small text-secondary">In fact, completely different routes are possible, and you cannot choose one. These are shown to give you the scale of the time and the cost. A flight is 1-2 days.</div>'
-            + '<div class="mt-2 small text-secondary">The account must have <span class="money">' + moneyHtml(a.needed) + '</span>: the tickets of the first route and ' + moneyHtml(a.reserve) + ' more.</div>'
+            + '<div class="mt-2 small text-secondary">In fact, the costs may be more than the tickets here and we cannot say how much, so have at least twice as much on the account as the tickets of the first route need, <span class="money">' + moneyHtml(a.price * 2) + '</span>, just in case: not to get stuck in the middle of nowhere.</div>'
             + (place.problem ? '<div class="text-danger mt-2">' + esc(place.problem) + '</div>' : '')
-            + '<div class="mt-2 small text-secondary">The estimate is by the flights of the last days: nothing is booked, and the start of the travel is not open yet.</div>';
+            + '<div class="mt-2 small text-secondary">The estimate is by the flights of the last days: nothing is booked at the start, and a ticket is paid when the pilot gets off the flight.</div>';
     }
 
     // the question: where, how far, how long, how much; Go is not possible when the server says why the pilot cannot go
@@ -543,7 +544,7 @@
                 <div><span class="fw-semibold">Travel by airline to ${esc(place.title)}</span>${place.subtitle ? ' <span class="text-secondary">' + esc(place.subtitle) + '</span>' : ''}</div>
                 <div class="mt-1 small text-secondary">Distance ${Math.round(place.distanceNm).toLocaleString()} nm</div>
                 ${airlineEstimateHtml(place)}`);
-            $('#travelConfirmGo').prop('disabled', true);
+            $('#travelConfirmGo').prop('disabled', !place.available);
             travelShowView('confirm');
             return;
         }

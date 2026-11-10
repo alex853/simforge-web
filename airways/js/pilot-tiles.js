@@ -52,6 +52,37 @@ function locationTile(p, withButtons) {
     return {label: 'Location', html: `<span class="location-away">${away}</span>`, actions: actions};
 }
 
+// The row of the tiles of a travel by airline (the pilot is Travelling by its journey, the server gives p.airlineTravel, the texts are made there): where it goes, what it does now,
+// the flight it has found. The row is between the first and the second row of the page of the pilot.
+function airlineTravelTiles(p) {
+    const a = p.airlineTravel;
+    if (!a) {
+        return null;
+    }
+    // 'HH:MM', with the day when it is not today (UTC)
+    const clock = function (ms) {
+        const d = new Date(ms);
+        const hhmm = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+        return d.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)
+            ? hhmm : d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) + ' ' + hhmm;
+    };
+    let nowHint = a.statusHint ?? '';
+    if (a.nextSearchTime) {
+        // while the journey looks for a flight the time of the next search is what matters (the city where the pilot waits is in the Location tile)
+        const minutes = Math.max(0, Math.round((a.nextSearchTime - Date.now()) / 60000));
+        nowHint = 'Next search in ' + (minutes < 1 ? 'a minute' : minutes + ' min');
+    }
+    const flight = a.route
+        ? {label: 'Flight', html: '<span class="fw-semibold text-success" style="font-size:1.15rem">' + esc(a.route) + '</span>',
+            hint: esc((a.price > 0 ? 'Ticket ¥' + a.price.toLocaleString() : 'Ticket') + (a.departureTime ? ', departs ' + clock(a.departureTime) + ' UTC' : ''))}
+        : {label: 'Flight', html: '<span class="location-away">No flight yet</span>', hint: 'The journey looks for one'};
+    return [
+        {label: 'Travelling by airline', html: '<span class="fw-semibold text-success" style="font-size:1.15rem">' + esc(a.toCity) + '</span>', hint: esc('From ' + a.fromCity)},
+        {label: 'Now', html: '<span class="location-away">' + esc(a.status) + '</span>', hint: esc(nowHint)},
+        flight
+    ];
+}
+
 // minutes as a clock with the sign: 750 -> '12:30', -80 -> '\u22121:20'
 function formatClock(minutes) {
     const abs = Math.abs(minutes);
