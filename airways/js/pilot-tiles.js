@@ -76,8 +76,14 @@ function airlineTravelTiles(p) {
         ? {label: 'Flight', html: '<span class="fw-semibold text-success" style="font-size:1.15rem">' + esc(a.route) + '</span>',
             hint: esc((a.price > 0 ? 'Ticket ¥' + a.price.toLocaleString() : 'Ticket') + (a.departureTime ? ', departs ' + clock(a.departureTime) + ' UTC' : ''))}
         : {label: 'Flight', html: '<span class="location-away">No flight yet</span>', hint: 'The journey looks for one'};
+    // the button of the first tile: not on a flight the travel is cancelled at once; on a flight the pilot cannot get off, so it asks to leave at the next landing (and can change its mind)
+    const cancel = a.leaveAtNextLanding
+        ? {text: 'Stay on', title: 'You will leave at the next landing: stay on the journey instead'}
+        : (a.onFlight ? {text: 'Leave at next landing', title: 'You cannot get off in the air: the journey ends at the next landing'} : {text: 'Cancel', title: 'End the travel here'});
+    const cancelButton = '<button type="button" class="btn btn-sm btn-outline-secondary" id="airlineCancelButton" data-leave="' + (a.leaveAtNextLanding ? '1' : '0') + '" data-flight="'
+        + (a.onFlight ? '1' : '0') + '" title="' + esc(cancel.title) + '">' + esc(cancel.text) + '</button>';
     return [
-        {label: 'Travelling by airline', html: '<span class="fw-semibold text-success" style="font-size:1.15rem">' + esc(a.toCity) + '</span>', hint: esc('From ' + a.fromCity)},
+        {label: 'Travelling by airline', actions: cancelButton, html: '<span class="fw-semibold text-success" style="font-size:1.15rem">' + esc(a.toCity) + '</span>', hint: esc(a.leaveAtNextLanding ? 'Leaving at the next landing' : 'From ' + a.fromCity)},
         {label: 'Now', html: '<span class="location-away">' + esc(a.status) + '</span>', hint: esc(nowHint)},
         flight
     ];

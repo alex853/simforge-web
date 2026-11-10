@@ -386,11 +386,37 @@
         $('.avatar-edit').on('click', () => avatarModal.show());
         $('.initials-edit').on('click', () => initialsModal.show());
         $('#travelButton').on('click', () => travelModal.show());
+        $('#airlineCancelButton').on('click', () => airlineCancelOrStay(p));
         $('#bankButton').on('click', openBankDetails);
         $('#dutyButton').on('click', openDutyDetails);
         $('#locationHistoryButton').on('click', openLocationHistory);
         $('#sleepButton').on('click', () => sleepOrWake('/pilot/sleep'));
         $('#wakeButton').on('click', () => askToWakeUp(p));
+    }
+
+    // The button of the travel by airline: Cancel (not on a flight: it ends at once), Leave at next landing (on a flight) and Stay on (when the pilot has asked to leave and changed its mind).
+    // The answer of the server is the pilot.
+    function airlineCancelOrStay(p) {
+        const $b = $('#airlineCancelButton');
+        const leave = $b.data('leave') === 1 || $b.data('leave') === '1';
+        const onFlight = $b.data('flight') === 1 || $b.data('flight') === '1';
+        if (!leave) {
+            const text = onFlight ? 'Leave the journey at the next landing? You will be free in the city of that airport.'
+                : 'Cancel the travel to ' + (p.airlineTravel ? p.airlineTravel.toCity : 'the city') + '? You will be free where you are now.';
+            if (!window.confirm(text)) {
+                return;
+            }
+        }
+        $b.prop('disabled', true);
+        actionInProgress = true;
+        airwaysAuth('POST', leave ? '/pilot/travel/stay' : '/pilot/travel/cancel', {}, function (pilot) {
+            actionInProgress = false;
+            renderPilot(pilot);
+        }, function () {
+            actionInProgress = false;
+            // most likely the state has changed meanwhile (the pilot has arrived): the page shows the real one
+            loadPilot();
+        });
     }
 
     // ---- Travel: the pilot goes from an airport or a city to an airport or a city. The menu is made by the server for the place where the pilot is (the quick
