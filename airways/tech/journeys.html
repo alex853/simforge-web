@@ -105,7 +105,7 @@
                 <th rowspan="2" class="text-center align-middle">ID</th>
                 <th rowspan="2" class="text-center align-middle">Heartbeat</th>
                 <th rowspan="2" class="text-center align-middle">Status</th>
-                <th rowspan="2" class="text-center align-middle">Dir Cnt</th>
+                <th rowspan="2" class="text-center align-middle" title="d/R direction, the attempts, the flags: n none, P journey of a pilot, S special group (immortal)">Dir Cnt</th>
                 <th rowspan="2" class="text-center align-middle">Location</th>
                 <th colspan="2" class="text-center align-middle">Route</th>
                 <th rowspan="2" class="text-center align-middle">PAX</th>
@@ -145,7 +145,7 @@
         $tbody.empty();
         data.forEach(item => {
             const row = `
-          <tr>
+          <tr class="${(item.sp || '').includes('S') ? 'table-info' : ''}">
             <td class="text-center align-middle">${item.id}</td>
             <td class="text-center align-middle font-xsm">${item.hrtBt ?? ''}</td>
             <td class="text-center align-middle">${item.st}</td>
